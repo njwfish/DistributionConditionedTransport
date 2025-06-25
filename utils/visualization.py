@@ -17,7 +17,6 @@ def visualize_coupled_data(save_path, source, target, generated, max_features_to
         generated: Generated samples (transported from source to target) [set_size, features]
         max_features_to_plot: Maximum number of features to plot in pairplot
     """
-    print(source.shape, target.shape, generated.shape)
     if len(source.shape) == 2: # [set_size, features]
         source_flat = source.numpy()
         target_flat = target.numpy()

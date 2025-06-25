@@ -62,14 +62,15 @@ class DirectGenerator(nn.Module):
     
     def sample(self, source_samples, source_latent, target_latent):
         """Generate samples by transporting from source to target distribution"""
-        num_samples = source_samples.shape[0]
-        samples_per_set = num_samples // source_latent.shape[0]
+        num_samples, *data_shape = source_samples.shape
+        num_sets = source_latent.shape[0]
+        samples_per_set = num_samples // num_sets
 
-        source_samples = source_samples.view(source_latent.shape[0], samples_per_set, -1)
+        source_samples = source_samples.view(num_sets, samples_per_set, -1)
         source_latent = source_latent.unsqueeze(1).repeat(1, samples_per_set, 1)
         target_latent = target_latent.unsqueeze(1).repeat(1, samples_per_set, 1)
 
         generated = self.forward(source_samples, source_latent, target_latent)
-        return generated.reshape(num_samples, samples_per_set, *source_samples.shape[1:])
+        return generated.reshape(num_sets, samples_per_set, *data_shape)
     
     

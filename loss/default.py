@@ -1,37 +1,49 @@
 import torch
 
 class LossManager:
-    def __init__(self, mask_context_prob=0.0):
-        self.mask_context_prob = mask_context_prob
+    def __init__(self):
+        pass
 
     def loss(self, encoder, generator, batch, device):
         losses = {}
         loss = 0
 
-        if isinstance(batch['samples'], torch.Tensor):
-            samples = batch['samples'].to(device)
-            latent = encoder(samples)  # latent is num samples x num sets x latent dim
+        # Handle both tensor and dictionary samples for source and target
+        if isinstance(batch['source_samples'], torch.Tensor):
+            source_samples = batch['source_samples'].to(device)
+            target_samples = batch['target_samples'].to(device)
             
-            if self.mask_context_prob > 0:
-                context_mask = torch.bernoulli(torch.zeros(latent.shape[0])+self.mask_context_prob).to(latent.device)
-                latent = latent * context_mask[:, None]
-            recon_loss = generator.loss(samples.view(-1, *samples.shape[2:]), latent)
+            source_latent = encoder(source_samples)
+            target_latent = encoder(target_samples)
+                
+            recon_loss = generator.loss(
+                source_samples.view(-1, *source_samples.shape[2:]), 
+                target_samples.view(-1, *target_samples.shape[2:]),
+                source_latent, 
+                target_latent
+            )
         else:
             # For dictionary samples (like PubMed dataset), move tensors to device
-            samples = {}
-            for key, value in batch['samples'].items():
+            source_samples = {}
+            target_samples = {}
+            
+            for key, value in batch['source_samples'].items():
                 if isinstance(value, torch.Tensor):
-                    samples[key] = value.to(device)
+                    source_samples[key] = value.to(device)
                 else:
-                    samples[key] = value
+                    source_samples[key] = value
+                    
+            for key, value in batch['target_samples'].items():
+                if isinstance(value, torch.Tensor):
+                    target_samples[key] = value.to(device)
+                else:
+                    target_samples[key] = value
 
             # Encode samples to latent space
-            latent = encoder(samples)
-            if self.mask_context_prob > 0:
-                context_mask = torch.bernoulli(torch.zeros(latent.shape[0])+self.mask_context_prob).to(latent.device)
-                latent = latent * context_mask
+            source_latent = encoder(source_samples)
+            target_latent = encoder(target_samples)
 
-            recon_loss = generator.loss(samples, latent)
+            recon_loss = generator.loss(source_samples, target_samples, source_latent, target_latent)
 
         loss += recon_loss
         losses['reconstruction_loss'] = recon_loss

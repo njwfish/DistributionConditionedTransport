@@ -1,6 +1,7 @@
 # @package _global_.model
 _target_: layers.MLP
 in_dims:
+  - ${dataset.data_shape[0]}
   - ${experiment.latent_dim}
   - ${experiment.latent_dim}
 hidden_dim: ${experiment.hidden_dim}

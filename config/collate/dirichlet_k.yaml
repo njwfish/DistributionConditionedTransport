@@ -1,0 +1,4 @@
+# @package _global_.collate
+_target_: collate.mixing_collate.SetMixer
+k: ${experiment.n_mix}
+alpha: ${experiment.alpha}

@@ -320,12 +320,14 @@ def test_mixing():
 
 class SetMixer:
     """
-    A transform that can be applied to a batch of sets either as a Dataset transform
-    or directly in the training loop. Handles both raw tensor inputs and dictionary
+    A transform that applies Dirichlet mixing followed by random pairing for 
+    coupled distribution embeddings. Handles both raw tensor inputs and dictionary
     inputs with metadata from SetDataset classes.
     
     For dictionary inputs, automatically detects which keys contain sample-specific data
     based on tensor shapes matching (batch_size, set_size, ...).
+    
+    Always applies: Mix sets → Random pair for source/target → Return coupled batch
     
     Example usage with DataLoader:
         mixer = SetMixer(k=3, alpha=0.5)
@@ -335,11 +337,6 @@ class SetMixer:
             batch_size=32, 
             collate_fn=mixer.collate_fn
         )
-    
-    Alternative usage in training loop:
-        mixer = SetMixer(k=3, alpha=0.5)
-        for batch in dataloader:
-            mixed_batch = mixer(batch)
     """
     def __init__(
             self, 
@@ -357,12 +354,55 @@ class SetMixer:
         self.replacement = replacement
         self.mix_prob = mix_prob
     
-    def __call__(self, batch_data):
-        """Apply mixing to a batch of sets."""
-        if self.mix_prob < 1.0 and torch.rand(1) > self.mix_prob:
-            return batch_data
+    def _apply_random_pairing(self, mixed_data):
+        """Apply random pairing to mixed data to create source/target pairs."""
+        # Convert mixed data to list format for pairing functions
+        if isinstance(mixed_data, dict):
+            # Convert dict format to list of dicts for pairing
+            batch_size = None
+            keys = mixed_data.keys()
             
-        return mix_batch_sets(
+            # Find batch size from first tensor
+            for key, value in mixed_data.items():
+                if isinstance(value, torch.Tensor) and len(value.shape) >= 1:
+                    batch_size = value.shape[0]
+                    break
+            
+            if batch_size is None:
+                return mixed_data
+                
+            # Convert to list of dicts
+            batch_list = []
+            for i in range(batch_size):
+                item = {}
+                for key in keys:
+                    if isinstance(mixed_data[key], torch.Tensor):
+                        item[key] = mixed_data[key][i]
+                    elif isinstance(mixed_data[key], list):
+                        item[key] = mixed_data[key][i]
+                    else:
+                        item[key] = mixed_data[key]
+                batch_list.append(item)
+                
+        elif isinstance(mixed_data, torch.Tensor):
+            # Convert tensor to list of dicts
+            batch_size = mixed_data.shape[0]
+            batch_list = [{'samples': mixed_data[i]} for i in range(batch_size)]
+        else:
+            return mixed_data
+            
+        # Apply random permutation pairing
+        from .paired_collate import random_permutation_collate_fn
+        return random_permutation_collate_fn(batch_list)
+    
+    def __call__(self, batch_data):
+        """Apply mixing to a batch of sets, followed by random pairing."""
+        if self.mix_prob < 1.0 and torch.rand(1) > self.mix_prob:
+            # If not mixing, still apply pairing
+            return self._apply_random_pairing(batch_data)
+            
+        # Apply mixing first
+        mixed_data = mix_batch_sets(
             batch_data,
             k=self.k,
             alpha=self.alpha,
@@ -370,31 +410,10 @@ class SetMixer:
             n_mixed_sets=self.n_mixed_sets,
             replacement=self.replacement
         )
+        
+        # Then apply random pairing
+        return self._apply_random_pairing(mixed_data)
     
-    # def collate_fn(self, batch: list):
-    #     """
-    #     Custom collate function that can be used with DataLoader.
-    #     Handles both tensor inputs and dictionary inputs from SetDataset classes.
-    #     """
-    #     # First stack the batch normally
-    #     if isinstance(batch[0], torch.Tensor):
-    #         stacked = torch.stack(batch)
-    #         return self(stacked)
-    #     elif isinstance(batch[0], dict):
-    #         # Stack each key separately
-    #         stacked = {}
-    #         for key in batch[0].keys():
-    #             if isinstance(batch[0][key], torch.Tensor):
-    #                 stacked[key] = torch.stack([b[key] for b in batch])
-    #             else:
-    #                 # Handle non-tensor metadata
-    #                 stacked[key] = [b[key] for b in batch]
-            
-    #         # Apply mixing to the stacked batch
-    #         return self(stacked)
-    #     else:
-    #         raise ValueError(f"Unsupported batch type: {type(batch[0])}")
-
     def collate_fn(self, batch: list):
         """
         Custom collate function that recursively collates batches of nested dictionaries and tensors.
@@ -412,10 +431,9 @@ class SetMixer:
         collated = recursive_collate(batch)
         return self(collated)
 
-
     def prescribed_mixing(self, batch_data, mix_probs):
-
-        return mix_batch_sets(
+        """Apply prescribed mixing probabilities, followed by random pairing."""
+        mixed_data = mix_batch_sets(
             batch_data, 
             mix_probs,
             mixed_set_size=self.mixed_set_size,
@@ -424,6 +442,9 @@ class SetMixer:
             k=self.k,
             alpha=self.alpha
         )
+        
+        # Apply random pairing
+        return self._apply_random_pairing(mixed_data)
 
 
 
@@ -432,11 +453,15 @@ def test_set_mixer():
     """Test the SetMixer transform."""
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # Test basic tensor mixing
+    # Test basic tensor mixing + pairing
     mixer = SetMixer(k=2, alpha=0.5)
     batch = torch.randn(10, 20, 3)  # 10 sets, 20 points, 3 features
     mixed = mixer(batch)
-    assert mixed.shape == batch.shape
+    # Should return source_samples and target_samples after pairing
+    assert 'source_samples' in mixed
+    assert 'target_samples' in mixed
+    assert mixed['source_samples'].shape == batch.shape
+    assert mixed['target_samples'].shape == batch.shape
     
     # Test dictionary input with various types of metadata
     batch_dict = {
@@ -451,12 +476,11 @@ def test_set_mixer():
     mixer = SetMixer(k=2, alpha=0.5)
     mixed_dict = mixer(batch_dict)
     
-    # Check shapes and mixing behavior
-    assert mixed_dict['samples'].shape == (10, 20, 3)
-    assert mixed_dict['point_features'].shape == (10, 20, 2)
-    assert torch.equal(mixed_dict['set_features'], batch_dict['set_features'])
-    assert torch.equal(mixed_dict['global_features'], batch_dict['global_features'])
-    assert mixed_dict['metadata'] == batch_dict['metadata']
+    # Check that it returns paired source/target structure
+    assert 'source_samples' in mixed_dict
+    assert 'target_samples' in mixed_dict
+    assert mixed_dict['source_samples'].shape == (10, 20, 3)
+    assert mixed_dict['target_samples'].shape == (10, 20, 3)
     
     # Test collate_fn with dictionaries
     batch_as_list = [
@@ -469,16 +493,16 @@ def test_set_mixer():
         for i in range(10)
     ]
     mixed = mixer.collate_fn(batch_as_list)
-    assert mixed['samples'].shape == (10, 20, 3)
-    assert mixed['point_features'].shape == (10, 20, 2)
-    assert mixed['set_features'].shape == (10, 5)
-    assert len(mixed['metadata']) == 10
+    assert 'source_samples' in mixed
+    assert 'target_samples' in mixed
+    assert mixed['source_samples'].shape == (10, 20, 3)
+    assert mixed['target_samples'].shape == (10, 20, 3)
     
-    # Test probabilistic mixing
+    # Test probabilistic mixing (should still apply pairing even when not mixing)
     mixer_prob = SetMixer(k=2, alpha=0.5, mix_prob=0.0)
     unmixed = mixer_prob(batch_dict)
-    assert torch.equal(unmixed['samples'], batch_dict['samples'])
-    assert torch.equal(unmixed['point_features'], batch_dict['point_features'])
+    assert 'source_samples' in unmixed
+    assert 'target_samples' in unmixed
     
     print("All SetMixer tests passed!")
 

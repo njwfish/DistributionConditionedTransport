@@ -46,7 +46,12 @@ def main(cfg: DictConfig):
         # Create the dataset
         dataset = hydra.utils.instantiate(cfg.dataset)
 
-        mixer = hydra.utils.instantiate(cfg.mixer)
+        # Create collate function
+        collate_fn = hydra.utils.instantiate(cfg.collate)
+        
+        # For collate objects (SetMixer, PairedCollate), use their collate_fn method
+        if hasattr(collate_fn, 'collate_fn'):
+            collate_fn = collate_fn.collate_fn
 
         # Improved DataLoader with parallel workers and pinned memory
         num_workers = min(4, os.cpu_count())  # Use at most 8 workers or available CPU cores
@@ -58,7 +63,7 @@ def main(cfg: DictConfig):
             num_workers=num_workers,  # Parallel data loading
             pin_memory=True,  # Pin memory for faster data transfer to GPU
             persistent_workers=True if num_workers > 0 else False,  # Keep workers alive between iterations
-            collate_fn=mixer.collate_fn if mixer is not None else None
+            collate_fn=collate_fn
         )
         
         

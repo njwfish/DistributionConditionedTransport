@@ -1,0 +1,19 @@
+# @package _global_.experiment
+
+# Experiment name and description
+name: mvn_coupled_exp
+description: "Multivariate normal distribution experiment with coupled distribution embeddings"
+
+# Override defaults from config.yaml
+defaults:
+  - /dataset: mvn
+  - /encoder: gnn
+  - /training: default5000
+  - /collate: random_pairing  # Use random pairing for source/target
+
+# Experiment-specific parameters
+latent_dim: 16
+hidden_dim: 64
+set_size: 500
+batch_size: 256
+lr: 2e-4 

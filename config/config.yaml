@@ -9,7 +9,7 @@ defaults:
   - optimizer: adam  # Default optimizer
   - scheduler: none  # Default scheduler
   - training: default  # Default training config
-  - mixer: none  # Default mixer
+  - collate: none  # Default collate function
   - wandb: default  # Default W&B config
   - experiment: mvn  # Experiment-specific configurations
   - loss: default  # Default loss config

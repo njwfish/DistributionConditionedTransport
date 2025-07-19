@@ -8,7 +8,8 @@ from utils.hash_utils import hash_config, find_matching_output_dir
 from omegaconf import OmegaConf, DictConfig, ListConfig
 from typing import Dict, Any, Union, List, Optional, Tuple
 
-torch.serialization.add_safe_globals([ListConfig])
+# TODO: torch says this doesn't exist, maybe a slightly different package?
+#torch.serialization.add_safe_globals([ListConfig])
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ def find_all_experiments(base_dir: str) -> List[str]:
     """
     if not os.path.exists(base_dir):
         logger.warning(f"Base directory {base_dir} does not exist")
+        print("!!!!!!!!!!!!!! BASE DIR DOES NOT EXIST !!!!!!!!!!!!!")
         return []
     
     # Get all directories that seem to be experiment directories

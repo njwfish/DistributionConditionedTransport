@@ -55,10 +55,11 @@ def main(cfg: DictConfig):
 
         # Improved DataLoader with parallel workers and pinned memory
         num_workers = min(4, os.cpu_count())  # Use at most 8 workers or available CPU cores
+        # NOTE: settin shuffle=False for now such that our model just pairs nearest neighbors (note that even if we do larger steps, we still want the pairing to go in the correct direction)
         dataloader = DataLoader(
             dataset, 
             batch_size=cfg.experiment.batch_size, 
-            shuffle=True,
+            shuffle=False,
             prefetch_factor=2,
             num_workers=num_workers,  # Parallel data loading
             pin_memory=True,  # Pin memory for faster data transfer to GPU

@@ -2,3 +2,4 @@
 _target_: collate.paired_collate.PairedCollate
 method: shift
 shift: 1 
+allow_cyclic: false

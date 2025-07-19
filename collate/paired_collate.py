@@ -17,21 +17,23 @@ class PairedCollate:
             collate_fn=paired_collate.collate_fn
         )
     """
-    def __init__(self, method: str = 'random', shift: int = 1):
+    def __init__(self, method: str = 'random', shift: int = 1, allow_cyclic: bool = True):
         """
         Args:
             method: Pairing method - 'random' or 'shift'
             shift: Only used for shift method - how many positions to shift
+            allow_cyclic: Only used for shift method - whether to allow cyclic pairing (default: True)
         """
         self.method = method
         self.shift = shift
+        self.allow_cyclic = allow_cyclic
     
     def __call__(self, batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Apply pairing to a batch."""
         if self.method == 'random':
             return random_permutation_collate_fn(batch)
         elif self.method == 'shift':
-            return shift_pairing_collate_fn(batch, shift=self.shift)
+            return shift_pairing_collate_fn(batch, shift=self.shift, allow_cyclic=self.allow_cyclic)
         else:
             raise ValueError(f"Unknown pairing method: {self.method}")
     
@@ -84,7 +86,7 @@ class PairedCollate:
             return self(batch)
 
 
-def shift_pairing_collate_fn(batch: List[Dict[str, Any]], shift: int = 1) -> Dict[str, Any]:
+def shift_pairing_collate_fn(batch: List[Dict[str, Any]], shift: int = 1, allow_cyclic: bool = True) -> Dict[str, Any]:
     """
     Collate function that pairs sets by shifting indices within the batch.
     
@@ -94,20 +96,31 @@ def shift_pairing_collate_fn(batch: List[Dict[str, Any]], shift: int = 1) -> Dic
     Args:
         batch: List of dictionaries, each containing 'samples' with shape (set_size, dim)
         shift: How many positions to shift for target pairing (default: 1)
+        allow_cyclic: Whether to allow cyclic pairing (default: True)
     
     Returns:
         Dictionary with:
-            - 'source_samples': shape (k, set_size, dim) 
-            - 'target_samples': shape (k, set_size, dim) with shifted pairing
+            - 'source_samples': shape (k, set_size, dim) if allow_cyclic=True, else (k-shift, set_size, dim)
+            - 'target_samples': shape (k, set_size, dim) if allow_cyclic=True, else (k-shift, set_size, dim)
     """
     if len(batch) == 0:
         return {}
     
     k = len(batch)  # number of sets
     
-    # Create source and target indices
-    source_indices = list(range(k))
-    target_indices = [(i + shift) % k for i in range(k)]
+    if allow_cyclic:
+        # Original behavior: use modular arithmetic for cyclic pairing
+        source_indices = list(range(k))
+        target_indices = [(i + shift) % k for i in range(k)]
+    else:
+        # New behavior: no cyclic pairing, last 'shift' elements remain unpaired
+        num_pairs = k - shift
+        if num_pairs <= 0:
+            # Not enough elements to create any pairs without cyclic pairing
+            return {}
+        
+        source_indices = list(range(k-shift))
+        target_indices = [(i + shift) for i in range(k-shift)]
     
     result = {}
     keys = batch[0].keys()

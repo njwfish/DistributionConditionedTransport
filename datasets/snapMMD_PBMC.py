@@ -53,6 +53,7 @@ class SnapMMDPBMC(Dataset):
         # TODO: should you do self.data.shape[0]-1 because the final point is going to be held out to compute the forecasting performance?
         if self.testing_method == "forecast":
             return self.data.shape[0]-1
+        # TODO: not sure whether this is correct for the interpolation task, but have yet implementation task in general.
         else:
             return self.data.shape[0]
     
@@ -69,6 +70,7 @@ class SnapMMDPBMC(Dataset):
                 'samples': torch.tensor(self.data[:-1][idx], dtype=torch.float),
                 'idx': idx
             }
+        # TODO: not sure whether this is correct for the interpolation task, but have yet implementation task in general.
         else:
             return {
                 'samples': torch.tensor(self.data[idx], dtype=torch.float),

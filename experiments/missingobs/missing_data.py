@@ -6,6 +6,9 @@ from snapMMD.dls import MMDLoss, snapMMD, RBF
 import sys
 from models import *
 
+# NOTE: this line was missing in original snapMMD code.
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 def get_settings(taskname):
     if "Repressilator" in taskname:
         lr = 0.05 #0.05

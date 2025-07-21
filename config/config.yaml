@@ -36,3 +36,16 @@ hydra:
           - device
           - hydra
           - experiment_name 
+
+# Latent mapping training configuration (runs after main training)
+latent_mapping:
+  enabled: true  # Set to false to skip latent mapping training
+  mapping_method: "neural_network"  # Options: "neural_network", "ridge", "linear"
+  hidden_dim: 128
+  ridge_alpha: 1e-3
+  num_epochs: 100
+  learning_rate: 1e-3
+  batch_size: 32
+  log_interval: 10
+  save_interval: 20
+  use_tqdm: true 

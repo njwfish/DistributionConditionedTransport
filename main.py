@@ -8,6 +8,7 @@ import os
 
 # Import our resolver for sum operations
 import utils.hash_utils as hash_utils
+from latent_mapping_training import LatentMappingTrainer
 
 @hydra.main(config_path="config", config_name="config", version_base="1.1")
 def main(cfg: DictConfig):
@@ -75,7 +76,7 @@ def main(cfg: DictConfig):
         generator = hydra.utils.instantiate(cfg.generator)
         
         # Get model parameters
-        model_parameters = list(encoder.parameters()) + list(generator.model.parameters())
+        model_parameters = list(encoder.parameters()) + list(generator.parameters())
         
         # Create optimizer and scheduler
         optimizer = hydra.utils.instantiate(cfg.optimizer)(params=model_parameters)
@@ -99,6 +100,48 @@ def main(cfg: DictConfig):
         )
         
         logger.info(f"Training completed. Best epoch: {stats['best_epoch']}")
+        
+        # Train latent mapping model after main training is complete (if enabled)
+        latent_mapping_config = cfg.get('latent_mapping', {})
+        if latent_mapping_config.get('enabled', False):
+            logger.info("Starting latent mapping training...")
+            
+            # Create latent mapping trainer with configurable parameters
+            mapping_trainer = LatentMappingTrainer(
+                mapping_method=latent_mapping_config.get('mapping_method', 'neural_network'),
+                hidden_dim=latent_mapping_config.get('hidden_dim', 128),
+                ridge_alpha=latent_mapping_config.get('ridge_alpha', 1e-3),
+                num_epochs=latent_mapping_config.get('num_epochs', 100),
+                learning_rate=latent_mapping_config.get('learning_rate', 1e-3),
+                batch_size=latent_mapping_config.get('batch_size', 32),
+                log_interval=latent_mapping_config.get('log_interval', 10),
+                save_interval=latent_mapping_config.get('save_interval', 20),
+                use_tqdm=latent_mapping_config.get('use_tqdm', True)
+            )
+            
+            # Create output directory for latent mapping
+            latent_mapping_output_dir = os.path.join(output_dir, "latent_mapping")
+            
+            # Train the latent mapping model using the trained encoder
+            final_mapping_model_path = mapping_trainer.train(
+                encoder=encoder,
+                dataloader=dataloader,
+                device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+                output_dir=latent_mapping_output_dir
+            )
+            
+            # Evaluate the mapping model
+            eval_loss = mapping_trainer.evaluate(encoder, dataloader)
+            logger.info(f"Latent mapping model evaluation loss: {eval_loss:.6f}")
+            
+            # Log latent mapping results to W&B
+            if wandb.run is not None:
+                wandb.run.summary["latent_mapping_final_loss"] = eval_loss
+                wandb.run.summary["latent_mapping_model_path"] = final_mapping_model_path
+            
+            logger.info(f"Latent mapping training completed. Model saved to: {final_mapping_model_path}")
+        else:
+            logger.info("Latent mapping training is disabled. Skipping...")
                     
     
     finally:

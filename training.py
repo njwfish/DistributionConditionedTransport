@@ -165,7 +165,7 @@ class Trainer:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         encoder.to(device)
-        generator.model.to(device)
+        generator.to(device)
         
         stats = {
             'train_losses': [],
@@ -556,7 +556,7 @@ class Trainer:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             
         encoder.to(device)
-        generator.model.to(device)
+        generator.to(device)
         
         encoder.eval()
         generator.model.eval()

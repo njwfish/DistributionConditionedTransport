@@ -22,18 +22,95 @@ class TorchWrapper(nn.Module):
             
         return self.model(x, t, self.source_latent, self.target_latent)
 
+class NeuralNetworkMapping(nn.Module):
+    """Multi-layer perceptron for latent mapping"""
+    def __init__(self, latent_dim, hidden_dim=128):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(latent_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, latent_dim)
+        )
+        
+    def forward(self, x):
+        return self.net(x)
+    
+    def regularization_loss(self):
+        """No additional regularization for neural network"""
+        return 0.0
+
+class RidgeRegressionMapping(nn.Module):
+    """Ridge regression (linear mapping with L2 regularization)"""
+    def __init__(self, latent_dim, ridge_alpha=1e-3):
+        super().__init__()
+        self.linear = nn.Linear(latent_dim, latent_dim)
+        self.ridge_alpha = ridge_alpha
+        
+    def forward(self, x):
+        return self.linear(x)
+    
+    def regularization_loss(self):
+        """L2 regularization on weights"""
+        return self.ridge_alpha * torch.sum(self.linear.weight ** 2)
+
+class LinearMapping(nn.Module):
+    """Simple linear transformation without regularization"""
+    def __init__(self, latent_dim):
+        super().__init__()
+        self.linear = nn.Linear(latent_dim, latent_dim)
+        
+    def forward(self, x):
+        return self.linear(x)
+    
+    def regularization_loss(self):
+        """No regularization for simple linear mapping"""
+        return 0.0
+
 class FlowMatchingGenerator(nn.Module):
-    def __init__(self, model, sigma_min=1e-4):
+    def __init__(self, model, sigma_min=1e-4, learn_target_mapping=False, latent_dim=None, 
+                 hidden_dim=128, mapping_method="neural_network", ridge_alpha=1e-3):
         """
         Flow Matching Generator for coupled distribution embeddings.
         
         Args:
             model: Neural network that predicts velocity field v_t(x_t, t, source_latent, target_latent)
             sigma_min: Minimum noise level for numerical stability
+            learn_target_mapping: If True, learn mapping from source_latent to target_latent
+            latent_dim: Dimension of latent embeddings (required if learn_target_mapping=True and mapping_method != "identity")
+            hidden_dim: Hidden dimension for the neural network mapping
+            mapping_method: Method for latent mapping ("neural_network", "ridge", "linear", "identity")
+            ridge_alpha: Regularization strength for ridge regression
         """
         super().__init__()
         self.model = model
         self.sigma_min = sigma_min
+        self.learn_target_mapping = learn_target_mapping
+        self.mapping_method = mapping_method
+        
+        if self.learn_target_mapping:
+            # Choose the appropriate mapping method
+            if mapping_method == "identity":
+                # No target mapping network needed - we'll just use source_latent as target_latent
+                self.target_mapping_net = None
+            elif mapping_method == "neural_network":
+                if latent_dim is None:
+                    raise ValueError("latent_dim must be provided when using neural_network mapping")
+                self.target_mapping_net = NeuralNetworkMapping(latent_dim, hidden_dim)
+            elif mapping_method == "ridge":
+                if latent_dim is None:
+                    raise ValueError("latent_dim must be provided when using ridge mapping")
+                self.target_mapping_net = RidgeRegressionMapping(latent_dim, ridge_alpha)
+            elif mapping_method == "linear":
+                if latent_dim is None:
+                    raise ValueError("latent_dim must be provided when using linear mapping")
+                self.target_mapping_net = LinearMapping(latent_dim)
+            else:
+                raise ValueError(f"Unknown mapping_method: {mapping_method}. "
+                               "Choose from 'neural_network', 'ridge', 'linear', or 'identity'")
+        else:
+            self.target_mapping_net = None
 
     def sample_time(self, batch_size, device):
         """Sample random times uniformly from [0, 1]"""
@@ -78,11 +155,18 @@ class FlowMatchingGenerator(nn.Module):
         Args:
             source_samples: [batch_size, ...] starting points
             source_latent: [batch_size, latent_dim] source distribution embedding
-            target_latent: [batch_size, latent_dim] target distribution embedding
+            target_latent: [batch_size, latent_dim] target distribution embedding (ignored if learn_target_mapping=True)
             num_steps: number of time steps for integration
             return_trajectory: whether to return full trajectory or just final point
         """
         batch_size = source_samples.shape[0]
+        
+        # Generate target_latent from source_latent if learn_target_mapping is enabled
+        if self.learn_target_mapping:
+            if self.target_mapping_net is None:
+                target_latent = source_latent # Use source_latent as target_latent for identity mapping
+            else:
+                target_latent = self.target_mapping_net(source_latent)
         
         # Expand latents to match the number of source samples
         source_latent = source_latent.unsqueeze(1).repeat(1, source_samples.shape[0] // source_latent.shape[0], 1).view(-1, source_latent.shape[-1])
@@ -116,9 +200,16 @@ class FlowMatchingGenerator(nn.Module):
             source_samples: samples from source distribution
             target_samples: samples from target distribution
             source_latent: source distribution embedding  
-            target_latent: target distribution embedding
+            target_latent: target distribution embedding (ignored if learn_target_mapping=True)
         """
         batch_size, set_size = source_samples.shape
+
+        # Generate target_latent from source_latent if learn_target_mapping is enabled
+        if self.learn_target_mapping:
+            if self.target_mapping_net is None:
+                target_latent = source_latent # Use source_latent as target_latent for identity mapping
+            else:
+                target_latent = self.target_mapping_net(source_latent)
 
         source_latent = source_latent.unsqueeze(1).repeat(1, source_samples.shape[0] // source_latent.shape[0], 1).view(-1, source_latent.shape[-1]) 
         target_latent = target_latent.unsqueeze(1).repeat(1, target_samples.shape[0] // target_latent.shape[0], 1).view(-1, target_latent.shape[-1]) 
@@ -138,6 +229,10 @@ class FlowMatchingGenerator(nn.Module):
         # MSE loss
         loss = torch.mean((v_pred - v_true) ** 2)
         
+        # Add regularization loss from target mapping network if applicable
+        if self.learn_target_mapping and hasattr(self.target_mapping_net, 'regularization_loss'):
+            loss = loss + self.target_mapping_net.regularization_loss()
+        
         return loss
 
     def sample(self, source_samples, source_latent, target_latent, num_steps=100, return_trajectory=False):
@@ -147,7 +242,7 @@ class FlowMatchingGenerator(nn.Module):
         Args:
             source_samples: [batch_size, ...] starting points
             source_latent: [batch_size, latent_dim] source embedding
-            target_latent: [batch_size, latent_dim] target embedding  
+            target_latent: [batch_size, latent_dim] target embedding (ignored if learn_target_mapping=True)
             num_steps: number of integration steps
             return_trajectory: whether to return full trajectory
         """

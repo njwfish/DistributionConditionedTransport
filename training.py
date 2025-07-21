@@ -243,7 +243,11 @@ class Trainer:
             self.logger.info(f"Resuming from checkpoint: {last_checkpoint}")
             checkpoint = torch.load(last_checkpoint, weights_only=False)
             encoder.load_state_dict(checkpoint['encoder_state_dict'])
-            generator.model.load_state_dict(checkpoint['generator_state_dict'])
+            # Handle both old and new checkpoint formats
+            if hasattr(generator, 'learn_target_mapping') and generator.learn_target_mapping:
+                generator.load_state_dict(checkpoint['generator_state_dict'])
+            else:
+                generator.model.load_state_dict(checkpoint['generator_state_dict'])
             if 'optimizer_state_dict' in checkpoint:
                 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             if 'scheduler_state_dict' in checkpoint:
@@ -309,10 +313,16 @@ class Trainer:
                         self.logger.info(f"Learning rate: {current_lr:.6f}")
                     if (sub_epoch + 1) % self.save_interval == 0:
                         checkpoint_path = os.path.join(output_dir, f"checkpoint_epoch_{epoch+1}.pt")
+                        # Save generator state based on whether it has target mapping
+                        if hasattr(generator, 'learn_target_mapping') and generator.learn_target_mapping:
+                            generator_state = generator.state_dict()
+                        else:
+                            generator_state = generator.model.state_dict()
+                        
                         torch.save({
                             'epoch': epoch + 1,
                             'encoder_state_dict': encoder.state_dict(),
-                            'generator_state_dict': generator.model.state_dict(),
+                            'generator_state_dict': generator_state,
                             'optimizer_state_dict': optimizer.state_dict(),
                             'scheduler_state_dict': scheduler.state_dict(),
                             'step': step,
@@ -349,10 +359,17 @@ class Trainer:
             # Save model checkpoint at regular intervals
             if (epoch + 1) % self.save_interval == 0:
                 checkpoint_path = os.path.join(output_dir, f"checkpoint_epoch_{epoch+1}.pt")
+                
+                # Save generator state based on whether it has target mapping
+                if hasattr(generator, 'learn_target_mapping') and generator.learn_target_mapping:
+                    generator_state = generator.state_dict()
+                else:
+                    generator_state = generator.model.state_dict()
+                
                 torch.save({
                     'epoch': epoch + 1,
                     'encoder_state_dict': encoder.state_dict(),
-                    'generator_state_dict': generator.model.state_dict(),
+                    'generator_state_dict': generator_state,
                     'optimizer_state_dict': optimizer.state_dict(),
                     'scheduler_state_dict': scheduler.state_dict(),
                     'loss': avg_epoch_loss,
@@ -448,10 +465,17 @@ class Trainer:
                     self.best_loss = eval_loss
                     stats['best_epoch'] = epoch + 1
                     best_model_path = os.path.join(output_dir, "best_model.pt")
+                    
+                    # Save generator state based on whether it has target mapping
+                    if hasattr(generator, 'learn_target_mapping') and generator.learn_target_mapping:
+                        generator_state = generator.state_dict()
+                    else:
+                        generator_state = generator.model.state_dict()
+                    
                     torch.save({
                         'epoch': epoch + 1,
                         'encoder_state_dict': encoder.state_dict(),
-                        'generator_state_dict': generator.model.state_dict(),
+                        'generator_state_dict': generator_state,
                         'optimizer_state_dict': optimizer.state_dict(),
                         'scheduler_state_dict': scheduler.state_dict(),
                         'loss': eval_loss,

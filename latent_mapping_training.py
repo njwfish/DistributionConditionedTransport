@@ -8,6 +8,7 @@ from tqdm import tqdm
 import logging
 from generator.flow_matching import NeuralNetworkMapping, RidgeRegressionMapping, LinearMapping
 
+# TODO: make sure this really doesn't see the held-out data for the forecasting task.
 class LatentMappingTrainer:
     def __init__(
         self,
@@ -262,6 +263,7 @@ class LatentMappingTrainer:
         self.logger.info(f"Evaluation Loss: {avg_loss:.6f}")
         return avg_loss
 
+# TODO: make sure this really leaves everything unchanged.
 def load_latent_mapping_model(checkpoint_path, device=None):
     """Load a trained latent mapping model from checkpoint."""
     if device is None:

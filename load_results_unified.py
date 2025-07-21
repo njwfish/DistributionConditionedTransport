@@ -15,6 +15,7 @@ import plotly.graph_objects as go
 
 # Add imports needed for CDE mode
 from utils.experiment_utils import load_best_model, get_experiment_info
+from latent_mapping_training import load_latent_mapping_model
 
 # Dataset configurations
 DATASET_CONFIGS = {
@@ -63,16 +64,32 @@ DATASET_CONFIGS = {
 }
 
 class UnifiedResultsLoader:
-    def __init__(self, dataset_name, seed=42, forecast_method='snapMMD'):
+    def __init__(self, dataset_name, seed=42, forecast_method='snapMMD', 
+                 use_latent_mapping=False, latent_mapping_method='separate'):
+        """
+        Initialize the unified results loader.
+        
+        Args:
+            dataset_name: Dataset name
+            seed: Random seed for snapMMD method
+            forecast_method: 'snapMMD' or 'CDE'
+            use_latent_mapping: Whether to use latent mapping for target encoding
+            latent_mapping_method: 'separate' (external latent mapping model) or 'integrated' (generator's internal mapping)
+        """
         if dataset_name not in DATASET_CONFIGS:
             raise ValueError(f"Dataset {dataset_name} not supported. Choose from: {list(DATASET_CONFIGS.keys())}")
         
         if forecast_method not in ['snapMMD', 'CDE']:
             raise ValueError(f"forecast_method must be 'snapMMD' or 'CDE', got '{forecast_method}'")
         
+        if latent_mapping_method not in ['separate', 'integrated']:
+            raise ValueError(f"latent_mapping_method must be 'separate' or 'integrated', got '{latent_mapping_method}'")
+        
         self.config = DATASET_CONFIGS[dataset_name]
         self.dataset_name = dataset_name
         self.forecast_method = forecast_method
+        self.use_latent_mapping = use_latent_mapping
+        self.latent_mapping_method = latent_mapping_method
         
         # Seed is only relevant for snapMMD method
         if forecast_method == 'snapMMD':
@@ -193,13 +210,38 @@ class UnifiedResultsLoader:
         enc = hydra.utils.instantiate(cfg['encoder'])
         gen = hydra.utils.instantiate(cfg['generator'])
         state = load_best_model(path)
+        
+        # Load encoder state
         enc.load_state_dict(state['encoder_state_dict'])
-        gen.model.load_state_dict(state['generator_state_dict'])
+        
+        # Load generator state based on the generator's configuration
+        if hasattr(gen, 'learn_target_mapping') and gen.learn_target_mapping:
+            # Generator was trained with internal target mapping, load full state
+            gen.load_state_dict(state['generator_state_dict'])
+        else:
+            # Generator was trained without internal mapping, load only model state
+            gen.model.load_state_dict(state['generator_state_dict'])
+        
         enc.eval()
         gen.eval()
         enc.to(device)
         gen.to(device)
-        return enc, gen
+        
+        # Load separate latent mapping model if needed
+        latent_mapping_model = None
+        if self.use_latent_mapping and self.latent_mapping_method == 'separate':
+            # Load the separate latent mapping model
+            latent_mapping_path = os.path.join(path, "latent_mapping", "final_latent_mapping_model.pt")
+            if os.path.exists(latent_mapping_path):
+                latent_mapping_model = load_latent_mapping_model(latent_mapping_path, device)
+                if self.logger:
+                    self.logger.info(f"Loaded separate latent mapping model from: {latent_mapping_path}")
+                else:
+                    print(f"Loaded separate latent mapping model from: {latent_mapping_path}")
+            else:
+                raise FileNotFoundError(f"Separate latent mapping model not found at: {latent_mapping_path}")
+        
+        return enc, gen, latent_mapping_model
 
     def generate_cde_forecast(self, training_data):
         """Generate forecast using CDE method."""
@@ -213,8 +255,8 @@ class UnifiedResultsLoader:
         else:
             print(f"Loading CDE experiment from: {experiment_info['dir']}")
         
-        # Load encoder and generator models
-        enc, gen = self.load_model_cde(experiment_info['config'], experiment_info['dir'], device)
+        # Load encoder, generator, and optionally latent mapping model
+        enc, gen, latent_mapping_model = self.load_model_cde(experiment_info['config'], experiment_info['dir'], device)
         
         # Prepare data (use last two time points)
         Xs_training = training_data['Xs']
@@ -224,7 +266,30 @@ class UnifiedResultsLoader:
         # Generate encodings
         with torch.no_grad():
             enc_s = enc(samples_s)
-            enc_t = enc(samples_t)
+            
+            if self.use_latent_mapping:
+                if self.latent_mapping_method == 'separate':
+                    # Use separate latent mapping model: enc_t = latent_mapping_model(enc_s)
+                    enc_t = latent_mapping_model(enc_s)
+                    if self.logger:
+                        self.logger.info("Using separate latent mapping model for target encoding")
+                    else:
+                        print("Using separate latent mapping model for target encoding")
+                elif self.latent_mapping_method == 'integrated':
+                    # For integrated mapping, the generator will handle the mapping internally
+                    # We still encode the target samples, but the generator will use its internal mapping
+                    enc_t = enc(samples_t)
+                    if self.logger:
+                        self.logger.info("Using integrated latent mapping (generator handles mapping internally)")
+                    else:
+                        print("Using integrated latent mapping (generator handles mapping internally)")
+            else:
+                # Standard case: encode target samples directly
+                enc_t = enc(samples_t)
+                if self.logger:
+                    self.logger.info("Using direct target encoding (no latent mapping)")
+                else:
+                    print("Using direct target encoding (no latent mapping)")
         
         # Reshape samples_s for forecast generation
         batch_size, set_size, *data_shape = samples_s.shape
@@ -1030,6 +1095,7 @@ def calculate_mmd_scores(dataset_name, seeds=[1, 2, 3, 4, 5, 40, 41, 42, 43, 44]
     config = DATASET_CONFIGS[dataset_name]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
+    # TODO: make sure the bandwidth here matches what they use in the paper. It is a bit ambiguous what they meant in the paper by length scale = 1.
     rbf = RBF(bandwidth=2.0).to(device)
     myMMD = MMDLoss(kernel=rbf).to(device)
     
@@ -1335,6 +1401,11 @@ def main():
     parser.add_argument('--forecast-method', type=str, default='snapMMD', 
                        choices=['snapMMD', 'CDE'],
                        help='Forecasting method: snapMMD (load pre-computed) or CDE (generate on-the-fly) (default: snapMMD)')
+    parser.add_argument('--use-latent-mapping', action='store_true',
+                       help='Use latent mapping for target encoding (CDE method only)')
+    parser.add_argument('--latent-mapping-method', type=str, default='separate',
+                       choices=['separate', 'integrated'],
+                       help='Latent mapping method: separate (external model) or integrated (generator internal) (default: separate)')
     parser.add_argument('--output-folder', type=str, default='figures',
                        help='Output folder for figures (default: figures)')
     parser.add_argument('--skip-plots', action='store_true',
@@ -1344,15 +1415,33 @@ def main():
     
     args = parser.parse_args()
     
+    # Validate latent mapping arguments
+    if args.use_latent_mapping and args.forecast_method != 'CDE':
+        print("Warning: --use-latent-mapping is only applicable with --forecast-method CDE")
+        args.use_latent_mapping = False
+    
     # Initialize loader
-    loader = UnifiedResultsLoader(args.dataset, args.seed, args.forecast_method)
+    loader = UnifiedResultsLoader(
+        args.dataset, 
+        args.seed, 
+        args.forecast_method,
+        args.use_latent_mapping,
+        args.latent_mapping_method
+    )
     
     # Set up logging
     log_filepath = loader.setup_logging(args.output_folder)
     
     loader.logger.info(f"Starting analysis for {args.dataset} using {args.forecast_method} method")
+    if args.use_latent_mapping:
+        loader.logger.info(f"Latent mapping enabled: {args.latent_mapping_method} method")
+    else:
+        loader.logger.info("Latent mapping disabled")
     loader.logger.info(f"Log file created at: {log_filepath}")
+    
     print(f"Using forecasting method: {args.forecast_method}")
+    if args.use_latent_mapping:
+        print(f"Using latent mapping: {args.latent_mapping_method} method")
     print(f"Logging to: {log_filepath}")
     
     # Set up PCA if needed

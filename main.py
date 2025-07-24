@@ -71,7 +71,13 @@ def main(cfg: DictConfig):
         
         # Create encoder
         encoder = hydra.utils.instantiate(cfg.encoder)
-        
+
+        if hasattr(cfg, "predictor"):
+            predictor = hydra.utils.instantiate(cfg.predictor)
+            # SELU by default but adding this to make sure it's the same as the encoder
+            predictor.latent_act = encoder.latent_act
+            encoder.predictor = predictor
+
         # Create generator (with model already instantiated)
         generator = hydra.utils.instantiate(cfg.generator)
         
@@ -102,22 +108,10 @@ def main(cfg: DictConfig):
         logger.info(f"Training completed. Best epoch: {stats['best_epoch']}")
         
         # Train latent mapping model after main training is complete (if enabled)
-        latent_mapping_config = cfg.get('latent_mapping', {})
-        if latent_mapping_config.get('enabled', False):
+        if hasattr(cfg, "predictor_training"):
             logger.info("Starting latent mapping training...")
-            
-            # Create latent mapping trainer with configurable parameters
-            mapping_trainer = LatentMappingTrainer(
-                mapping_method=latent_mapping_config.get('mapping_method', 'neural_network'),
-                hidden_dim=latent_mapping_config.get('hidden_dim', 128),
-                ridge_alpha=latent_mapping_config.get('ridge_alpha', 1e-3),
-                num_epochs=latent_mapping_config.get('num_epochs', 100),
-                learning_rate=latent_mapping_config.get('learning_rate', 1e-3),
-                batch_size=latent_mapping_config.get('batch_size', 32),
-                log_interval=latent_mapping_config.get('log_interval', 10),
-                save_interval=latent_mapping_config.get('save_interval', 20),
-                use_tqdm=latent_mapping_config.get('use_tqdm', True)
-            )
+
+            mapping_trainer = hydra.utils.instantiate(cfg.predictor_training, model=encoder.predictor)
             
             # Create output directory for latent mapping
             latent_mapping_output_dir = os.path.join(output_dir, "latent_mapping")

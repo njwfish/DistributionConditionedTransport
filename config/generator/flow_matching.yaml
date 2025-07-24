@@ -2,9 +2,3 @@
 _target_: generator.flow_matching.FlowMatchingGenerator
 model: ${model}
 sigma_min: 1e-4 
-
-learn_target_mapping: false  # Use true target latents during main training
-latent_dim: ${experiment.latent_dim}
-hidden_dim: 128
-mapping_method: "neural_network"  # Options: "neural_network", "ridge", "linear", "identity"
-ridge_alpha: 1e-3

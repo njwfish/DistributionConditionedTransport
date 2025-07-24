@@ -6,15 +6,14 @@ import os
 import time
 from tqdm import tqdm
 import logging
-from generator.flow_matching import NeuralNetworkMapping, RidgeRegressionMapping, LinearMapping
+from predictor.predictor import MLPPredictor, RidgePredictor
+import hydra
 
 # TODO: make sure this really doesn't see the held-out data for the forecasting task.
 class LatentMappingTrainer:
     def __init__(
         self,
-        mapping_method="neural_network",
-        hidden_dim=128,
-        ridge_alpha=1e-3,
+        model,
         num_epochs=100,
         learning_rate=1e-3,
         batch_size=32,
@@ -36,9 +35,7 @@ class LatentMappingTrainer:
             save_interval: How often to save model checkpoints (in epochs)
             use_tqdm: Whether to use tqdm progress bars
         """
-        self.mapping_method = mapping_method
-        self.hidden_dim = hidden_dim
-        self.ridge_alpha = ridge_alpha
+        self.model = model
         self.num_epochs = num_epochs
         self.learning_rate = learning_rate
         self.batch_size = batch_size
@@ -49,21 +46,6 @@ class LatentMappingTrainer:
         self.logger = logging.getLogger(__name__)
         self.mapping_model = None
         self.optimizer = None
-        
-    def _create_mapping_model(self, latent_dim, device):
-        """Create the appropriate mapping model based on the method."""
-        if self.mapping_method == "neural_network":
-            model = NeuralNetworkMapping(latent_dim, self.hidden_dim)
-        elif self.mapping_method == "ridge":
-            model = RidgeRegressionMapping(latent_dim, self.ridge_alpha)
-        elif self.mapping_method == "linear":
-            model = LinearMapping(latent_dim)
-        else:
-            raise ValueError(f"Unknown mapping_method: {self.mapping_method}. "
-                           "Choose from 'neural_network', 'ridge', or 'linear'")
-        
-        model.to(device)
-        return model
     
     def train(
         self,
@@ -112,17 +94,17 @@ class LatentMappingTrainer:
         self.logger.info(f"Detected latent dimension: {latent_dim}")
         
         # Create mapping model and optimizer
-        self.mapping_model = self._create_mapping_model(latent_dim, device)
-        self.optimizer = optim.Adam(self.mapping_model.parameters(), lr=self.learning_rate)
+        self.model.to(device)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
         
-        self.logger.info(f"Created {self.mapping_method} mapping model with {sum(p.numel() for p in self.mapping_model.parameters())} parameters")
+        self.logger.info(f"Created {self.model.__class__.__name__} mapping model with {sum(p.numel() for p in self.model.parameters())} parameters")
         self.logger.info(f"Starting latent mapping training on {device}...")
         
         start_time = time.time()
         
         # Training loop
         for epoch in range(self.num_epochs):
-            self.mapping_model.train()
+            self.model.train()
             epoch_losses = []
             
             # Create progress bar if requested
@@ -136,29 +118,24 @@ class LatentMappingTrainer:
                 source_latents, target_latents = self._extract_latents(batch, encoder, device)
                 
                 # Forward pass through mapping model
-                predicted_target_latents = self.mapping_model(source_latents)
+                predicted_target_latents = self.model(source_latents)
                 
                 # Compute loss (MSE)
-                mse_loss = nn.MSELoss()(predicted_target_latents, target_latents)
-                
-                # Add regularization if applicable
-                total_loss = mse_loss
-                if hasattr(self.mapping_model, 'regularization_loss'):
-                    total_loss = total_loss + self.mapping_model.regularization_loss()
+                loss, _ = self.model.loss(predicted_target_latents, target_latents)
                 
                 # Backward pass
                 self.optimizer.zero_grad()
-                total_loss.backward()
+                loss.backward()
                 self.optimizer.step()
                 
                 # Record loss
-                epoch_losses.append(total_loss.item())
+                epoch_losses.append(loss.item())
                 
                 # Log every log_interval batches
                 if batch_idx % self.log_interval == 0:
-                    self.logger.info(f"Epoch {epoch+1}, Batch {batch_idx}/{len(dataloader)}, Loss: {total_loss.item():.6f}")
+                    self.logger.info(f"Epoch {epoch+1}, Batch {batch_idx}/{len(dataloader)}, Loss: {loss.item():.6f}")
                     if self.use_tqdm:
-                        pbar.set_postfix(loss=f"{total_loss.item():.6f}")
+                        pbar.set_postfix(loss=f"{loss.item():.6f}")
             
             # Calculate average loss for this epoch
             avg_epoch_loss = sum(epoch_losses) / len(epoch_losses)
@@ -169,24 +146,18 @@ class LatentMappingTrainer:
                 checkpoint_path = os.path.join(output_dir, f"latent_mapping_epoch_{epoch+1}.pt")
                 torch.save({
                     'epoch': epoch + 1,
-                    'model_state_dict': self.mapping_model.state_dict(),
+                    'model_state_dict': self.model.state_dict(),
                     'optimizer_state_dict': self.optimizer.state_dict(),
                     'loss': avg_epoch_loss,
-                    'mapping_method': self.mapping_method,
-                    'latent_dim': latent_dim,
-                    'hidden_dim': self.hidden_dim,
-                    'ridge_alpha': self.ridge_alpha,
+                    'mapping_method': self.model.__class__.__name__,
                 }, checkpoint_path)
                 self.logger.info(f"Saved checkpoint to {checkpoint_path}")
         
         # Save final model
         final_model_path = os.path.join(output_dir, "final_latent_mapping_model.pt")
         torch.save({
-            'model_state_dict': self.mapping_model.state_dict(),
-            'mapping_method': self.mapping_method,
-            'latent_dim': latent_dim,
-            'hidden_dim': self.hidden_dim,
-            'ridge_alpha': self.ridge_alpha,
+            'model_state_dict': self.model.state_dict(),
+            'mapping_method': self.model.__class__.__name__,
         }, final_model_path)
         
         total_time = time.time() - start_time
@@ -230,7 +201,7 @@ class LatentMappingTrainer:
     
     def evaluate(self, encoder, dataloader, device=None, num_eval_batches=10):
         """Evaluate the trained mapping model."""
-        if self.mapping_model is None:
+        if self.model is None:
             raise RuntimeError("Model must be trained before evaluation")
         
         if device is None:
@@ -238,7 +209,7 @@ class LatentMappingTrainer:
         
         encoder.to(device)
         encoder.eval()
-        self.mapping_model.eval()
+        self.model.eval()
         
         total_loss = 0
         num_batches = 0
@@ -252,10 +223,10 @@ class LatentMappingTrainer:
                 source_latents, target_latents = self._extract_latents(batch, encoder, device)
                 
                 # Forward pass
-                predicted_target_latents = self.mapping_model(source_latents)
+                predicted_target_latents = self.model(source_latents)
                 
                 # Compute loss
-                loss = nn.MSELoss()(predicted_target_latents, target_latents)
+                loss, _ = self.model.loss(predicted_target_latents, target_latents)
                 total_loss += loss.item()
                 num_batches += 1
         
@@ -264,28 +235,15 @@ class LatentMappingTrainer:
         return avg_loss
 
 # TODO: make sure this really leaves everything unchanged.
-def load_latent_mapping_model(checkpoint_path, device=None):
+def load_latent_mapping_model(cfg, checkpoint_path, device=None):
     """Load a trained latent mapping model from checkpoint."""
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     
-    # Extract model parameters
-    mapping_method = checkpoint['mapping_method']
-    latent_dim = checkpoint['latent_dim']
-    hidden_dim = checkpoint.get('hidden_dim', 128)
-    ridge_alpha = checkpoint.get('ridge_alpha', 1e-3)
-    
     # Create model
-    if mapping_method == "neural_network":
-        model = NeuralNetworkMapping(latent_dim, hidden_dim)
-    elif mapping_method == "ridge":
-        model = RidgeRegressionMapping(latent_dim, ridge_alpha)
-    elif mapping_method == "linear":
-        model = LinearMapping(latent_dim)
-    else:
-        raise ValueError(f"Unknown mapping_method: {mapping_method}")
+    model = hydra.utils.instantiate(cfg.predictor)
     
     # Load state dict
     model.load_state_dict(checkpoint['model_state_dict'])

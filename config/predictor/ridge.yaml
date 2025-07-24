@@ -1,0 +1,4 @@
+# @package _global_.predictor
+_target_: predictor.predictor.RidgePredictor
+latent_dim: ${experiment.latent_dim}
+ridge_alpha: 1e-3

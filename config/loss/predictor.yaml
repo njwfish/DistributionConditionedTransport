@@ -1,3 +1,4 @@
 # @package _global_.loss
 _target_: loss.predictor.PredictorLossManager
 use_predicted_latent: false
+predictor_loss_weight: 1.0

@@ -2,8 +2,9 @@ import torch
     
 
 class PredictorLossManager:
-    def __init__(self, use_predicted_latent=False):
+    def __init__(self, use_predicted_latent=False, predictor_loss_weight=1.0):
         self.use_predicted_latent = use_predicted_latent
+        self.predictor_loss_weight = predictor_loss_weight
 
     def loss(self, encoder, generator, batch, device):
         losses = {}
@@ -58,6 +59,6 @@ class PredictorLossManager:
 
         loss += recon_loss
         losses['reconstruction_loss'] = recon_loss
-        losses['predictor_loss'] = predictor_loss
+        losses['predictor_loss'] = predictor_loss * self.predictor_loss_weight
 
         return loss, losses

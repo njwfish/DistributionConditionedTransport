@@ -84,7 +84,7 @@ class SnapMMDGoM(Dataset):
             return {
                 'source_samples': source_samples,
                 'target_samples': target_samples,
-                'dt': target_idx - source_idx
+                'dt': target_idx - source_idx,
                 'idx': idx
             }
         # TODO: implement interpolation as an alternative task to forecasting.

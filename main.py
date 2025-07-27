@@ -56,17 +56,55 @@ def main(cfg: DictConfig):
 
         # Improved DataLoader with parallel workers and pinned memory
         num_workers = min(4, os.cpu_count())  # Use at most 8 workers or available CPU cores
+        
+        # Check if custom sampling is configured
+        dataloader_kwargs = {
+            'dataset': dataset,
+            'batch_size': cfg.experiment.batch_size,
+            'prefetch_factor': 2,
+            'num_workers': num_workers,
+            'pin_memory': True,
+            'persistent_workers': True if num_workers > 0 else False,
+            'collate_fn': None
+        }
+        
+        # Check for sampling config in both global and experiment namespaces
+        sampling_config = None
+        if hasattr(cfg, 'sampling') and hasattr(cfg.sampling, 'mode') and cfg.sampling.mode is not None:
+            sampling_config = cfg.sampling
+        elif hasattr(cfg, 'experiment') and hasattr(cfg.experiment, 'sampling') and hasattr(cfg.experiment.sampling, 'mode') and cfg.experiment.sampling.mode is not None:
+            sampling_config = cfg.experiment.sampling
+            
+        if sampling_config is not None:
+            logger.info(f"Using custom sampling with mode: {sampling_config.mode}")
+            try:
+                from utils.custom_sampler import CustomWeightedSampler
+                sampler = CustomWeightedSampler(
+                    dataset=dataset,
+                    sampling_mode=sampling_config.mode,
+                    num_samples=getattr(sampling_config, 'num_samples', None),
+                    replacement=getattr(sampling_config, 'replacement', True),
+                    const_weight=getattr(sampling_config, 'const_weight', 1.0)
+                )
+                # Log weight statistics
+                stats = sampler.get_weight_statistics()
+                logger.info(f"Sampler weight statistics: {stats}")
+                
+                # Use custom sampler (shuffle must not be specified when using a custom sampler)
+                dataloader_kwargs['sampler'] = sampler
+                
+            except Exception as e:
+                logger.error(f"Failed to create custom sampler: {e}")
+                logger.info("Falling back to default sampling (shuffle=True)")
+                # Use default random shuffling
+                dataloader_kwargs['shuffle'] = True
+        else:
+            logger.info("Using default sampling (shuffle=True)")
+            # Use default random shuffling
+            dataloader_kwargs['shuffle'] = True
+        
         # TODO: make sure the collate function was properly removed here.
-        dataloader = DataLoader(
-            dataset, 
-            batch_size=cfg.experiment.batch_size, 
-            shuffle=False,
-            prefetch_factor=2,
-            num_workers=num_workers,  # Parallel data loading
-            pin_memory=True,  # Pin memory for faster data transfer to GPU
-            persistent_workers=True if num_workers > 0 else False,  # Keep workers alive between iterations
-            collate_fn=None
-        )
+        dataloader = DataLoader(**dataloader_kwargs)
         
         # DEBUG: Inspect batch structure
         logger.info("=== BATCH STRUCTURE DEBUG ===")

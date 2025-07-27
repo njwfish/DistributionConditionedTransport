@@ -56,7 +56,7 @@ def main(cfg: DictConfig):
 
         # Improved DataLoader with parallel workers and pinned memory
         num_workers = min(4, os.cpu_count())  # Use at most 8 workers or available CPU cores
-        # NOTE: settin shuffle=False for now such that our model just pairs nearest neighbors (note that even if we do larger steps, we still want the pairing to go in the correct direction)
+        # TODO: make sure the collate function was properly removed here.
         dataloader = DataLoader(
             dataset, 
             batch_size=cfg.experiment.batch_size, 
@@ -65,8 +65,49 @@ def main(cfg: DictConfig):
             num_workers=num_workers,  # Parallel data loading
             pin_memory=True,  # Pin memory for faster data transfer to GPU
             persistent_workers=True if num_workers > 0 else False,  # Keep workers alive between iterations
-            collate_fn=collate_fn
+            collate_fn=None
         )
+        
+        # DEBUG: Inspect batch structure
+        logger.info("=== BATCH STRUCTURE DEBUG ===")
+        try:
+            sample_batch = next(iter(dataloader))
+            logger.info(f"Batch type: {type(sample_batch)}")
+            
+            if isinstance(sample_batch, dict):
+                logger.info("Batch is a dictionary with keys:")
+                logger.info(f"Actual contents: {sample_batch}")
+                for key, value in sample_batch.items():
+                    if torch.is_tensor(value):
+                        logger.info(f"  {key}: tensor of shape {value.shape}, dtype {value.dtype}")
+                    elif isinstance(value, (list, tuple)):
+                        logger.info(f"  {key}: {type(value).__name__} of length {len(value)}")
+                        if len(value) > 0:
+                            logger.info(f"    First element type: {type(value[0])}")
+                            if torch.is_tensor(value[0]):
+                                logger.info(f"    First element shape: {value[0].shape}")
+                    else:
+                        logger.info(f"  {key}: {type(value)} - {value}")
+                        
+            elif isinstance(sample_batch, (list, tuple)):
+                logger.info(f"Batch is a {type(sample_batch).__name__} of length {len(sample_batch)}")
+                for i, item in enumerate(sample_batch):
+                    if torch.is_tensor(item):
+                        logger.info(f"  Item {i}: tensor of shape {item.shape}, dtype {item.dtype}")
+                    else:
+                        logger.info(f"  Item {i}: {type(item)} - {str(item)[:100]}...")
+                        
+            elif torch.is_tensor(sample_batch):
+                logger.info(f"Batch is a tensor of shape {sample_batch.shape}, dtype {sample_batch.dtype}")
+                
+            else:
+                logger.info(f"Batch is of type {type(sample_batch)}: {str(sample_batch)[:200]}...")
+                
+        except Exception as e:
+            logger.error(f"Error inspecting batch structure: {e}")
+        logger.info("=== END BATCH STRUCTURE DEBUG ===")
+        
+ 
         
         
         # Create encoder

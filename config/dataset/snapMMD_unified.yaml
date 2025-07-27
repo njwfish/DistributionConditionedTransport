@@ -1,0 +1,8 @@
+# @package _global_.dataset
+_target_: datasets.snapMMD_unified.SnapMMDUnified
+dataset_name: ${experiment.dataset_name}
+seed: ${seed} 
+testing_method: forecast
+
+bidirectional: ${experiment.bidirectional}
+set_size: ${experiment.set_size} 

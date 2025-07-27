@@ -1,6 +1,6 @@
 # @package _global_.predictor_training
 _target_: latent_mapping_training.LatentMappingTrainer
-model: predictor.predictor.MLPPredictor
+model: ${predictor}  # Use the same predictor configuration as the main predictor
 num_epochs: 100
 learning_rate: 1e-3
 batch_size: 32

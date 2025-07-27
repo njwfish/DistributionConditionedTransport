@@ -1,4 +1,5 @@
 # @package _global_.predictor
-_target_: predictor.predictor.RidgePredictor
+_target_: predictor.predictor.MLPPredictor
 latent_dim: ${experiment.latent_dim}
-ridge_alpha: 1e-3
+hidden_dim: 128
+num_layers: 2

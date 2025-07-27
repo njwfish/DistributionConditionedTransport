@@ -72,8 +72,7 @@ def main(cfg: DictConfig):
         sampling_config = None
         if hasattr(cfg, 'sampling') and hasattr(cfg.sampling, 'mode') and cfg.sampling.mode is not None:
             sampling_config = cfg.sampling
-        elif hasattr(cfg, 'experiment') and hasattr(cfg.experiment, 'sampling') and hasattr(cfg.experiment.sampling, 'mode') and cfg.experiment.sampling.mode is not None:
-            sampling_config = cfg.experiment.sampling
+
             
         if sampling_config is not None:
             logger.info(f"Using custom sampling with mode: {sampling_config.mode}")

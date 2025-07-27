@@ -25,9 +25,7 @@ class LatentMappingTrainer:
         Initialize the latent mapping trainer.
         
         Args:
-            mapping_method: Method for latent mapping ("neural_network", "ridge", "linear")
-            hidden_dim: Hidden dimension for neural network mapping
-            ridge_alpha: Regularization strength for ridge regression
+            model: Hydra config for the predictor model to instantiate
             num_epochs: Number of epochs to train for
             learning_rate: Learning rate for optimizer
             batch_size: Batch size for training (number of set pairs)
@@ -35,7 +33,7 @@ class LatentMappingTrainer:
             save_interval: How often to save model checkpoints (in epochs)
             use_tqdm: Whether to use tqdm progress bars
         """
-        self.model = model
+        self.model_config = model
         self.num_epochs = num_epochs
         self.learning_rate = learning_rate
         self.batch_size = batch_size
@@ -44,7 +42,7 @@ class LatentMappingTrainer:
         self.use_tqdm = use_tqdm
         
         self.logger = logging.getLogger(__name__)
-        self.mapping_model = None
+        self.model = None  # Will be instantiated during training
         self.optimizer = None
     
     def train(
@@ -93,7 +91,8 @@ class LatentMappingTrainer:
         
         self.logger.info(f"Detected latent dimension: {latent_dim}")
         
-        # Create mapping model and optimizer
+        # Instantiate the predictor model with the detected latent dimension
+        self.model = hydra.utils.instantiate(self.model_config, latent_dim=latent_dim)
         self.model.to(device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
         
@@ -118,10 +117,17 @@ class LatentMappingTrainer:
                 source_latents, target_latents = self._extract_latents(batch, encoder, device)
                 
                 # Forward pass through mapping model
-                predicted_target_latents = self.model(source_latents)
-                
-                # Compute loss (MSE)
-                loss, _ = self.model.loss(predicted_target_latents, target_latents)
+                if getattr(self.model, 'requires_dt', False):
+                    # dt-conditioned predictor
+                    dt = batch['dt'].to(device) if 'dt' in batch else torch.zeros(source_latents.shape[0], device=device)
+                    predicted_target_latents = self.model(source_latents, dt)
+                    # Compute loss
+                    loss, _ = self.model.loss(source_latents, target_latents, dt)
+                else:
+                    # standard predictor
+                    predicted_target_latents = self.model(source_latents)
+                    # Compute loss (MSE)
+                    loss, _ = self.model.loss(predicted_target_latents, target_latents)
                 
                 # Backward pass
                 self.optimizer.zero_grad()
@@ -223,10 +229,17 @@ class LatentMappingTrainer:
                 source_latents, target_latents = self._extract_latents(batch, encoder, device)
                 
                 # Forward pass
-                predicted_target_latents = self.model(source_latents)
-                
-                # Compute loss
-                loss, _ = self.model.loss(predicted_target_latents, target_latents)
+                if getattr(self.model, 'requires_dt', False):
+                    # dt-conditioned predictor
+                    dt = batch['dt'].to(device) if 'dt' in batch else torch.zeros(source_latents.shape[0], device=device)
+                    predicted_target_latents = self.model(source_latents, dt)
+                    # Compute loss
+                    loss, _ = self.model.loss(source_latents, target_latents, dt)
+                else:
+                    # standard predictor
+                    predicted_target_latents = self.model(source_latents)
+                    # Compute loss
+                    loss, _ = self.model.loss(predicted_target_latents, target_latents)
                 total_loss += loss.item()
                 num_batches += 1
         

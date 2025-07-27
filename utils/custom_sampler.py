@@ -16,7 +16,7 @@ class CustomWeightedSampler(WeightedRandomSampler):
     - "unidirectional": Positive weight only for samples with dt > 0, zero weight otherwise
     - "exponential": Weight = exp(|dt|) / ln(2) for each sample
     """
-    
+    # TODO: do we really want to have replacement=True?
     def __init__(
         self, 
         dataset,

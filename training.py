@@ -152,9 +152,10 @@ class Trainer:
         self,
         encoder,
         generator,
-        dataloader,
+        train_dataloader,
         optimizer,
         loss_manager,
+        val_dataloader=None,
         scheduler=None,
         device=None,
         output_dir='./outputs',
@@ -166,6 +167,15 @@ class Trainer:
         
         encoder.to(device)
         generator.to(device)
+        
+        # Use train_dataloader for training and val_dataloader for evaluation
+        # If no val_dataloader provided, use train_dataloader for evaluation (legacy behavior)
+        eval_dataloader = val_dataloader if val_dataloader is not None else train_dataloader
+        
+        if val_dataloader is not None:
+            self.logger.info(f"Using separate validation set for evaluation ({len(val_dataloader.dataset)} samples)")
+        else:
+            self.logger.info("No validation set provided. Using training set for evaluation (not recommended)")
         
         stats = {
             'train_losses': [],
@@ -256,7 +266,7 @@ class Trainer:
             if 'step' in checkpoint:
                 step = checkpoint['step'] + 1
             else:
-                step = (start_epoch - 1) * len(dataloader) + 1
+                step = (start_epoch - 1) * len(train_dataloader) + 1
             # Log resuming to W&B
             if wandb.run is not None:
                 wandb.run.summary["resumed_from_epoch"] = start_epoch
@@ -273,9 +283,9 @@ class Trainer:
             
             # Create progress bar if requested
             if self.use_tqdm:
-                pbar = tqdm(dataloader, desc=f"Epoch {epoch+1}/{self.num_epochs}")
+                pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{self.num_epochs}")
             else:
-                pbar = dataloader
+                pbar = train_dataloader
             
             # Train for one epoch
             for batch_idx, batch in enumerate(pbar):
@@ -293,7 +303,7 @@ class Trainer:
                 
                 # Log every log_interval batches
                 if batch_idx % self.log_interval == 0:
-                    self.logger.info(f"Epoch {epoch+1}, Batch {batch_idx}/{len(dataloader)}, Loss: {loss.item():.6f}")
+                    self.logger.info(f"Epoch {epoch+1}, Batch {batch_idx}/{len(train_dataloader)}, Loss: {loss.item():.6f}")
                     if self.use_tqdm:
                         pbar.set_postfix(loss=f"{loss.item():.6f}")
                     
@@ -383,7 +393,7 @@ class Trainer:
             
             # Evaluation and early stopping logic
             if ((epoch + 1) % self.eval_interval == 0 or (epoch + 1) == self.num_epochs):
-                eval_loss = self._evaluate(encoder, generator, dataloader, device)
+                eval_loss = self._evaluate(encoder, generator, eval_dataloader, device)
                 stats['eval_losses'].append(eval_loss)
                 
                 self.logger.info(f"Evaluation Loss: {eval_loss:.6f}")
@@ -395,8 +405,8 @@ class Trainer:
                         "epoch/epoch": epoch + 1,
                     }, step=step)
 
-                # Generate some samples with the trained model
-                samples = self.generate_samples(encoder, generator, dataloader)
+                # Generate some samples with the trained model (use eval_dataloader for consistent evaluation)
+                samples = self.generate_samples(encoder, generator, eval_dataloader)
                 if samples is not None:
                     self.logger.info(f"Source samples shape: {samples.get('source', 'N/A').shape if hasattr(samples.get('source', None), 'shape') else 'N/A'}")
                     self.logger.info(f"Target samples shape: {samples.get('target', 'N/A').shape if hasattr(samples.get('target', None), 'shape') else 'N/A'}")

@@ -25,7 +25,9 @@ class LatentMappingTrainer:
         Initialize the latent mapping trainer.
         
         Args:
-            model: Hydra config for the predictor model to instantiate
+            mapping_method: Method for latent mapping ("neural_network", "ridge", "linear")
+            hidden_dim: Hidden dimension for neural network mapping
+            ridge_alpha: Regularization strength for ridge regression
             num_epochs: Number of epochs to train for
             learning_rate: Learning rate for optimizer
             batch_size: Batch size for training (number of set pairs)
@@ -33,7 +35,7 @@ class LatentMappingTrainer:
             save_interval: How often to save model checkpoints (in epochs)
             use_tqdm: Whether to use tqdm progress bars
         """
-        self.model_config = model
+        self.model = model
         self.num_epochs = num_epochs
         self.learning_rate = learning_rate
         self.batch_size = batch_size
@@ -42,7 +44,7 @@ class LatentMappingTrainer:
         self.use_tqdm = use_tqdm
         
         self.logger = logging.getLogger(__name__)
-        self.model = None  # Will be instantiated during training
+        self.mapping_model = None
         self.optimizer = None
     
     def train(
@@ -91,8 +93,7 @@ class LatentMappingTrainer:
         
         self.logger.info(f"Detected latent dimension: {latent_dim}")
         
-        # Instantiate the predictor model with the detected latent dimension
-        self.model = hydra.utils.instantiate(self.model_config, latent_dim=latent_dim)
+        # Create mapping model and optimizer
         self.model.to(device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
         

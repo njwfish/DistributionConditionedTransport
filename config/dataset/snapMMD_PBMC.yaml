@@ -6,3 +6,6 @@ data_name: processed_pbmc_data_sub500_every_2_until20.npz
 data_shape: [30]
 seed: ${seed} 
 testing_method: forecast
+
+bidirectional: ${experiment.bidirectional}
+set_size: ${experiment.set_size}

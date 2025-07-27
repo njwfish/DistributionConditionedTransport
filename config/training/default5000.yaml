@@ -7,3 +7,7 @@ eval_interval: 100
 early_stopping: true
 patience: 20
 use_tqdm: false
+
+# Validation split parameters
+validation_split: 0.2  # 20% for validation, 80% for training
+shuffle_before_split: true  # Whether to shuffle data before splitting

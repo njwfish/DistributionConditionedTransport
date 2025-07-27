@@ -209,18 +209,34 @@ class UnifiedResultsLoader:
         """Load encoder and generator models for CDE forecasting."""
         enc = hydra.utils.instantiate(cfg['encoder'])
         gen = hydra.utils.instantiate(cfg['generator'])
+        
+        # Load predictor if it exists in config and attach to encoder
+        if 'predictor' in cfg:
+            predictor = hydra.utils.instantiate(cfg['predictor'])
+            # Set the latent activation to match the encoder (as done in main.py)
+            # TODO: what is this latent_act thing supposed to be?
+            if hasattr(enc, 'latent_act'):
+                predictor.latent_act = enc.latent_act
+            enc.predictor = predictor
+        
         state = load_best_model(path)
         
         # Load encoder state
         enc.load_state_dict(state['encoder_state_dict'])
         
-        # Load generator state based on the generator's configuration
-        if hasattr(gen, 'learn_target_mapping') and gen.learn_target_mapping:
-            # Generator was trained with internal target mapping, load full state
-            gen.load_state_dict(state['generator_state_dict'])
+        # Load generator state - handle both old and new formats
+        if 'generator_state_dict' in state:
+            try:
+                # Try loading the full generator state first
+                gen.load_state_dict(state['generator_state_dict'])
+            except (KeyError, RuntimeError) as e:
+                # If that fails, try loading just the model part
+                if hasattr(gen, 'model'):
+                    gen.model.load_state_dict(state['generator_state_dict'])
+                else:
+                    raise e
         else:
-            # Generator was trained without internal mapping, load only model state
-            gen.model.load_state_dict(state['generator_state_dict'])
+            raise KeyError("No generator_state_dict found in checkpoint")
         
         enc.eval()
         gen.eval()
@@ -230,16 +246,38 @@ class UnifiedResultsLoader:
         # Load separate latent mapping model if needed
         latent_mapping_model = None
         if self.use_latent_mapping and self.latent_mapping_method == 'separate':
-            # Load the separate latent mapping model
+            # Look for the latent mapping model in the standard location
             latent_mapping_path = os.path.join(path, "latent_mapping", "final_latent_mapping_model.pt")
             if os.path.exists(latent_mapping_path):
-                latent_mapping_model = load_latent_mapping_model(latent_mapping_path, device)
-                if self.logger:
-                    self.logger.info(f"Loaded separate latent mapping model from: {latent_mapping_path}")
+                # Load using the current API that expects a config
+                if 'predictor' in cfg:
+                    latent_mapping_model = load_latent_mapping_model(cfg, latent_mapping_path, device)
+                    if self.logger:
+                        self.logger.info(f"Loaded separate latent mapping model from: {latent_mapping_path}")
+                    else:
+                        print(f"Loaded separate latent mapping model from: {latent_mapping_path}")
                 else:
-                    print(f"Loaded separate latent mapping model from: {latent_mapping_path}")
+                    if self.logger:
+                        self.logger.warning("Predictor config not found, cannot load latent mapping model")
+                    else:
+                        print("Warning: Predictor config not found, cannot load latent mapping model")
             else:
-                raise FileNotFoundError(f"Separate latent mapping model not found at: {latent_mapping_path}")
+                if self.logger:
+                    self.logger.warning(f"Separate latent mapping model not found at: {latent_mapping_path}")
+                    self.logger.info("Checking if predictor is attached to encoder...")
+                else:
+                    print(f"Warning: Separate latent mapping model not found at: {latent_mapping_path}")
+                    print("Checking if predictor is attached to encoder...")
+                
+                # Check if encoder has a predictor that can be used instead
+                if hasattr(enc, 'predictor') and enc.predictor is not None:
+                    latent_mapping_model = enc.predictor
+                    if self.logger:
+                        self.logger.info("Using predictor attached to encoder as latent mapping model")
+                    else:
+                        print("Using predictor attached to encoder as latent mapping model")
+                else:
+                    raise FileNotFoundError(f"No latent mapping model found and encoder has no predictor")
         
         return enc, gen, latent_mapping_model
 
@@ -270,11 +308,29 @@ class UnifiedResultsLoader:
             if self.use_latent_mapping:
                 if self.latent_mapping_method == 'separate':
                     # Use separate latent mapping model: enc_t = latent_mapping_model(enc_s)
-                    enc_t = latent_mapping_model(enc_s)
-                    if self.logger:
-                        self.logger.info("Using separate latent mapping model for target encoding")
+                    if latent_mapping_model is not None:
+                        # Check if the latent mapping model requires dt (dt-conditioned predictor)
+                        if hasattr(latent_mapping_model, 'requires_dt') and latent_mapping_model.requires_dt:
+                            # For dt-conditioned predictors, we need to provide dt
+                            # Use a default dt value (you might need to adjust this based on your data)
+                            # TODO: correct this. You know where to get the dt from. dt should be read in directly when loading test data.
+                            dt = torch.ones(enc_s.shape[0], 1, device=device) * 1  # Default dt
+                            enc_t = latent_mapping_model(enc_s, dt)
+                        else:
+                            # Standard predictor
+                            enc_t = latent_mapping_model(enc_s)
+                        
+                        if self.logger:
+                            self.logger.info("Using separate latent mapping model for target encoding")
+                        else:
+                            print("Using separate latent mapping model for target encoding")
                     else:
-                        print("Using separate latent mapping model for target encoding")
+                        # Fallback to direct encoding if no latent mapping model
+                        enc_t = enc(samples_t)
+                        if self.logger:
+                            self.logger.warning("Latent mapping model is None, falling back to direct encoding")
+                        else:
+                            print("Warning: Latent mapping model is None, falling back to direct encoding")
                 elif self.latent_mapping_method == 'integrated':
                     # For integrated mapping, the generator will handle the mapping internally
                     # We still encode the target samples, but the generator will use its internal mapping

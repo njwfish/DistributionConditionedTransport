@@ -24,7 +24,9 @@ class Trainer:
         patience=10,
         use_tqdm=True,
         mask_context_prob=0.0,
-        sub_epoch=None
+        sub_epoch=None,
+        validation_split=0.2,
+        shuffle_before_split=True
     ):
         """
         Initialize the trainer.
@@ -37,6 +39,8 @@ class Trainer:
             early_stopping: Whether to use early stopping
             patience: Number of evaluations with no improvement before early stopping
             use_tqdm: Whether to use tqdm progress bars
+            validation_split: Fraction for validation split (handled in main.py, not used here)
+            shuffle_before_split: Whether to shuffle before splitting (handled in main.py, not used here)
         """
         self.num_epochs = num_epochs
         self.log_interval = log_interval
@@ -51,6 +55,10 @@ class Trainer:
         self.patience = patience
         self.use_tqdm = use_tqdm
         self.mask_context_prob = mask_context_prob
+        
+        # Validation split parameters (handled upstream in main.py)
+        self.validation_split = validation_split
+        self.shuffle_before_split = shuffle_before_split
         
         self.logger = logging.getLogger(__name__)
         self.best_loss = float('inf')

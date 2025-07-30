@@ -16,9 +16,6 @@ defaults:
   - /predictor: dt_mlp_sinusoidal  # Use dt-conditioned MLP with sinusoidal encoding
   - /sampling: unidirectional
 
-# Dataset selection (can be overridden)
-dataset_name: GoM  # Default to GoM, can be: GoM, LV, PBMC, Repressilator
-
 # Experiment-specific parameters
 latent_dim: 16
 hidden_dim: 64

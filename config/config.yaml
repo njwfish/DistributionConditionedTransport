@@ -21,6 +21,7 @@ defaults:
 
 # Basic experiment settings
 experiment_name: ${experiment.name}  # Name will be defined in experiment config
+dataset_name: GoM  # Default to GoM, can be: GoM, LV, PBMC, Repressilator
 seed: 42
 device: cuda
 

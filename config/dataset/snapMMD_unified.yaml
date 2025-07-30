@@ -1,8 +1,18 @@
 # @package _global_.dataset
 _target_: datasets.snapMMD_unified.SnapMMDUnified
-dataset_name: ${experiment.dataset_name}
-seed: ${seed} 
+
+dataset_name: ${dataset_name}
+seed: ${seed}
 testing_method: forecast
 
-bidirectional: ${experiment.bidirectional}
-set_size: ${experiment.set_size} 
+set_size: ${experiment.set_size}
+
+# Map dataset names to their corresponding data shapes
+data_shape_map:
+  GoM: [2]
+  LV: [2]
+  PBMC: [30]
+  Repressilator: [3]
+
+# Resolve data_shape based on the current dataset_name
+data_shape: ${.data_shape_map.${dataset_name}} 

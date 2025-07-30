@@ -40,21 +40,22 @@ class SnapMMDUnified(Dataset):
     }
     
     def __init__(
-            self, 
+            self,
             dataset_name: str,
             testing_method: str = "forecast",
             seed: Optional[int] = None,
             set_size: int = 32,
+            **kwargs,  # absorb any extra keyword args without failing
             ):
         """
         Args:
             dataset_name: Name of the dataset to load ('GoM', 'LV', 'PBMC', 'Repressilator')
             testing_method: Testing method to use
             seed: Random seed for reproducibility
-            bidirectional: Whether to use bidirectional sampling
             set_size: Number of samples per parameter set
+            **kwargs: Absorb additional keyword arguments that may be supplied by Hydra. These are ignored to ensure
+                robustness when the class is referenced in Hydra configs for purposes other than direct instantiation.
         """
-        
         if dataset_name not in self.DATASET_CONFIGS:
             raise ValueError(f"Unknown dataset: {dataset_name}. Available datasets: {list(self.DATASET_CONFIGS.keys())}")
         

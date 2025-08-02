@@ -123,6 +123,7 @@ class SnapMMDUnified(Dataset):
         else:
             raise NotImplementedError(f"Testing method '{self.testing_method}' not implemented")
     
+    # TODO: remove this? I don't remember putting it in.
     @property
     def data_shape(self):
         """Get the data shape for this dataset."""

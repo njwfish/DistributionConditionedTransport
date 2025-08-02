@@ -226,14 +226,26 @@ class UnifiedResultsLoader:
             raise ValueError(f"Invalid predictor configuration in {experiment_dir}: expected dict with '_target_' key")
         
         target = predictor_config['_target_']
-        if 'DTMLPPredictor' in target:
-            # Fail if conditioning_method is not found
+        if 'DTConditionedMLPPredictor' in target:
+            # New DTConditionedMLPPredictor structure
+            if 'conditioning_mode' not in predictor_config:
+                raise KeyError(f"'conditioning_mode' not found in predictor config at {experiment_dir}")
+            conditioning_mode = predictor_config['conditioning_mode']
+            predictor_type = f"dt_mlp_{conditioning_mode}"
+        elif 'DTConditionedRidgePredictor' in target:
+            # New DTConditionedRidgePredictor structure
+            if 'conditioning_mode' not in predictor_config:
+                raise KeyError(f"'conditioning_mode' not found in predictor config at {experiment_dir}")
+            conditioning_mode = predictor_config['conditioning_mode']
+            predictor_type = f"dt_ridge_{conditioning_mode}"
+        elif 'DTMLPPredictor' in target:
+            # Legacy DTMLPPredictor structure (fallback)
             if 'conditioning_method' not in predictor_config:
                 raise KeyError(f"'conditioning_method' not found in predictor config at {experiment_dir}")
             conditioning_method = predictor_config['conditioning_method']
             predictor_type = f"dt_mlp_{conditioning_method}"
         elif 'DTRidgePredictor' in target:
-            # Fail if conditioning_method is not found
+            # Legacy DTRidgePredictor structure (fallback)
             if 'conditioning_method' not in predictor_config:
                 raise KeyError(f"'conditioning_method' not found in predictor config at {experiment_dir}")
             conditioning_method = predictor_config['conditioning_method']
@@ -246,20 +258,24 @@ class UnifiedResultsLoader:
             raise KeyError(f"'sampling' key not found in config.yaml at {experiment_dir}")
         
         sampling_config = config['sampling']
-        if not isinstance(sampling_config, dict) or '_target_' not in sampling_config:
-            raise ValueError(f"Invalid sampling configuration in {experiment_dir}: expected dict with '_target_' key")
+        if not isinstance(sampling_config, dict):
+            raise ValueError(f"Invalid sampling configuration in {experiment_dir}: expected dict")
         
-        target = sampling_config['_target_']
-        if 'BidirectionalSampler' in target:
+        # Sampling configs use 'mode' field instead of '_target_'
+        if 'mode' not in sampling_config:
+            raise KeyError(f"'mode' key not found in sampling config at {experiment_dir}")
+        
+        mode = sampling_config['mode']
+        if mode == 'bidirectional':
             sampling_type = 'bidirectional'
-        elif 'UnidirectionalSampler' in target:
+        elif mode == 'unidirectional':
             sampling_type = 'unidirectional'
-        elif 'ExponentialSampler' in target:
+        elif mode == 'exponential':
             sampling_type = 'exponential'
-        elif 'NoSampler' in target or 'IdentitySampler' in target:
+        elif mode is None or mode == 'none':
             sampling_type = 'none'
         else:
-            raise ValueError(f"Unknown sampling target '{target}' in {experiment_dir}")
+            raise ValueError(f"Unknown sampling mode '{mode}' in {experiment_dir}")
         
         return {
             'predictor': predictor_type,
@@ -355,11 +371,23 @@ class UnifiedResultsLoader:
                 
                 # Check if encoder has a predictor that can be used instead
                 if hasattr(enc, 'predictor') and enc.predictor is not None:
-                    latent_mapping_model = enc.predictor
-                    if self.logger:
-                        self.logger.info("Using predictor attached to encoder as latent mapping model")
+                    # For encoder-attached predictors, we need to handle dt conditioning differently
+                    # since the encoder's predictor might be called during the encoding process
+                    if hasattr(enc.predictor, 'requires_dt') and enc.predictor.requires_dt:
+                        if self.logger:
+                            self.logger.info("Encoder has dt-conditioned predictor attached - will be handled in separate method")
+                        else:
+                            print("Encoder has dt-conditioned predictor attached - will be handled in separate method")
+                        # We'll handle this in the latent mapping section below
+                        latent_mapping_model = enc.predictor
                     else:
-                        print("Using predictor attached to encoder as latent mapping model")
+                        latent_mapping_model = enc.predictor
+                        if self.logger:
+                            self.logger.info("Using predictor attached to encoder as latent mapping model")
+                        else:
+                            print("Using predictor attached to encoder as latent mapping model")
+                    
+
                 else:
                     raise FileNotFoundError(f"No latent mapping model found and encoder has no predictor")
         
@@ -405,12 +433,15 @@ class UnifiedResultsLoader:
                         # Check if the latent mapping model requires dt (dt-conditioned predictor)
                         if hasattr(latent_mapping_model, 'requires_dt') and latent_mapping_model.requires_dt:
                             # For dt-conditioned predictors, we need to provide dt
-                            # Use a default dt value (you might need to adjust this based on your data)
-                            # TODO: correct this. You know where to get the dt from. dt should be read in directly when loading test data.
-                            dt = torch.ones(enc_s.shape[0], 1, device=device) * 1  # Default dt
+                            # For forecasting, dt=1 since we're predicting the next time step
+                            dt = torch.ones(enc_s.shape[0], device=device)  # Shape: [batch_size]
                             enc_t = latent_mapping_model(enc_s, dt)
+                            if self.logger:
+                                self.logger.info("Using dt-conditioned predictor with dt=1 for forecasting")
+                            else:
+                                print("Using dt-conditioned predictor with dt=1 for forecasting")
                         else:
-                            # Standard predictor
+                            # Standard predictor (legacy)
                             enc_t = latent_mapping_model(enc_s)
                         
                         if self.logger:

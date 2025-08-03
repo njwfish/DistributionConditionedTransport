@@ -253,11 +253,9 @@ class Trainer:
             self.logger.info(f"Resuming from checkpoint: {last_checkpoint}")
             checkpoint = torch.load(last_checkpoint, weights_only=False)
             encoder.load_state_dict(checkpoint['encoder_state_dict'])
-            # Handle both old and new checkpoint formats
-            if hasattr(generator, 'learn_target_mapping') and generator.learn_target_mapping:
-                generator.load_state_dict(checkpoint['generator_state_dict'])
-            else:
-                generator.model.load_state_dict(checkpoint['generator_state_dict'])
+
+            generator.load_state_dict(checkpoint['generator_state_dict'])
+
             if 'optimizer_state_dict' in checkpoint:
                 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             if 'scheduler_state_dict' in checkpoint:
@@ -277,7 +275,7 @@ class Trainer:
         # Main training loop
         for epoch in range(start_epoch, self.num_epochs):
             encoder.train()
-            generator.model.train()
+            generator.train()
             
             epoch_losses = []
             
@@ -323,11 +321,8 @@ class Trainer:
                         self.logger.info(f"Learning rate: {current_lr:.6f}")
                     if (sub_epoch + 1) % self.save_interval == 0:
                         checkpoint_path = os.path.join(output_dir, f"checkpoint_epoch_{epoch+1}.pt")
-                        # Save generator state based on whether it has target mapping
-                        if hasattr(generator, 'learn_target_mapping') and generator.learn_target_mapping:
-                            generator_state = generator.state_dict()
-                        else:
-                            generator_state = generator.model.state_dict()
+
+                        generator_state = generator.state_dict()
                         
                         torch.save({
                             'epoch': epoch + 1,
@@ -389,7 +384,7 @@ class Trainer:
             
             # Evaluation and early stopping logic
             if ((epoch + 1) % self.eval_interval == 0 or (epoch + 1) == self.num_epochs):
-                eval_loss = self._evaluate(encoder, generator, eval_dataloader, device)
+                eval_loss = self._evaluate(encoder, generator, eval_dataloader, device, loss_manager)
                 stats['eval_losses'].append(eval_loss)
                 
                 self.logger.info(f"Evaluation Loss: {eval_loss:.6f}")
@@ -457,55 +452,19 @@ class Trainer:
         
         return output_dir, stats
     
-    def _evaluate(self, encoder, generator, dataloader, device):
+    def _evaluate(self, encoder, generator, dataloader, device, loss_manager):
         """Run evaluation and return average loss."""
         encoder.eval()
-        generator.model.eval()
+        generator.eval()
         
         total_loss = 0
         num_batches = 0
         
         with torch.no_grad():
             for batch in dataloader:
-
-                # Handle samples which can be either a tensor or a dictionary
-                if isinstance(batch['source_samples'], torch.Tensor):
-                    source_samples = batch['source_samples'].to(device)
-                    target_samples = batch['target_samples'].to(device)
-                    
-                    source_latent = encoder(source_samples)
-                    target_latent = encoder(target_samples)
-                    
-                    loss = generator.loss(
-                        source_samples.view(-1, *source_samples.shape[2:]),
-                        target_samples.view(-1, *target_samples.shape[2:]),
-                        source_latent, 
-                        target_latent
-                    )
-                else:
-                    # For dictionary samples (like PubMed dataset), move tensors to device
-                    source_samples = {}
-                    target_samples = {}
-                    
-                    for key, value in batch['source_samples'].items():
-                        if isinstance(value, torch.Tensor):
-                            source_samples[key] = value.to(device)
-                        else:
-                            source_samples[key] = value
-                            
-                    for key, value in batch['target_samples'].items():
-                        if isinstance(value, torch.Tensor):
-                            target_samples[key] = value.to(device)
-                        else:
-                            target_samples[key] = value
-                    
-                    # Encode samples to latent space
-                    source_latent = encoder(source_samples)
-                    target_latent = encoder(target_samples)
-                    
-                    # Calculate loss
-                    loss = generator.loss(source_samples, target_samples, source_latent, target_latent)
-                
+                # TODO: legacy code was not using loss manager here, is there any specific reason for this?
+                # Use loss manager for consistent loss computation
+                loss, losses = loss_manager.loss(encoder, generator, batch, device)
                 total_loss += loss.item()
                 num_batches += 1
         
@@ -520,7 +479,7 @@ class Trainer:
         generator.to(device)
         
         encoder.eval()
-        generator.model.eval()
+        generator.eval()
         
         with torch.no_grad():
             for batch in dataloader:
@@ -534,6 +493,7 @@ class Trainer:
                     source_latent = encoder(source_samples)
                     target_latent = encoder(target_samples)
 
+                    # TODO: if we actually want to call the generate_samples mehtod here, we need to make sure that this line is still up to date.
                     generated = generator.sample(source_samples.reshape(-1, *data_shape), source_latent, target_latent)
                     
                     return {

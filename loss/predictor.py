@@ -19,11 +19,16 @@ class PredictorLossManager:
             target_latent = encoder(target_samples)
 
             # compute predictor loss and get predicted target latent
-            # dt-conditioned predictor
-            if 'dt' not in batch:
-                raise ValueError("dt not found in batch but required by dt-conditioned predictor")
-            dt = batch['dt'].to(device)
-            predictor_loss, pred_target_latent = encoder.predictor.loss(source_latent, target_latent, dt)
+            # Check if predictor requires dt conditioning
+            if hasattr(encoder.predictor, 'requires_dt') and encoder.predictor.requires_dt:
+                # dt-conditioned predictor
+                if 'dt' not in batch:
+                    raise ValueError("dt not found in batch but required by dt-conditioned predictor")
+                dt = batch['dt'].to(device)
+                predictor_loss, pred_target_latent = encoder.predictor.loss(source_latent, target_latent, dt)
+            else:
+                # non-dt-conditioned predictor
+                predictor_loss, pred_target_latent = encoder.predictor.loss(source_latent, target_latent)
 
             # compute generator loss
             target_latent_for_generator = target_latent if not self.use_predicted_latent else pred_target_latent
@@ -56,13 +61,17 @@ class PredictorLossManager:
             source_latent = encoder(source_samples)
             target_latent = encoder(target_samples)
 
-            # Handle dt-conditioned predictors
-            # dt-conditioned predictor
-            dt = batch['dt'].to(device) if 'dt' in batch else torch.zeros(source_latent.shape[0], device=device)
-            pred_target_latent = encoder.predictor(source_latent, dt)
-            # Compute predictor loss for this case
-            # TODO: make sure that this should really always be computed and added to the loss, no matter which setting we are using (joint or separate training of predictor).
-            predictor_loss, _ = encoder.predictor.loss(source_latent, target_latent, dt)
+            # Handle predictors (both dt-conditioned and non-dt-conditioned)
+            # Check if predictor requires dt conditioning
+            if hasattr(encoder.predictor, 'requires_dt') and encoder.predictor.requires_dt:
+                # dt-conditioned predictor
+                if 'dt' not in batch:
+                    raise ValueError("dt not found in batch but required by dt-conditioned predictor")
+                dt = batch['dt'].to(device)
+                predictor_loss, pred_target_latent = encoder.predictor.loss(source_latent, target_latent, dt)
+            else:
+                # non-dt-conditioned predictor
+                predictor_loss, pred_target_latent = encoder.predictor.loss(source_latent, target_latent)
 
             target_latent_for_generator = target_latent if not self.use_predicted_latent else pred_target_latent
 

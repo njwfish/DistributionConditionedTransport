@@ -145,6 +145,13 @@ def main(cfg: DictConfig):
                 stats = train_sampler.get_weight_statistics()
                 logger.info(f"Train sampler weight statistics: {stats}")
                 
+                # Debug print: Show non-zero weight information
+                print(f"[DEBUG] Dataset sampling info:")
+                print(f"[DEBUG] - Total dataset samples: {stats['total_samples']}")
+                print(f"[DEBUG] - Samples with non-zero weights: {stats['num_nonzero']}")
+                print(f"[DEBUG] - Percentage with non-zero weights: {stats['num_nonzero']/stats['total_samples']*100:.2f}%")
+                print(f"[DEBUG] - Sampling mode: {stats['sampling_mode']}")
+                
                 # Use custom sampler (shuffle must not be specified when using a custom sampler)
                 train_dataloader_kwargs['sampler'] = train_sampler
                 

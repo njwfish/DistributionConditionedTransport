@@ -66,8 +66,7 @@ DATASET_CONFIGS = {
 
 class UnifiedResultsLoader:
     def __init__(self, dataset_name, seed=42, forecast_method='snapMMD', 
-                 use_latent_mapping=False, latent_mapping_method='separate',
-                 predictor_type=None, sampling_type=None):
+                 predictor_type=None, sampling_type=None, experiment_pattern='hyperparam'):
         """
         Initialize the unified results loader.
         
@@ -75,10 +74,9 @@ class UnifiedResultsLoader:
             dataset_name: Dataset name
             seed: Random seed for snapMMD method
             forecast_method: 'snapMMD' or 'CDE'
-            use_latent_mapping: Whether to use latent mapping for target encoding
-            latent_mapping_method: 'separate' (external latent mapping model) or 'integrated' (generator's internal mapping)
             predictor_type: Predictor type for hyperparameter experiments (e.g., 'dt_mlp_sinusoidal')
             sampling_type: Sampling type for hyperparameter experiments (e.g., 'bidirectional')
+            experiment_pattern: Pattern type for finding experiments ('hyperparam' or 'unified')
         """
         if dataset_name not in DATASET_CONFIGS:
             raise ValueError(f"Dataset {dataset_name} not supported. Choose from: {list(DATASET_CONFIGS.keys())}")
@@ -86,16 +84,12 @@ class UnifiedResultsLoader:
         if forecast_method not in ['snapMMD', 'CDE']:
             raise ValueError(f"forecast_method must be 'snapMMD' or 'CDE', got '{forecast_method}'")
         
-        if latent_mapping_method not in ['separate', 'integrated']:
-            raise ValueError(f"latent_mapping_method must be 'separate' or 'integrated', got '{latent_mapping_method}'")
-        
         self.config = DATASET_CONFIGS[dataset_name]
         self.dataset_name = dataset_name
         self.forecast_method = forecast_method
-        self.use_latent_mapping = use_latent_mapping
-        self.latent_mapping_method = latent_mapping_method
         self.predictor_type = predictor_type
         self.sampling_type = sampling_type
+        self.experiment_pattern = experiment_pattern
         
         # Seed is only relevant for snapMMD method
         if forecast_method == 'snapMMD':
@@ -149,19 +143,32 @@ class UnifiedResultsLoader:
         
         return log_filepath
         
-    def find_all_experiments_with_hash(self, dataset_name, base_dir):
+    def find_all_experiments_with_hash(self, dataset_name, base_dir, pattern_type='hyperparam'):
         """
         Find ALL experiment directories that match the pattern for different datasets
         
         Args:
             dataset_name: One of ["LV", "Repressilator", "GoM", "PBMC"]
             base_dir: The outputs directory containing experiment directories
+            pattern_type: Type of pattern to match ('hyperparam' or 'unified')
             
         Returns:
             List of full paths to all matching experiment directories
         """
-        # Pattern for hyperparameter experiments
-        pattern = f"snapMMD_{dataset_name}_unified_hyperparam_exp_"
+        # Handle special case for pbmc -> PBMC mapping (experiment directories use uppercase)
+        search_name = dataset_name
+        if dataset_name == 'pbmc':
+            search_name = 'PBMC'
+        
+        # Choose pattern based on pattern_type
+        if pattern_type == 'hyperparam':
+            pattern = f"snapMMD_{search_name}_unified_hyperparam_exp_"
+            expected_bare = f"snapMMD_{search_name}_unified_hyperparam_exp"
+        elif pattern_type == 'unified':
+            pattern = f"snapMMD_{search_name}_unified_exp_"
+            expected_bare = f"snapMMD_{search_name}_unified_exp"
+        else:
+            raise ValueError(f"Unknown pattern_type: {pattern_type}. Must be 'hyperparam' or 'unified'")
         
         if not os.path.exists(base_dir):
             raise ValueError(f"Base directory {base_dir} does not exist")
@@ -171,7 +178,6 @@ class UnifiedResultsLoader:
             full_path = os.path.join(base_dir, item)
             if os.path.isdir(full_path) and item.startswith(pattern):
                 # We want the ones with the hash, not the bare name
-                expected_bare = f"snapMMD_{dataset_name}_unified_hyperparam_exp"
                 if item != expected_bare:
                     matching_dirs.append(full_path)
         
@@ -185,7 +191,7 @@ class UnifiedResultsLoader:
         
         return matching_dirs
 
-    def find_experiment_with_hash(self, dataset_name, base_dir):
+    def find_experiment_with_hash(self, dataset_name, base_dir, pattern_type='hyperparam'):
         """
         Find the experiment directory that matches the pattern for different datasets
         (kept for backwards compatibility, but now just returns the first one)
@@ -193,11 +199,12 @@ class UnifiedResultsLoader:
         Args:
             dataset_name: One of ["LV", "Repressilator", "GoM", "PBMC"]
             base_dir: The outputs directory containing experiment directories
+            pattern_type: Type of pattern to match ('hyperparam' or 'unified')
             
         Returns:
             The full path to the matching experiment directory
         """
-        all_dirs = self.find_all_experiments_with_hash(dataset_name, base_dir)
+        all_dirs = self.find_all_experiments_with_hash(dataset_name, base_dir, pattern_type)
         return all_dirs[0]
 
     def extract_hyperparameters_from_config(self, experiment_dir):
@@ -250,6 +257,12 @@ class UnifiedResultsLoader:
                 raise KeyError(f"'conditioning_method' not found in predictor config at {experiment_dir}")
             conditioning_method = predictor_config['conditioning_method']
             predictor_type = f"dt_ridge_{conditioning_method}"
+        elif 'MLPPredictor' in target:
+            # Regular MLPPredictor (non-dt-conditioned)
+            predictor_type = 'mlp'
+        elif 'RidgePredictor' in target:
+            # Regular RidgePredictor (non-dt-conditioned)
+            predictor_type = 'ridge'
         else:
             raise ValueError(f"Unknown predictor target '{target}' in {experiment_dir}")
         
@@ -272,6 +285,8 @@ class UnifiedResultsLoader:
             sampling_type = 'unidirectional'
         elif mode == 'exponential':
             sampling_type = 'exponential'
+        elif mode == 'dt_equals_one':
+            sampling_type = 'dt_equals_one'
         elif mode is None or mode == 'none':
             sampling_type = 'none'
         else:
@@ -300,7 +315,7 @@ class UnifiedResultsLoader:
         # Map pbmc to PBMC for directory search (directories use uppercase)
         search_name = "PBMC" if dataset_name == "pbmc" else dataset_name
         
-        experiment_dir = self.find_experiment_with_hash(search_name, base_dir)
+        experiment_dir = self.find_experiment_with_hash(search_name, base_dir, self.experiment_pattern)
         experiment_info = get_experiment_info(experiment_dir, load_checkpoints=False)
         
         return experiment_info
@@ -314,9 +329,7 @@ class UnifiedResultsLoader:
         if 'predictor' in cfg:
             predictor = hydra.utils.instantiate(cfg['predictor'])
             # Set the latent activation to match the encoder (as done in main.py)
-            # TODO: what is this latent_act thing supposed to be?
-            if hasattr(enc, 'latent_act'):
-                predictor.latent_act = enc.latent_act
+            predictor.latent_act = enc.latent_act
             enc.predictor = predictor
         
         state = load_best_model(path)
@@ -324,79 +337,20 @@ class UnifiedResultsLoader:
         # Load encoder state
         enc.load_state_dict(state['encoder_state_dict'])
         
-        # Load generator state - handle both old and new formats
-        if 'generator_state_dict' in state:
-            try:
-                # Try loading the full generator state first
-                gen.load_state_dict(state['generator_state_dict'])
-            except (KeyError, RuntimeError) as e:
-                # If that fails, try loading just the model part
-                if hasattr(gen, 'model'):
-                    gen.model.load_state_dict(state['generator_state_dict'])
-                else:
-                    raise e
-        else:
-            raise KeyError("No generator_state_dict found in checkpoint")
-        
+        gen.load_state_dict(state['generator_state_dict'])
+
         enc.eval()
         gen.eval()
         enc.to(device)
         gen.to(device)
         
-        # Load separate latent mapping model if needed
-        latent_mapping_model = None
-        if self.use_latent_mapping and self.latent_mapping_method == 'separate':
-            # Look for the latent mapping model in the standard location
-            latent_mapping_path = os.path.join(path, "latent_mapping", "final_latent_mapping_model.pt")
-            if os.path.exists(latent_mapping_path):
-                # Load using the current API that expects a config
-                if 'predictor' in cfg:
-                    latent_mapping_model = load_latent_mapping_model(cfg, latent_mapping_path, device)
-                    if self.logger:
-                        self.logger.info(f"Loaded separate latent mapping model from: {latent_mapping_path}")
-                    else:
-                        print(f"Loaded separate latent mapping model from: {latent_mapping_path}")
-                else:
-                    if self.logger:
-                        self.logger.warning("Predictor config not found, cannot load latent mapping model")
-                    else:
-                        print("Warning: Predictor config not found, cannot load latent mapping model")
-            else:
-                if self.logger:
-                    self.logger.warning(f"Separate latent mapping model not found at: {latent_mapping_path}")
-                    self.logger.info("Checking if predictor is attached to encoder...")
-                else:
-                    print(f"Warning: Separate latent mapping model not found at: {latent_mapping_path}")
-                    print("Checking if predictor is attached to encoder...")
-                
-                # Check if encoder has a predictor that can be used instead
-                if hasattr(enc, 'predictor') and enc.predictor is not None:
-                    # For encoder-attached predictors, we need to handle dt conditioning differently
-                    # since the encoder's predictor might be called during the encoding process
-                    if hasattr(enc.predictor, 'requires_dt') and enc.predictor.requires_dt:
-                        if self.logger:
-                            self.logger.info("Encoder has dt-conditioned predictor attached - will be handled in separate method")
-                        else:
-                            print("Encoder has dt-conditioned predictor attached - will be handled in separate method")
-                        # We'll handle this in the latent mapping section below
-                        latent_mapping_model = enc.predictor
-                    else:
-                        latent_mapping_model = enc.predictor
-                        if self.logger:
-                            self.logger.info("Using predictor attached to encoder as latent mapping model")
-                        else:
-                            print("Using predictor attached to encoder as latent mapping model")
-                    
-
-                else:
-                    raise FileNotFoundError(f"No latent mapping model found and encoder has no predictor")
-        
-        return enc, gen, latent_mapping_model
+        return enc, gen
 
     def generate_cde_forecast(self, training_data):
         """Generate forecast using CDE method."""
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
+        # TODO: what exactly is experiment_dir supposed to be here? Make sure it is well-behaved.
         # Load experiment configuration
         if hasattr(self, 'experiment_dir') and self.experiment_dir:
             # Use specific experiment directory if set (for hyperparameter analysis)
@@ -415,64 +369,33 @@ class UnifiedResultsLoader:
                 print(f"Loading CDE experiment from: {experiment_info['dir']}")
         
         # Load encoder, generator, and optionally latent mapping model
-        enc, gen, latent_mapping_model = self.load_model_cde(experiment_info['config'], experiment_info['dir'], device)
+        enc, gen = self.load_model_cde(experiment_info['config'], experiment_info['dir'], device)
         
         # Prepare data (use last two time points)
         Xs_training = training_data['Xs']
-        samples_s = torch.tensor(Xs_training[-1]).unsqueeze(0).to(device).float()  # Second to last
-        samples_t = torch.tensor(training_data['X_val_true']).unsqueeze(0).to(device).float()  # Last (ground truth)
+        samples_s = torch.tensor(Xs_training[-1]).unsqueeze(0).to(device).float()  # Last training point (source)
+        samples_t = torch.tensor(training_data['X_val_true']).unsqueeze(0).to(device).float()  # Ground truth target
         
         # Generate encodings
         with torch.no_grad():
             enc_s = enc(samples_s)
-            
-            if self.use_latent_mapping:
-                if self.latent_mapping_method == 'separate':
-                    # Use separate latent mapping model: enc_t = latent_mapping_model(enc_s)
-                    if latent_mapping_model is not None:
-                        # Check if the latent mapping model requires dt (dt-conditioned predictor)
-                        if hasattr(latent_mapping_model, 'requires_dt') and latent_mapping_model.requires_dt:
-                            # For dt-conditioned predictors, we need to provide dt
-                            # For forecasting, dt=1 since we're predicting the next time step
-                            dt = torch.ones(enc_s.shape[0], device=device)  # Shape: [batch_size]
-                            enc_t = latent_mapping_model(enc_s, dt)
-                            if self.logger:
-                                self.logger.info("Using dt-conditioned predictor with dt=1 for forecasting")
-                            else:
-                                print("Using dt-conditioned predictor with dt=1 for forecasting")
-                        else:
-                            # Standard predictor (legacy)
-                            enc_t = latent_mapping_model(enc_s)
-                        
-                        if self.logger:
-                            self.logger.info("Using separate latent mapping model for target encoding")
-                        else:
-                            print("Using separate latent mapping model for target encoding")
-                    else:
-                        # Fallback to direct encoding if no latent mapping model
-                        enc_t = enc(samples_t)
-                        if self.logger:
-                            self.logger.warning("Latent mapping model is None, falling back to direct encoding")
-                        else:
-                            print("Warning: Latent mapping model is None, falling back to direct encoding")
-                elif self.latent_mapping_method == 'integrated':
-                    # For integrated mapping, the generator will handle the mapping internally
-                    # We still encode the target samples, but the generator will use its internal mapping
-                    enc_t = enc(samples_t)
-                    if self.logger:
-                        self.logger.info("Using integrated latent mapping (generator handles mapping internally)")
-                    else:
-                        print("Using integrated latent mapping (generator handles mapping internally)")
-            else:
-                # Standard case: encode target samples directly
-                enc_t = enc(samples_t)
+
+            # Check if predictor requires dt conditioning (same logic as in loss/predictor.py)
+            if hasattr(enc.predictor, 'requires_dt') and enc.predictor.requires_dt:
+                # dt-conditioned predictor
+                dt = torch.ones(enc_s.shape[0], device=device)
+                enc_t = enc.predictor(enc_s, dt)
                 if self.logger:
-                    self.logger.info("Using direct target encoding (no latent mapping)")
-                else:
-                    print("Using direct target encoding (no latent mapping)")
-        
+                    self.logger.info("Using dt-conditioned predictor")
+            else:
+                # non-dt-conditioned predictor
+                enc_t = enc.predictor(enc_s)
+                if self.logger:
+                    self.logger.info("Using non-dt-conditioned predictor")
+
         # Reshape samples_s for forecast generation
         batch_size, set_size, *data_shape = samples_s.shape
+        # TODO: make sure this reshaping is correct.
         samples_s = samples_s.reshape(-1, *data_shape)
         
         # Generate forecast
@@ -499,6 +422,7 @@ class UnifiedResultsLoader:
             print(f"Loading training data for {self.dataset_name}...")
         training_data = np.load(self.config['data_path'])
         
+        # TODO: make sure data is loaded correctly.
         # Extract training data components
         N_steps = training_data['N_steps']
         Xs_training = [training_data["Xs"][i] for i in range(N_steps-1)]
@@ -539,6 +463,7 @@ class UnifiedResultsLoader:
             
             # Extract forecast results - remove first dimension
             # CDE forecast has shape (1, 1, N, D), we want (1, N, D)
+            # TODO: make sure this is still correct.
             forecast = cde_forecast_data['forecast'][0]  # Remove first dimension
             X_val_forecast = cde_forecast_data['X_val']
         
@@ -1628,30 +1553,24 @@ def main_hyperparameter_analysis():
     parser.add_argument('--forecast-method', type=str, default='CDE', 
                        choices=['snapMMD', 'CDE'],
                        help='Forecasting method: snapMMD (load pre-computed) or CDE (generate on-the-fly) (default: CDE)')
-    parser.add_argument('--use-latent-mapping', action='store_true',
-                       help='Use latent mapping for target encoding (CDE method only)')
-    parser.add_argument('--latent-mapping-method', type=str, default='separate',
-                       choices=['separate', 'integrated'],
-                       help='Latent mapping method: separate (external model) or integrated (generator internal) (default: separate)')
     parser.add_argument('--output-folder', type=str, default='figures',
                        help='Output folder for figures (default: figures)')
     parser.add_argument('--skip-plots', action='store_true',
                        help='Skip plotting, only calculate metrics')
     parser.add_argument('--skip-metrics', action='store_true', 
                        help='Skip metrics calculation, only plot')
+    parser.add_argument('--experiment-pattern', type=str, default='hyperparam',
+                       choices=['hyperparam', 'unified'],
+                       help='Experiment directory pattern to search: hyperparam (snapMMD_<dataset>_unified_hyperparam_exp_<hash>) or unified (snapMMD_<dataset>_unified_exp_<hash>) (default: hyperparam)')
     
     args = parser.parse_args()
     
-    # Validate latent mapping arguments
-    if args.use_latent_mapping and args.forecast_method != 'CDE':
-        print("Warning: --use-latent-mapping is only applicable with --forecast-method CDE")
-        args.use_latent_mapping = False
+
     
     print(f"Processing datasets: {args.datasets}")
     print(f"Using forecasting method: {args.forecast_method}")
-    if args.use_latent_mapping:
-        print(f"Using latent mapping: {args.latent_mapping_method} method")
-    
+    print(f"Using experiment pattern: {args.experiment_pattern}")
+
     original_cwd = "/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/"
     base_outputs_dir = os.path.join(original_cwd, 'outputs')
     
@@ -1662,11 +1581,11 @@ def main_hyperparameter_analysis():
         print(f"{'='*80}")
         
         # Create a temporary loader to find all experiments for this dataset
-        temp_loader = UnifiedResultsLoader(dataset_name, forecast_method=args.forecast_method)
+        temp_loader = UnifiedResultsLoader(dataset_name, forecast_method=args.forecast_method, experiment_pattern=args.experiment_pattern)
         
         try:
             # Find all experiment directories for this dataset
-            experiment_dirs = temp_loader.find_all_experiments_with_hash(dataset_name, base_outputs_dir)
+            experiment_dirs = temp_loader.find_all_experiments_with_hash(dataset_name, base_outputs_dir, args.experiment_pattern)
             print(f"Found {len(experiment_dirs)} experiments for {dataset_name}")
             
             # Process each experiment
@@ -1683,10 +1602,9 @@ def main_hyperparameter_analysis():
                     loader = UnifiedResultsLoader(
                         dataset_name,
                         forecast_method=args.forecast_method,
-                        use_latent_mapping=args.use_latent_mapping,
-                        latent_mapping_method=args.latent_mapping_method,
                         predictor_type=predictor_type,
-                        sampling_type=sampling_type
+                        sampling_type=sampling_type,
+                        experiment_pattern=args.experiment_pattern
                     )
                     
                     # Set up logging
@@ -1784,47 +1702,34 @@ def main():
     parser.add_argument('--forecast-method', type=str, default='snapMMD', 
                        choices=['snapMMD', 'CDE'],
                        help='Forecasting method: snapMMD (load pre-computed) or CDE (generate on-the-fly) (default: snapMMD)')
-    parser.add_argument('--use-latent-mapping', action='store_true',
-                       help='Use latent mapping for target encoding (CDE method only)')
-    parser.add_argument('--latent-mapping-method', type=str, default='separate',
-                       choices=['separate', 'integrated'],
-                       help='Latent mapping method: separate (external model) or integrated (generator internal) (default: separate)')
     parser.add_argument('--output-folder', type=str, default='figures',
                        help='Output folder for figures (default: figures)')
-    parser.add_argument('--skip-plots', action='store_true',
-                       help='Skip plotting, only calculate metrics')
-    parser.add_argument('--skip-metrics', action='store_true', 
-                       help='Skip metrics calculation, only plot')
+    parser.add_argument('--experiment-pattern', type=str, default='hyperparam',
+                       choices=['hyperparam', 'unified'],
+                       help='Experiment directory pattern to search: hyperparam (snapMMD_<dataset>_unified_hyperparam_exp_<hash>) or unified (snapMMD_<dataset>_unified_exp_<hash>) (default: hyperparam)')
+
     
     args = parser.parse_args()
     
-    # Validate latent mapping arguments
-    if args.use_latent_mapping and args.forecast_method != 'CDE':
-        print("Warning: --use-latent-mapping is only applicable with --forecast-method CDE")
-        args.use_latent_mapping = False
     
     # Initialize loader
     loader = UnifiedResultsLoader(
         args.dataset, 
         args.seed, 
         args.forecast_method,
-        args.use_latent_mapping,
-        args.latent_mapping_method
+        experiment_pattern=args.experiment_pattern
     )
     
     # Set up logging
     log_filepath = loader.setup_logging(args.output_folder)
     
     loader.logger.info(f"Starting analysis for {args.dataset} using {args.forecast_method} method")
-    if args.use_latent_mapping:
-        loader.logger.info(f"Latent mapping enabled: {args.latent_mapping_method} method")
-    else:
-        loader.logger.info("Latent mapping disabled")
+
     loader.logger.info(f"Log file created at: {log_filepath}")
     
     print(f"Using forecasting method: {args.forecast_method}")
-    if args.use_latent_mapping:
-        print(f"Using latent mapping: {args.latent_mapping_method} method")
+    print(f"Using experiment pattern: {args.experiment_pattern}")
+
     print(f"Logging to: {log_filepath}")
     
     # Set up PCA if needed

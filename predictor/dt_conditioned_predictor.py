@@ -50,6 +50,9 @@ class SinusoidalPositionalEncoding(nn.Module):
 class DTConditionedMLPPredictor(nn.Module):
     """MLP predictor conditioned on dt using various flexible approaches."""
     
+    # Class attribute to indicate this predictor requires dt
+    requires_dt = True
+    
     def __init__(
         self, 
         latent_dim, 
@@ -155,6 +158,9 @@ class DTConditionedMLPPredictor(nn.Module):
 
 class DTConditionedRidgePredictor(nn.Module):
     """Ridge regression predictor conditioned on dt."""
+    
+    # Class attribute to indicate this predictor requires dt
+    requires_dt = True
     
     def __init__(
         self, 

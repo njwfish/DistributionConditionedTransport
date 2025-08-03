@@ -25,8 +25,6 @@ class Trainer:
         use_tqdm=True,
         mask_context_prob=0.0,
         sub_epoch=None,
-        validation_split=0.2,
-        shuffle_before_split=True
     ):
         """
         Initialize the trainer.
@@ -39,8 +37,6 @@ class Trainer:
             early_stopping: Whether to use early stopping
             patience: Number of evaluations with no improvement before early stopping
             use_tqdm: Whether to use tqdm progress bars
-            validation_split: Fraction for validation split (handled in main.py, not used here)
-            shuffle_before_split: Whether to shuffle before splitting (handled in main.py, not used here)
         """
         self.num_epochs = num_epochs
         self.log_interval = log_interval
@@ -55,10 +51,6 @@ class Trainer:
         self.patience = patience
         self.use_tqdm = use_tqdm
         self.mask_context_prob = mask_context_prob
-        
-        # Validation split parameters (handled upstream in main.py)
-        self.validation_split = validation_split
-        self.shuffle_before_split = shuffle_before_split
         
         self.logger = logging.getLogger(__name__)
         self.best_loss = float('inf')
@@ -378,12 +370,8 @@ class Trainer:
             if (epoch + 1) % self.save_interval == 0:
                 checkpoint_path = os.path.join(output_dir, f"checkpoint_epoch_{epoch+1}.pt")
                 
-                # Save generator state based on whether it has target mapping
-                if hasattr(generator, 'learn_target_mapping') and generator.learn_target_mapping:
-                    generator_state = generator.state_dict()
-                else:
-                    generator_state = generator.model.state_dict()
-                
+                generator_state = generator.state_dict()
+
                 torch.save({
                     'epoch': epoch + 1,
                     'encoder_state_dict': encoder.state_dict(),
@@ -413,70 +401,6 @@ class Trainer:
                         "epoch/epoch": epoch + 1,
                     }, step=step)
 
-                # Generate some samples with the trained model (use eval_dataloader for consistent evaluation)
-                samples = self.generate_samples(encoder, generator, eval_dataloader)
-                if samples is not None:
-                    self.logger.info(f"Source samples shape: {samples.get('source', 'N/A').shape if hasattr(samples.get('source', None), 'shape') else 'N/A'}")
-                    self.logger.info(f"Target samples shape: {samples.get('target', 'N/A').shape if hasattr(samples.get('target', None), 'shape') else 'N/A'}")
-                    self.logger.info(f"Generated samples shape: {samples.get('generated', 'N/A').shape if hasattr(samples.get('generated', None), 'shape') else 'N/A'}")
-                
-                    # Log generated samples to W&B (optional)
-                    if wandb.run is not None:
-                        # Handle different types of samples
-                        if 'generated_texts' in samples:
-                            n_examples = min(6, len(samples['source_texts']))
-                            n_examples_per_example = min(6, len(samples['source_texts'][0]))
-                            # For text data, use our text visualization
-                            text_output_dir = os.path.join(output_dir, f"text_samples_epoch_{epoch+1}")
-                            visualize_text_data(
-                                text_output_dir,
-                                samples['source_texts'],
-                                samples['target_texts'],
-                                samples['generated_texts'],
-                            )
-
-                            # Create a dataframe with source, target, and generated texts
-                            flat_source = []
-                            flat_target = []
-                            flat_generated = []
-                            set_indices = []
-                            for i in range(n_examples):
-                                for j in range(n_examples_per_example):
-                                    flat_source.append(samples['source_texts'][i][j])
-                                    flat_target.append(samples['target_texts'][i][j])
-                                    flat_generated.append(samples['generated_texts'][i][j])
-                                    set_indices.append(i)
-
-                            import pandas as pd
-                            df = pd.DataFrame({
-                                'source': flat_source,
-                                'target': flat_target,
-                                'generated': flat_generated,
-                                'set_index': set_indices
-                            })
-
-                            print(df.head())
-
-                            # Log table with source, target, and generated texts
-                            wandb.log({
-                                "epoch/text_samples": wandb.Table(dataframe=df)
-                            }, step=step)
-                            
-                        elif 'source' in samples and 'target' in samples and 'generated' in samples and hasattr(samples['source'], 'shape'):
-                            # For numerical or image data, use the updated visualization
-                            n_examples = min(6, samples['source'].shape[0])
-                            for i in range(n_examples):
-                                save_path = os.path.join(output_dir, f"coupled_samples_{i}_epoch_{epoch+1}.png")
-                                visualize_coupled_data(
-                                    save_path, 
-                                    samples['source'][i], 
-                                    samples['target'][i],
-                                    samples['generated'][i]
-                                )
-
-                                wandb.log({
-                                    f"samples/coupled_{i}": wandb.Image(save_path)
-                                })
                 
                 # Check if this is the best model so far
                 if eval_loss < self.best_loss:
@@ -484,12 +408,8 @@ class Trainer:
                     stats['best_epoch'] = epoch + 1
                     best_model_path = os.path.join(output_dir, "best_model.pt")
                     
-                    # Save generator state based on whether it has target mapping
-                    if hasattr(generator, 'learn_target_mapping') and generator.learn_target_mapping:
-                        generator_state = generator.state_dict()
-                    else:
-                        generator_state = generator.model.state_dict()
-                    
+                    generator_state = generator.state_dict()
+
                     torch.save({
                         'epoch': epoch + 1,
                         'encoder_state_dict': encoder.state_dict(),
@@ -537,7 +457,7 @@ class Trainer:
         
         return output_dir, stats
     
-    def _evaluate(self, encoder, generator, dataloader, device, num_eval_batches=10):
+    def _evaluate(self, encoder, generator, dataloader, device):
         """Run evaluation and return average loss."""
         encoder.eval()
         generator.model.eval()
@@ -547,8 +467,7 @@ class Trainer:
         
         with torch.no_grad():
             for batch in dataloader:
-                if num_eval_batches is not None and num_batches >= num_eval_batches:
-                    break
+
                 # Handle samples which can be either a tensor or a dictionary
                 if isinstance(batch['source_samples'], torch.Tensor):
                     source_samples = batch['source_samples'].to(device)

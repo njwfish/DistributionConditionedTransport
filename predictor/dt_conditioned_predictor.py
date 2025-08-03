@@ -47,9 +47,6 @@ class SinusoidalPositionalEncoding(nn.Module):
 class DTConditionedMLPPredictor(nn.Module):
     """MLP predictor conditioned on dt using various flexible approaches."""
     
-    # Class attribute to indicate this predictor requires dt
-    requires_dt = True
-    
     def __init__(
         self, 
         latent_dim, 
@@ -62,13 +59,8 @@ class DTConditionedMLPPredictor(nn.Module):
         super().__init__()
         self.latent_dim = latent_dim
         self.conditioning_mode = conditioning_mode
-        self.normalize_dt = normalize_dt
         self.dt_embed_dim = dt_embed_dim
         
-        # Running statistics for dt normalization (will be updated dynamically)
-        self.register_buffer('dt_mean', torch.tensor(0.0))
-        self.register_buffer('dt_std', torch.tensor(1.0))
-        self.register_buffer('dt_count', torch.tensor(0))
         
         if conditioning_mode == "sinusoidal":
             # Sinusoidal positional encoding for dt
@@ -114,34 +106,6 @@ class DTConditionedMLPPredictor(nn.Module):
         self.latent_act = nn.SELU()
         self.similarity = nn.CosineSimilarity()
     
-    def _update_dt_stats(self, dt_batch):
-        """Update running statistics for dt normalization."""
-        if not self.training:
-            return
-            
-        batch_mean = dt_batch.float().mean()
-        batch_var = dt_batch.float().var(unbiased=False)
-        batch_count = dt_batch.numel()
-        
-        # Online update of running statistics
-        new_count = self.dt_count + batch_count
-        delta = batch_mean - self.dt_mean
-        
-        new_mean = self.dt_mean + delta * batch_count / new_count
-        m_a = self.dt_std ** 2 * self.dt_count
-        m_b = batch_var * batch_count
-        M2 = m_a + m_b + delta ** 2 * self.dt_count * batch_count / new_count
-        new_std = torch.sqrt(M2 / new_count)
-        
-        self.dt_mean.copy_(new_mean)
-        self.dt_std.copy_(torch.clamp(new_std, min=1e-6))  # Avoid division by zero
-        self.dt_count.copy_(new_count)
-    
-    def _normalize_dt(self, dt):
-        """Normalize dt using running statistics."""
-        if self.normalize_dt:
-            return (dt.float() - self.dt_mean) / self.dt_std
-        return dt.float()
     
     def forward(self, x, dt):
         """
@@ -149,11 +113,6 @@ class DTConditionedMLPPredictor(nn.Module):
             x: Source latent [batch_size, latent_dim]
             dt: Time difference [batch_size] or [batch_size, 1]
         """
-        # Update dt statistics during training
-        self._update_dt_stats(dt)
-        
-        # Normalize dt
-        dt_norm = self._normalize_dt(dt)
         
         if self.conditioning_mode == "sinusoidal":
             # Encode dt using sinusoidal encoding
@@ -185,14 +144,12 @@ class DTConditionedMLPPredictor(nn.Module):
     def loss(self, source_latent, target_latent, dt):
         """Loss function that takes dt into account."""
         pred_target_latent = self.forward(source_latent, dt)
+        # TODO: should one include an absolute value to make sure this is never negative?
         return (1 - self.similarity(pred_target_latent, target_latent)).mean(), pred_target_latent
 
 
 class DTConditionedRidgePredictor(nn.Module):
     """Ridge regression predictor conditioned on dt."""
-    
-    # Class attribute to indicate this predictor requires dt
-    requires_dt = True
     
     def __init__(
         self, 
@@ -207,12 +164,6 @@ class DTConditionedRidgePredictor(nn.Module):
         self.latent_dim = latent_dim
         self.ridge_alpha = ridge_alpha
         self.conditioning_mode = conditioning_mode
-        self.normalize_dt = normalize_dt
-        
-        # Running statistics for dt normalization
-        self.register_buffer('dt_mean', torch.tensor(0.0))
-        self.register_buffer('dt_std', torch.tensor(1.0))
-        self.register_buffer('dt_count', torch.tensor(0))
         
         if conditioning_mode == "sinusoidal":
             self.dt_encoder = SinusoidalPositionalEncoding(dt_embed_dim)
@@ -238,33 +189,6 @@ class DTConditionedRidgePredictor(nn.Module):
         self.latent_act = nn.SELU()
         self.similarity = nn.CosineSimilarity()
     
-    def _update_dt_stats(self, dt_batch):
-        """Update running statistics for dt normalization."""
-        if not self.training:
-            return
-            
-        batch_mean = dt_batch.float().mean()
-        batch_var = dt_batch.float().var(unbiased=False)
-        batch_count = dt_batch.numel()
-        
-        new_count = self.dt_count + batch_count
-        delta = batch_mean - self.dt_mean
-        
-        new_mean = self.dt_mean + delta * batch_count / new_count
-        m_a = self.dt_std ** 2 * self.dt_count
-        m_b = batch_var * batch_count
-        M2 = m_a + m_b + delta ** 2 * self.dt_count * batch_count / new_count
-        new_std = torch.sqrt(M2 / new_count)
-        
-        self.dt_mean.copy_(new_mean)
-        self.dt_std.copy_(torch.clamp(new_std, min=1e-6))
-        self.dt_count.copy_(new_count)
-    
-    def _normalize_dt(self, dt):
-        """Normalize dt using running statistics."""
-        if self.normalize_dt:
-            return (dt.float() - self.dt_mean) / self.dt_std
-        return dt.float()
     
     def forward(self, x, dt):
         """
@@ -272,11 +196,6 @@ class DTConditionedRidgePredictor(nn.Module):
             x: Source latent [batch_size, latent_dim]
             dt: Time difference [batch_size] or [batch_size, 1]
         """
-        # Update dt statistics during training
-        self._update_dt_stats(dt)
-        
-        # Normalize dt
-        dt_norm = self._normalize_dt(dt)
         
         if self.conditioning_mode == "sinusoidal":
             dt_encoded = self.dt_encoder(dt_norm)

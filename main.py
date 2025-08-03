@@ -104,12 +104,6 @@ def main(cfg: DictConfig):
             val_dataset = None
             logger.info(f"No validation split requested. Using full dataset ({len(full_dataset)} samples) for training.")
 
-        # Create collate function
-        collate_fn = hydra.utils.instantiate(cfg.collate)
-        
-        # For collate objects (SetMixer, PairedCollate), use their collate_fn method
-        if hasattr(collate_fn, 'collate_fn'):
-            collate_fn = collate_fn.collate_fn
 
         # Improved DataLoader with parallel workers and pinned memory
         num_workers = min(4, os.cpu_count())  # Use at most 8 workers or available CPU cores
@@ -174,52 +168,14 @@ def main(cfg: DictConfig):
             val_dataloader_kwargs['shuffle'] = False  # Don't shuffle validation data
             val_dataloader = DataLoader(**val_dataloader_kwargs)
             logger.info(f"Created validation dataloader with {len(val_dataset)} samples")
-        
-        # DEBUG: Inspect batch structure
-        logger.info("=== BATCH STRUCTURE DEBUG ===")
-        try:
-            sample_batch = next(iter(train_dataloader))
-            logger.info(f"Batch type: {type(sample_batch)}")
-            
-            if isinstance(sample_batch, dict):
-                logger.info("Batch is a dictionary with keys:")
-                logger.info(f"Actual contents: {sample_batch}")
-                for key, value in sample_batch.items():
-                    if torch.is_tensor(value):
-                        logger.info(f"  {key}: tensor of shape {value.shape}, dtype {value.dtype}")
-                    elif isinstance(value, (list, tuple)):
-                        logger.info(f"  {key}: {type(value).__name__} of length {len(value)}")
-                        if len(value) > 0:
-                            logger.info(f"    First element type: {type(value[0])}")
-                            if torch.is_tensor(value[0]):
-                                logger.info(f"    First element shape: {value[0].shape}")
-                    else:
-                        logger.info(f"  {key}: {type(value)} - {value}")
-                        
-            elif isinstance(sample_batch, (list, tuple)):
-                logger.info(f"Batch is a {type(sample_batch).__name__} of length {len(sample_batch)}")
-                for i, item in enumerate(sample_batch):
-                    if torch.is_tensor(item):
-                        logger.info(f"  Item {i}: tensor of shape {item.shape}, dtype {item.dtype}")
-                    else:
-                        logger.info(f"  Item {i}: {type(item)} - {str(item)[:100]}...")
-                        
-            elif torch.is_tensor(sample_batch):
-                logger.info(f"Batch is a tensor of shape {sample_batch.shape}, dtype {sample_batch.dtype}")
-                
-            else:
-                logger.info(f"Batch is of type {type(sample_batch)}: {str(sample_batch)[:200]}...")
-                
-        except Exception as e:
-            logger.error(f"Error inspecting batch structure: {e}")
-        logger.info("=== END BATCH STRUCTURE DEBUG ===")
-        
  
         
         
         # Create encoder
         encoder = hydra.utils.instantiate(cfg.encoder)
 
+        # TODO: make sure the predictor really has both options of being used during training or only trained during training. 
+        # TODO: it would probably be good to re-implement the option to train the predictor after having trained everything else.
         if hasattr(cfg, "predictor"):
             predictor = hydra.utils.instantiate(cfg.predictor)
             # SELU by default but adding this to make sure it's the same as the encoder
@@ -256,36 +212,6 @@ def main(cfg: DictConfig):
         
         logger.info(f"Training completed. Best epoch: {stats['best_epoch']}")
         
-        # Train latent mapping model after main training is complete (if enabled)
-        if hasattr(cfg, "predictor_training"):
-            logger.info("Starting latent mapping training...")
-
-            mapping_trainer = hydra.utils.instantiate(cfg.predictor_training, model=encoder.predictor)
-            
-            # Create output directory for latent mapping
-            latent_mapping_output_dir = os.path.join(output_dir, "latent_mapping")
-            
-            # Train the latent mapping model using the trained encoder
-            final_mapping_model_path = mapping_trainer.train(
-                encoder=encoder,
-                dataloader=train_dataloader,
-                device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-                output_dir=latent_mapping_output_dir
-            )
-            
-            # Evaluate the mapping model (use validation dataloader if available)
-            eval_dataloader = val_dataloader if val_dataloader is not None else train_dataloader
-            eval_loss = mapping_trainer.evaluate(encoder, eval_dataloader)
-            logger.info(f"Latent mapping model evaluation loss: {eval_loss:.6f}")
-            
-            # Log latent mapping results to W&B
-            if wandb.run is not None:
-                wandb.run.summary["latent_mapping_final_loss"] = eval_loss
-                wandb.run.summary["latent_mapping_model_path"] = final_mapping_model_path
-            
-            logger.info(f"Latent mapping training completed. Model saved to: {final_mapping_model_path}")
-        else:
-            logger.info("Latent mapping training is disabled. Skipping...")
                     
     
     finally:

@@ -91,6 +91,7 @@ class SnapMMDUnified(Dataset):
     # TODO: make really really sure that you are not training on the test data.
     def __len__(self):
         # TODO: should you do self.data.shape[0]-1 because the final point is going to be held out to compute the forecasting performance?
+        # TODO: make sure this is really correct so you don't leave out any data.
         if self.testing_method == "forecast":
             num = self.data.shape[0]
             return num**2 - num
@@ -106,13 +107,14 @@ class SnapMMDUnified(Dataset):
             source_samples = torch.tensor(self.data[source_idx], dtype=torch.float)
             target_samples = torch.tensor(self.data[target_idx], dtype=torch.float)
             
-            
+            # TODO: is it fine to sample randomly here? And does it make a difference for the theory if we do replace=True? Might be more accurate in terms of probability distributions.
             subset_indices = np.random.choice(source_samples.shape[0], size=self.set_size, replace=False)
             
             source_samples = source_samples[subset_indices]
             target_samples = target_samples[subset_indices]
             
             # TODO: make sure shape here will be consistent with what it was before.
+            # TODO: at some point revamp the way you are doing dt to be more generalizable beyond just time/ forecasting tasks (more of a nomenclature issue).
             return {
                 'source_samples': source_samples,
                 'target_samples': target_samples,

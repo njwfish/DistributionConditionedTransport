@@ -90,6 +90,7 @@ def main(cfg: DictConfig):
         validation_split = getattr(cfg.training, 'validation_split', 0.2)
         shuffle_before_split = getattr(cfg.training, 'shuffle_before_split', True)
         
+        # TODO: are you being to hard on the model by doing the validation split this way? Maybe it is enough to just use the randomness of the subsamples in the dataloader rather than leaving out full time-point pairs?
         if validation_split > 0.0:
             train_dataset, val_dataset = create_train_val_split(
                 full_dataset, 

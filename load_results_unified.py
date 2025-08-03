@@ -1778,6 +1778,7 @@ def main():
     parser = argparse.ArgumentParser(description='Unified results loading and analysis')
     parser.add_argument('dataset', choices=list(DATASET_CONFIGS.keys()),
                        help='Dataset name')
+    # TODO: why do we need a seed for plotting?
     parser.add_argument('--seed', type=int, default=42,
                        help='Random seed for snapMMD forecast (ignored for CDE method) (default: 42)')
     parser.add_argument('--forecast-method', type=str, default='snapMMD', 

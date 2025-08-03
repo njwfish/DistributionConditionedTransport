@@ -24,6 +24,9 @@ class SinusoidalPositionalEncoding(nn.Module):
         Returns:
             Positional encodings of shape [batch_size, d_model]
         """
+        # Convert to float to avoid dtype mismatch
+        dt = dt.float()
+        
         if dt.dim() == 1:
             dt = dt.unsqueeze(-1)  # [batch_size, 1]
             
@@ -113,26 +116,28 @@ class DTConditionedMLPPredictor(nn.Module):
             x: Source latent [batch_size, latent_dim]
             dt: Time difference [batch_size] or [batch_size, 1]
         """
+        # Convert to float to avoid dtype mismatch
+        dt = dt.float()
         
         if self.conditioning_mode == "sinusoidal":
             # Encode dt using sinusoidal encoding
-            dt_encoded = self.dt_encoder(dt_norm)  # [batch_size, dt_embed_dim]
+            dt_encoded = self.dt_encoder(dt)  # [batch_size, dt_embed_dim]
             # Concatenate with latent
             x_conditioned = torch.cat([x, dt_encoded], dim=-1)
             output = self.net(x_conditioned)
             
         elif self.conditioning_mode == "concat":
             # Simple concatenation
-            if dt_norm.dim() == 1:
-                dt_norm = dt_norm.unsqueeze(-1)
-            x_conditioned = torch.cat([x, dt_norm], dim=-1)
+            if dt.dim() == 1:
+                dt = dt.unsqueeze(-1)
+            x_conditioned = torch.cat([x, dt], dim=-1)
             output = self.net(x_conditioned)
             
         elif self.conditioning_mode == "film":
             # FiLM conditioning
-            if dt_norm.dim() == 1:
-                dt_norm = dt_norm.unsqueeze(-1)
-            film_params = self.dt_encoder(dt_norm)  # [batch_size, latent_dim * 2]
+            if dt.dim() == 1:
+                dt = dt.unsqueeze(-1)
+            film_params = self.dt_encoder(dt)  # [batch_size, latent_dim * 2]
             scale, shift = film_params.chunk(2, dim=-1)  # Each [batch_size, latent_dim]
             
             # Apply FiLM modulation to input
@@ -196,22 +201,24 @@ class DTConditionedRidgePredictor(nn.Module):
             x: Source latent [batch_size, latent_dim]
             dt: Time difference [batch_size] or [batch_size, 1]
         """
+        # Convert to float to avoid dtype mismatch
+        dt = dt.float()
         
         if self.conditioning_mode == "sinusoidal":
-            dt_encoded = self.dt_encoder(dt_norm)
+            dt_encoded = self.dt_encoder(dt)
             x_conditioned = torch.cat([x, dt_encoded], dim=-1)
             output = self.linear(x_conditioned)
             
         elif self.conditioning_mode == "concat":
-            if dt_norm.dim() == 1:
-                dt_norm = dt_norm.unsqueeze(-1)
-            x_conditioned = torch.cat([x, dt_norm], dim=-1)
+            if dt.dim() == 1:
+                dt = dt.unsqueeze(-1)
+            x_conditioned = torch.cat([x, dt], dim=-1)
             output = self.linear(x_conditioned)
             
         elif self.conditioning_mode == "film":
-            if dt_norm.dim() == 1:
-                dt_norm = dt_norm.unsqueeze(-1)
-            dt_bias = self.dt_encoder(dt_norm)  # [batch_size, latent_dim]
+            if dt.dim() == 1:
+                dt = dt.unsqueeze(-1)
+            dt_bias = self.dt_encoder(dt)  # [batch_size, latent_dim]
             output = self.linear(x) + dt_bias
         
         return self.latent_act(output)

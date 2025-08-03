@@ -87,8 +87,8 @@ def main(cfg: DictConfig):
         full_dataset = hydra.utils.instantiate(cfg.dataset)
 
         # Create train-validation split
-        validation_split = getattr(cfg.training, 'validation_split', 0.2)
-        shuffle_before_split = getattr(cfg.training, 'shuffle_before_split', True)
+        validation_split = getattr(cfg, 'validation_split', 0.2)
+        shuffle_before_split = getattr(cfg, 'shuffle_before_split', True)
         
         # TODO: are you being to hard on the model by doing the validation split this way? Maybe it is enough to just use the randomness of the subsamples in the dataloader rather than leaving out full time-point pairs?
         if validation_split > 0.0:

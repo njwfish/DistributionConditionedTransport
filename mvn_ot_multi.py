@@ -66,7 +66,7 @@ def vectorized_covariance(X):
 
 def process_single_config(cfg, device):
     """Process a single config and return GDE trajectory means and covariances"""
-    dir_name = os.path.join('/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/', cfg['dir'])
+    dir_name = cfg['dir']
     enc, gen = load_model(cfg['config'], dir_name, device)
 
     ds = prepare_dataset(cfg['config']['dataset'])
@@ -310,7 +310,7 @@ for weight in sorted(configs_by_weight_and_type.keys()):
     panel_fig = create_panel_for_weight(weight, configs_by_type, device)
     
     # Save the panel
-    filename = f'/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/mvn_panel_weight_{weight}.png'
+    filename = f'mvn_panel_weight_{weight}.png'
     panel_fig.savefig(filename, dpi=300, bbox_inches='tight')
     plt.close(panel_fig)  # Free memory
     

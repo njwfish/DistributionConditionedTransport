@@ -2,13 +2,22 @@
 from pathlib import Path
 import sys  
 import torch
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
+import matplotlib.colors as mcolors
+
+import hydra
+
+from utils.experiment_utils import get_all_experiments_info, load_best_model
+
+from scipy.linalg import sqrtm
 # Get my_package directory path from Notebook
 parent_dir = str(Path().resolve().parents[0])
 
 # Add to sys.path
 sys.path.insert(0, parent_dir)
-
-from utils.experiment_utils import get_all_experiments_info, load_best_model
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(device)
@@ -18,7 +27,6 @@ cfgs = [
     c for c in configs if 'mvn_exp_' in c['name']]
 print(len(cfgs))
 print(cfgs[0])
-import hydra
 # load + prep dataset
 def prepare_dataset(dataset_cfg):
     # probs = np.column_stack((np.linspace(0, 1, num_probs), 1 - np.linspace(0, 1, num_probs)))
@@ -52,16 +60,23 @@ ds = prepare_dataset(cfgs[0]['config']['dataset'])
 s1 = ds.sample(ds.mu[2][None, :], ds.cov[2][None, :, :], 1, 100_000, (2,))
 s2 = ds.sample(ds.mu[1][None, :], ds.cov[1][None, :, :], 1, 100_000, (2,))
 print("s1.shape, s2.shape", s1.shape, s2.shape)
-sys.exit()
-import numpy as np
-import torch
-lat = enc(torch.from_numpy(np.concatenate([s1[None, :, :], s2[None, :, :]], axis=0)).float().to(device))
+print("NEW:",np.concatenate([s1, s2], axis=0).shape)
+
+lat = enc(torch.from_numpy(np.concatenate([s1, s2], axis=0)).float().to(device))
 # resample = gen.sample(lat, 1_000_000, return_trajectory=False)
 # linearly interpolate between the two points
+print("lat.shape", lat.shape)
 lat_interp = lat[0] + (lat[1] - lat[0]) * torch.linspace(0, 1, 20)[:, None].to(device)
-resample = gen.sample(lat_interp, 1_000_000, return_trajectory=False)
-
-import numpy as np
+lat_start = lat[0] + torch.zeros_like(lat[1] - lat[0]) * torch.linspace(0, 1, 20)[:, None].to(device)
+print("lat_start.shape", lat_start.shape)
+print("lat_interp.shape", lat_interp.shape)
+print("lat[0][None,:].shape", lat[0][None,:].shape, lat[0][:,None].shape)
+# Convert s1 to torch tensor and expand to match lat_start/lat_interp first dimension
+s1_expanded = torch.from_numpy(s1).float().to(device).expand(20, -1, -1)
+# Reshape to 2D: (20 * 100000, 2) for ODE integration
+s1_tensor = s1_expanded.reshape(-1, s1_expanded.shape[-1])
+print("s1_tensor.shape", s1_tensor.shape)
+resample = gen.sample(s1_tensor, lat_start, lat_interp, 1_000_000, return_trajectory=False)
 
 # X is (n, m, d)
 def vectorized_covariance(X):
@@ -76,11 +91,7 @@ def vectorized_covariance(X):
 # compute means and covariances of all the resampled points
 resample_means = np.mean(resample.cpu().numpy(), axis=1)
 resample_covs = vectorized_covariance(resample.cpu().numpy())
-import numpy as np
-from scipy.linalg import sqrtm
 
-import numpy as np
-from scipy.linalg import sqrtm
 
 def generate_ot_trajectory(mean1, cov1, mean2, cov2, n_steps=10):
     """
@@ -139,15 +150,6 @@ def generate_ot_trajectory(mean1, cov1, mean2, cov2, n_steps=10):
     return np.array(means), np.array(covs)
 
 ot_means, ot_covs = generate_ot_trajectory(ds.mu[2], ds.cov[2], ds.mu[1], ds.cov[1], 20)
-import numpy as np
-
-# load from numerical results
-ot_means, ot_covs = np.load('numerical_results/mvn_ot.npz')['ot_means'], np.load('numerical_results/mvn_ot.npz')['ot_covs']
-resample_means, resample_covs = np.load('numerical_results/mvn_ot.npz')['gde_means'], np.load('numerical_results/mvn_ot.npz')['gde_covs']
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse
-import matplotlib.colors as mcolors
 
 
 plt.rc('xtick', labelsize=16)
@@ -231,11 +233,13 @@ def plot_gaussian_trajectories(means, covs, figsize=(8, 8), alpha=0.2, n_std=2, 
 
 
 fig = plot_gaussian_trajectories(resample_means, resample_covs, title='GDE trajectory', figsize=(4,4))
-# plt.savefig('../figs/mvn_gde.png', dpi=300)
+plt.savefig('/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/mvn_gde.png', dpi=300)
 
 fig_ot = plot_gaussian_trajectories(ot_means, ot_covs, title='OT trajectory', figsize=(4,4))
-# plt.savefig('../figs/mvn_ot.png', dpi=300)
+plt.savefig('/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/mvn_ot.png', dpi=300)
 
+print("RESAMPLE:", resample_means, resample_covs)
+print("OT:", ot_means, ot_covs)
 # # save actual data to numerical results
 # np.savez(
 #     '../numerical_results/mvn_ot.npz', 

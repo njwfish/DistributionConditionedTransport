@@ -66,6 +66,8 @@ class SnapMMDUnified(Dataset):
             np.random.seed(seed)
         
         self.testing_method = testing_method
+        
+        # TODO: hmmm, maybe I interpreted set_size slightly wrong. Is it supposed to be a subset of the whole population at a given time point or just the size of the population?
         self.set_size = set_size
         
         # Use the original working directory before Hydra changed it
@@ -113,7 +115,7 @@ class SnapMMDUnified(Dataset):
             source_samples = source_samples[subset_indices]
             target_samples = target_samples[subset_indices]
             
-            # TODO: make sure shape here will be consistent with what it was before.
+            # TODO: can I just remove idx?
             # TODO: at some point revamp the way you are doing dt to be more generalizable beyond just time/ forecasting tasks (more of a nomenclature issue).
             return {
                 'source_samples': source_samples,

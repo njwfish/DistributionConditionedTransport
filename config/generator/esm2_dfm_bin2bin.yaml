@@ -1,0 +1,11 @@
+# @package _global_.generator
+_target_: generator.esm2_dfm_bin2bin.ESM2_DFM_Generator
+model_name: 'facebook/esm2_t6_8M_UR50D'
+latent_dim: ${experiment.latent_dim}
+condition_dim: ${experiment.condition_dim}
+freeze_esm2: ${experiment.freeze_esm2}
+condition_method: ${experiment.condition_method}
+max_length: ${experiment.max_length}
+scale_time: false
+reject_sample: false
+seq2seq_mode: false

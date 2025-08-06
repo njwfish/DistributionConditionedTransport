@@ -1,0 +1,37 @@
+# @package _global_.experiment
+
+# Experiment name and description
+name: evolvepro_bin2bin
+description: "bin-to-bin optimization of protein fitness now with actual bin jumping"
+
+# Override defaults from config.yaml
+defaults:
+  - /encoder: esm
+  - /generator: esm2_dfm_bin2bin #progen2
+  - /scheduler: cosine
+  - /loss: default_bin2bin
+
+
+protein_name: "ParD3"
+
+# Experiment-specific parameters
+latent_dim: 320 # TODO: make sure that this is really the correct latent_dim for the ESM2 8M model. Also make sure that there is no conflict due to double usage.
+hidden_dim: 256 # TODO: is this really the correct hidden_dim for the ESM2 model??
+batch_size: 1
+set_size: 10
+lr: 2e-5
+
+home_dir: "/orcd/archive/abugoot/001/Projects/paolo/distribution_embeddings"
+
+# ESM model settings
+esm_model_name: 'facebook/esm2_t6_8M_UR50D'
+
+condition_dim: 32
+freeze_esm2: false
+condition_method: "prefix"
+max_length: 93
+
+progen2_model_name: 'hugohrban/progen2-small'
+
+
+

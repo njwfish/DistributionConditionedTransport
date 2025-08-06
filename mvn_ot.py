@@ -53,7 +53,7 @@ def load_model(cfg, path, device):
     gen.to(device)
     return enc, gen
 
-dir_name = '/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/outputs/mvn_exp_b7882e0d74143cda1a150517474ea90d' #cfgs[0]['dir']
+dir_name = '/outputs/mvn_exp_b7882e0d74143cda1a150517474ea90d' #cfgs[0]['dir']
 enc, gen = load_model(cfgs[0]['config'], dir_name, device)
 
 ds = prepare_dataset(cfgs[0]['config']['dataset'])
@@ -77,7 +77,7 @@ s1_expanded = torch.from_numpy(s1).float().to(device).expand(20, -1, -1)
 s1_tensor = s1_expanded.reshape(-1, s1_expanded.shape[-1])
 print("s1_tensor.shape", s1_tensor.shape)
 resample = gen.sample(s1_tensor, lat_start, lat_interp, 1_000_000, return_trajectory=False)
-
+print("resample.shape", resample.shape)
 # X is (n, m, d)
 def vectorized_covariance(X):
     # Center the data
@@ -233,10 +233,10 @@ def plot_gaussian_trajectories(means, covs, figsize=(8, 8), alpha=0.2, n_std=2, 
 
 
 fig = plot_gaussian_trajectories(resample_means, resample_covs, title='GDE trajectory', figsize=(4,4))
-plt.savefig('/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/mvn_gde.png', dpi=300)
+plt.savefig('mvn_gde.png', dpi=300)
 
 fig_ot = plot_gaussian_trajectories(ot_means, ot_covs, title='OT trajectory', figsize=(4,4))
-plt.savefig('/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/mvn_ot.png', dpi=300)
+plt.savefig('mvn_ot.png', dpi=300)
 
 print("RESAMPLE:", resample_means, resample_covs)
 print("OT:", ot_means, ot_covs)

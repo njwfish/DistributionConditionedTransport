@@ -98,14 +98,14 @@ class CustomWeightedSampler(WeightedRandomSampler):
                     item = self.dataset[idx]
                     if isinstance(item, dict) and 'dt' in item:
                         dt = item['dt']
-                        weights[idx] = math.exp(abs(dt)) / ln_2
+                        weights[idx] = math.exp(-abs(dt)) / ln_2
                     else:
                         logger.warning(f"Item at index {idx} is not a dict or doesn't contain 'dt' key. "
                                      f"Setting weight to 1/ln(2).")
-                        weights[idx] = 1.0 / ln_2  # exp(0) / ln(2)
+                        weights[idx] = 0
                 except Exception as e:
                     logger.warning(f"Error accessing item at index {idx}: {e}. Setting weight to 1/ln(2).")
-                    weights[idx] = 1.0 / ln_2
+                    weights[idx] = 0
                     
         elif self.sampling_mode == "dt_equals_one":
             # Only samples with dt == 1 get positive weight

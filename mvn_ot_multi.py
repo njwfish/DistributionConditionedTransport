@@ -90,9 +90,14 @@ def process_single_config(cfg, device):
     
     return resample_means, resample_covs
 
-# Group configs by predictor_loss_weight and predictor type
+# Group configs by predictor_loss_weight and predictor type, filtering out "unidirectional" sampling mode
 configs_by_weight_and_type = defaultdict(lambda: defaultdict(list))
 for cfg in cfgs:
+    # Skip configs with unidirectional sampling mode
+    sampling_mode = cfg['config']['sampling']['mode']
+    if sampling_mode == 'unidirectional':
+        continue
+        
     predictor_weight = cfg['config']['experiment']['predictor_loss_weight']
     predictor_target = cfg['config']['predictor']['_target_']
     # Extract predictor type from target string
@@ -239,58 +244,77 @@ def plot_gaussian_trajectories_on_ax(ax, means, covs, alpha=0.2, n_std=2, title=
     if title is not None:
         ax.set_title(title, fontsize=10)
 
-def create_panel_for_weight_and_type(weight, pred_type, configs, device):
-    """Create a single 2x3 panel for configs with the same predictor_loss_weight and predictor_type"""
+def create_panel_for_weight(weight, configs_by_type, device):
+    """Create a single 2x4 panel with Ridge (left 2x2) and MLP (right 2x2) for the same predictor_loss_weight"""
     
-    # Process all configs for this weight and type
-    results = []
-    for cfg in configs:
-        try:
-            gde_means, gde_covs = process_single_config(cfg, device)
-            mode = cfg['config']['sampling']['mode']
-            conditioning_mode = cfg['config']['predictor']['conditioning_mode']
-            results.append((gde_means, gde_covs, mode, conditioning_mode))
-            print(f"Processed config with weight={weight}, type={pred_type}, mode={mode}, conditioning_mode={conditioning_mode}")
-        except Exception as e:
-            print(f"Error processing config: {e}")
-            continue
+    # Create subplot grid (2 rows x 4 cols)
+    fig, axes = plt.subplots(2, 4, figsize=(20, 12))
     
-    # Create subplot grid (2 rows x 3 cols for 6 subfigures)
-    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
-    axes = axes.flatten()
+    # Process Ridge configs (left 2x2 panel: columns 0-1)
+    if 'Ridge' in configs_by_type:
+        ridge_results = []
+        for cfg in configs_by_type['Ridge']:
+            try:
+                gde_means, gde_covs = process_single_config(cfg, device)
+                mode = cfg['config']['sampling']['mode']
+                conditioning_mode = cfg['config']['predictor']['conditioning_mode']
+                ridge_results.append((gde_means, gde_covs, mode, conditioning_mode))
+                print(f"Processed Ridge config with weight={weight}, mode={mode}, conditioning_mode={conditioning_mode}")
+            except Exception as e:
+                print(f"Error processing Ridge config: {e}")
+                continue
+        
+        # Fill left 2x2 panel (Ridge)
+        for i, (gde_means, gde_covs, mode, conditioning_mode) in enumerate(ridge_results):
+            if i < 4:  # Safety check for 2x2 grid
+                row = i // 2
+                col = i % 2
+                title = f"Ridge\nsampling mode={mode}\nconditioning method={conditioning_mode}"
+                plot_gaussian_trajectories_on_ax(axes[row, col], gde_means, gde_covs, title=title)
     
-    for i, (gde_means, gde_covs, mode, conditioning_mode) in enumerate(results):
-        if i < 6:  # Safety check
-            title = f"sampling mode={mode}\nconditioning method={conditioning_mode}"
-            plot_gaussian_trajectories_on_ax(axes[i], gde_means, gde_covs, title=title)
+    # Process MLP configs (right 2x2 panel: columns 2-3)
+    if 'MLP' in configs_by_type:
+        mlp_results = []
+        for cfg in configs_by_type['MLP']:
+            try:
+                gde_means, gde_covs = process_single_config(cfg, device)
+                mode = cfg['config']['sampling']['mode']
+                conditioning_mode = cfg['config']['predictor']['conditioning_mode']
+                mlp_results.append((gde_means, gde_covs, mode, conditioning_mode))
+                print(f"Processed MLP config with weight={weight}, mode={mode}, conditioning_mode={conditioning_mode}")
+            except Exception as e:
+                print(f"Error processing MLP config: {e}")
+                continue
+        
+        # Fill right 2x2 panel (MLP)
+        for i, (gde_means, gde_covs, mode, conditioning_mode) in enumerate(mlp_results):
+            if i < 4:  # Safety check for 2x2 grid
+                row = i // 2
+                col = 2 + (i % 2)  # Offset by 2 to use columns 2-3
+                title = f"MLP\nsampling mode={mode}\nconditioning method={conditioning_mode}"
+                plot_gaussian_trajectories_on_ax(axes[row, col], gde_means, gde_covs, title=title)
     
-    # Hide any unused subplots
-    for i in range(len(results), 6):
-        axes[i].set_visible(False)
-    
-    fig.suptitle(f'GDE Trajectories - {pred_type} - Predictor Loss Weight = {weight}', fontsize=16)
+    fig.suptitle(f'GDE Trajectories - Predictor Loss Weight = {weight}', fontsize=18)
     plt.tight_layout()
     
     return fig
 
 
-# Process all predictor_loss_weight and predictor_type combinations and create panels
+# Process all predictor_loss_weight groups and create panels
 for weight in sorted(configs_by_weight_and_type.keys()):
     configs_by_type = configs_by_weight_and_type[weight]
+    total_configs = sum(len(configs) for configs in configs_by_type.values())
+    print(f"\nProcessing predictor_loss_weight = {weight} with {total_configs} configs")
     
-    for pred_type in sorted(configs_by_type.keys()):
-        configs = configs_by_type[pred_type]
-        print(f"\nProcessing predictor_loss_weight = {weight}, predictor_type = {pred_type} with {len(configs)} configs")
-        
-        # Create panel for this weight and type combination
-        panel_fig = create_panel_for_weight_and_type(weight, pred_type, configs, device)
-        
-        # Save the panel
-        filename = f'/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/mvn_panel_weight_{weight}_{pred_type}.png'
-        panel_fig.savefig(filename, dpi=300, bbox_inches='tight')
-        plt.close(panel_fig)  # Free memory
-        
-        print(f"Saved panel for weight {weight}, type {pred_type} to {filename}")
+    # Create panel for this weight (includes both Ridge and MLP)
+    panel_fig = create_panel_for_weight(weight, configs_by_type, device)
+    
+    # Save the panel
+    filename = f'/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/mvn_panel_weight_{weight}.png'
+    panel_fig.savefig(filename, dpi=300, bbox_inches='tight')
+    plt.close(panel_fig)  # Free memory
+    
+    print(f"Saved panel for weight {weight} to {filename}")
 
 print("\nAll panels created successfully!")
 

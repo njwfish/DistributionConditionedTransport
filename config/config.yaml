@@ -10,7 +10,7 @@ defaults:
   - optimizer: adam  # Default optimizer
   - scheduler: none  # Default scheduler
   - training: default  # Default training config
-  - predictor: mlp  # Default predictor
+  - predictor: none  # Default predictor
   - collate: none  # Default collate function
   - wandb: default  # Default W&B config
   - loss: default  # Default loss config
@@ -26,8 +26,8 @@ seed: 42
 device: cuda
 
 # Validation split parameters
-validation_split: 0.0  # 20% for validation, 80% for training
-shuffle_before_split: false  # Whether to shuffle data before splitting
+validation_split: 0.1  # 20% for validation, 80% for training
+shuffle_before_split: true  # Whether to shuffle data before splitting
 
 # Hydra-related settings
 hydra:

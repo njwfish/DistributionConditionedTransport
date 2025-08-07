@@ -7,7 +7,6 @@ description: "Multivariate normal distribution experiment with Dirichlet mixing 
 # Override defaults from config.yaml
 defaults:
   - /dataset: mvn
-  - /encoder: gnn
   - /model: diffusion_mlp
   - /generator: flow_matching  # Use flow matching for coupled embeddings
   - /training: default500

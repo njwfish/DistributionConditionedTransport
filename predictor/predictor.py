@@ -5,6 +5,10 @@ from layers import MLP
 
 class MLPPredictor(nn.Module):
     """Multi-layer perceptron for latent mapping"""
+    
+    # Class attribute to indicate this predictor does not require dt
+    requires_dt = False
+    
     def __init__(self, latent_dim, hidden_dim=128, num_layers=2):
         super().__init__()
         self.net = MLP(
@@ -27,6 +31,10 @@ class MLPPredictor(nn.Module):
 
 class RidgePredictor(nn.Module):
     """Ridge regression (linear mapping with L2 regularization). Set ridge_alpha to 0 to disable regularization."""
+    
+    # Class attribute to indicate this predictor does not require dt
+    requires_dt = False
+    
     def __init__(self, latent_dim, ridge_alpha=1e-3):
         super().__init__()
         self.linear = nn.Linear(latent_dim, latent_dim)

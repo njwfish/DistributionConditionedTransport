@@ -6,3 +6,6 @@ data_name: Repressilator_data.npz
 data_shape: [3]
 seed: ${seed} 
 testing_method: forecast
+
+bidirectional: ${experiment.bidirectional}
+set_size: ${experiment.set_size}

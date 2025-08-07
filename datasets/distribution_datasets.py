@@ -247,6 +247,9 @@ class MultivariateNormalDistributionDataset(Dataset):
         
         self.data = self.sample(self.mu, self.cov, n_sets, set_size, data_shape)
         
+        self.index_pairs = np.array([(i, j) for i in range(self.data.shape[0]) for j in range(self.data.shape[0]) if i != j])
+
+        
     def sample(self, mu, cov, n_sets, set_size, data_shape):
         """
         Vectorized sampling from a multivariate normal distribution.
@@ -282,13 +285,36 @@ class MultivariateNormalDistributionDataset(Dataset):
         return mean_dist + var_dist
 
     def __len__(self):
-        return self.data.shape[0]
+        n = self.data.shape[0]
+        print("HHHHHHEEEEEEYYYYYYYYY!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", n, "!!!!!!!!!!!!!!!!!!!!!")
+        return n**2 - n
     
     def __getitem__(self, idx):
+        source_idx, target_idx = self.index_pairs[idx]
+        source_samples = torch.tensor(self.data[source_idx], dtype=torch.float)
+        target_samples = torch.tensor(self.data[target_idx], dtype=torch.float)
+        
+        #subset_indices = np.random.choice(source_samples.shape[0], size=self.set_size, replace=False)
+        #
+        #source_samples = source_samples[subset_indices]
+        #target_samples = target_samples[subset_indices]
+        
+        # Compute Wasserstein distance between the two distributions using their parameters
+        source_mu = self.mu[source_idx]
+        target_mu = self.mu[target_idx]
+        source_cov = self.cov[source_idx]
+        target_cov = self.cov[target_idx]
+        
+        # Create arrays with the source and target parameters for distance computation
+        mu_pair = np.array([source_mu, target_mu])
+        cov_pair = np.array([source_cov, target_cov])
+        distance = self.wasserstein_distance(mu_pair, cov_pair)[0, 1]  # Get distance between indices 0 and 1
+        
+        # TODO: rename dt variable, we are not doing forecasting anymore. Leaving it for now to avoid bugs in the rest of the code.
         return {
-            'samples': torch.tensor(self.data[idx], dtype=torch.float),
-            'mean': torch.tensor(self.mu[idx], dtype=torch.float),
-            'cov': torch.tensor(self.cov[idx], dtype=torch.float)
+            'source_samples': source_samples,
+            'target_samples': target_samples,
+            'dt': distance,
         }
     
 class LowRankMultivariateNormalDistributionDataset(Dataset):

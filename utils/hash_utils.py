@@ -42,7 +42,7 @@ def hash_config(config: Union[Dict[str, Any], DictConfig], include_keys: list = 
                 del filtered_config[key]
     
     # Remove non-deterministic or irrelevant keys
-    default_exclude = ['hydra', 'seed', 'device', 'wandb', 'output_dir']
+    default_exclude = ['hydra', 'device', 'wandb', 'output_dir']
     for key in default_exclude:
         if key in filtered_config:
             del filtered_config[key]

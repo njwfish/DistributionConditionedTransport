@@ -19,7 +19,16 @@ class PredictorLossManager:
             target_latent = encoder(target_samples)
 
             # compute predictor loss and get predicted target latent
-            predictor_loss, pred_target_latent = encoder.predictor.loss(source_latent, target_latent)
+            # Check if predictor requires dt conditioning
+            if hasattr(encoder.predictor, 'requires_dt') and encoder.predictor.requires_dt:
+                # dt-conditioned predictor
+                if 'dt' not in batch:
+                    raise ValueError("dt not found in batch but required by dt-conditioned predictor")
+                dt = batch['dt'].to(device)
+                predictor_loss, pred_target_latent = encoder.predictor.loss(source_latent, target_latent, dt)
+            else:
+                # non-dt-conditioned predictor
+                predictor_loss, pred_target_latent = encoder.predictor.loss(source_latent, target_latent)
 
             # compute generator loss
             target_latent_for_generator = target_latent if not self.use_predicted_latent else pred_target_latent
@@ -30,6 +39,7 @@ class PredictorLossManager:
                 source_latent, 
                 target_latent_for_generator
             )
+            
         else:
             # For dictionary samples (like PubMed dataset), move tensors to device
             source_samples = {}
@@ -51,14 +61,32 @@ class PredictorLossManager:
             source_latent = encoder(source_samples)
             target_latent = encoder(target_samples)
 
-            pred_target_latent = encoder.predictor(source_latent)
+            # Handle predictors (both dt-conditioned and non-dt-conditioned)
+            # Check if predictor requires dt conditioning
+            if hasattr(encoder.predictor, 'requires_dt') and encoder.predictor.requires_dt:
+                # dt-conditioned predictor
+                if 'dt' not in batch:
+                    raise ValueError("dt not found in batch but required by dt-conditioned predictor")
+                dt = batch['dt'].to(device)
+                predictor_loss, pred_target_latent = encoder.predictor.loss(source_latent, target_latent, dt)
+            else:
+                # non-dt-conditioned predictor
+                predictor_loss, pred_target_latent = encoder.predictor.loss(source_latent, target_latent)
 
             target_latent_for_generator = target_latent if not self.use_predicted_latent else pred_target_latent
 
             recon_loss = generator.loss(source_samples, target_samples, source_latent, target_latent_for_generator)
 
+        # TODO: make sure you understand why exactly the loss only gets the recon loss term and not the predictor loss.
+
         loss += recon_loss
         losses['reconstruction_loss'] = recon_loss
+        
+        # TODO: actually, I think there still is an issue, because I think this will still not add any predictor loss for the older models (so the ones not conditioned on dt). But check this.
+        # Add predictor loss
+        # TODO: is this the right way to go about this? I mean, how could one possibly estimate the correct predictor loss weight?
+        # TODO: if you directly want to condition on the predicted latent during training you might be better off not adding an extra loss term here, but we can just leave it for now and see how things perform.
+        loss += predictor_loss * self.predictor_loss_weight
         losses['predictor_loss'] = predictor_loss * self.predictor_loss_weight
 
         return loss, losses

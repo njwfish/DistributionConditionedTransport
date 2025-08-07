@@ -68,39 +68,46 @@ class ConditionedProgen2(nn.Module):
         self.condition_method = condition_method
         
         # Project latent to correct dimension (same approach as in GPT-2)
+        # Note: input dimension is doubled since we concatenate source and target latents
+        combined_latent_dim = latent_dim * 2
+        
         if self.condition_method == "prefix":
             # For prefix conditioning, project to hidden states
             self.condition_proj = nn.Sequential(
-                nn.Linear(latent_dim, condition_dim),
+                nn.Linear(combined_latent_dim, condition_dim),
                 nn.GELU(),
                 nn.Linear(condition_dim, self.hidden_dim)
             )
         elif self.condition_method == "additive":
             # For additive conditioning, project to hidden states
             self.condition_proj = nn.Sequential(
-                nn.Linear(latent_dim, condition_dim),
+                nn.Linear(combined_latent_dim, condition_dim),
                 nn.GELU(),
                 nn.Linear(condition_dim, self.hidden_dim)
             )
         else:
             raise ValueError(f"Unknown conditioning method: {condition_method}")
 
-    def forward(self, input_ids, attention_mask, latent):
+    def forward(self, input_ids, attention_mask, latent_source, latent_target):
         """
         Forward pass through the conditioned Progen2 model.
         
         Args:
             input_ids: Tensor of token IDs [batch_size, seq_len]
             attention_mask: Attention mask [batch_size, seq_len]
-            latent: Latent distribution embedding [batch_size, latent_dim]
+            latent_source: Source latent distribution embedding [batch_size, latent_dim]
+            latent_target: Target latent distribution embedding [batch_size, latent_dim]
             
         Returns:
             Logits for next token prediction
         """
         batch_size = input_ids.shape[0]
         
-        # Project latent to correct dimension
-        condition = self.condition_proj(latent)
+        # Combine the two latents - concatenate them to create a richer conditioning signal
+        combined_latent = torch.cat([latent_source, latent_target], dim=-1)
+        
+        # Project combined latent to correct dimension
+        condition = self.condition_proj(combined_latent)
         
         if self.condition_method == "prefix":
             # Use the condition as a prefix hidden state
@@ -221,7 +228,7 @@ class Progen2Generator:
         if self.tokenizer.eos_token is None:
             self.tokenizer.eos_token = '<|eos|>'
     
-    def loss(self, x, latent):
+    def loss(self, x_source, x_target, latent_source, latent_target):
         """
         Calculate the loss for the generator.
         
@@ -232,20 +239,24 @@ class Progen2Generator:
         Returns:
             Negative log likelihood loss
         """
-        input_ids = x['progen_input_ids']
-        attention_mask = x['progen_attention_mask']
+        source_ids = x_source['progen_input_ids']
+        source_attention_mask = x_source['progen_attention_mask']
+        
+        target_ids = x_target['progen_input_ids']
+        # TODO: is it correct that we have no use for the target attention mask?
+        target_attention_mask = x_target['progen_attention_mask']
         
         # Shift for causal language modeling: predict each token using previous tokens
-        logits = self.model(input_ids, attention_mask, latent)
+        logits = self.model(source_ids, source_attention_mask, latent_source, latent_target)
         shift_logits = logits[:, :-1, :]
         
         # Reshape input_ids if needed to match logits
-        if len(input_ids.shape) == 3 and len(shift_logits.shape) == 3:
-            if input_ids.shape[0] * input_ids.shape[1] == shift_logits.shape[0]:
+        if len(source_ids.shape) == 3 and len(shift_logits.shape) == 3:
+            if source_ids.shape[0] * source_ids.shape[1] == shift_logits.shape[0]:
                 # Reshape input_ids to match the reshaped logits
-                input_ids = input_ids.view(-1, input_ids.shape[-1])
+                source_ids = source_ids.view(-1, source_ids.shape[-1])
         
-        shift_labels = input_ids[:, 1:]
+        shift_labels = target_ids[:, 1:]
         
         # Calculate loss
         loss_fct = nn.CrossEntropyLoss(reduction='mean')
@@ -256,7 +267,8 @@ class Progen2Generator:
         
         return loss
 
-    def sample(self, latent, num_samples=1, return_texts=False):
+    # TODO: currently this is not being conditioned on the source samples, but I think that's fine since the PLM doesn't need it.
+    def sample(self, x_source, latent_source, latent_target, num_samples=1, return_texts=False):
         """
         Sample sequences from the conditioned model.
         
@@ -268,8 +280,8 @@ class Progen2Generator:
         Returns:
             Generated token IDs, and optionally decoded texts
         """
-        device = latent.device
-        batch_size = latent.size(0)
+        device = latent_source.device
+        batch_size = latent_source.size(0)
         
         # Get BOS token ID for start of generation
         if hasattr(self.tokenizer, 'bos_token_id') and self.tokenizer.bos_token_id is not None:
@@ -288,15 +300,18 @@ class Progen2Generator:
             # Add noise for diversity if generating multiple samples
             if num_samples > 1:
                 noise_scale = 0.1
-                noisy_latent = latent + noise_scale * torch.randn_like(latent)
+                noisy_latent_source = latent_source + noise_scale * torch.randn_like(latent_source)
+                noisy_latent_target = latent_target + noise_scale * torch.randn_like(latent_target)
             else:
-                noisy_latent = latent
+                noisy_latent_source = latent_source
+                noisy_latent_target = latent_target
                 
             with torch.no_grad():
                 out = self._generate_text(
                     start_ids.clone(),
                     start_mask.clone(),
-                    noisy_latent,
+                    noisy_latent_source,
+                    noisy_latent_target,
                     self.max_length,
                     self.temperature
                 )
@@ -323,7 +338,7 @@ class Progen2Generator:
         
         return result
 
-    def _generate_text(self, input_ids, attention_mask, latent, max_length, temperature=1.0):
+    def _generate_text(self, input_ids, attention_mask, latent_source, latent_target, max_length, temperature=1.0):
         """
         Helper method for text generation using the conditioned Progen2 model.
         
@@ -354,7 +369,7 @@ class Progen2Generator:
         for _ in range(max_length - cur_input_ids.size(1)):
             # Forward pass
             with torch.no_grad():
-                logits = self.model(cur_input_ids, cur_attention_mask, latent)
+                logits = self.model(cur_input_ids, cur_attention_mask, latent_source, latent_target)
             
             # Get logits for next token prediction (last position)
             next_token_logits = logits[:, -1, :] / temperature

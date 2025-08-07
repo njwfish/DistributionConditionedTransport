@@ -1,5 +1,6 @@
 # @package _global_
 
+# TODO: can we take out predictor_training now that I removed the section at the end of main.py that was training the latent mapping model redundantly?
 # Default configurations
 defaults:
   - dataset: none  # Dataset-specific config
@@ -9,17 +10,24 @@ defaults:
   - optimizer: adam  # Default optimizer
   - scheduler: none  # Default scheduler
   - training: default  # Default training config
+  - predictor: none  # Default predictor
   - collate: none  # Default collate function
   - wandb: default  # Default W&B config
   - loss: default  # Default loss config
+  - sampling: none  # Default sampling config
   - experiment: mvn  # Experiment-specific configurations (MUST come after components it overrides)
   - override hydra/launcher: slurm
   - _self_
 
 # Basic experiment settings
 experiment_name: ${experiment.name}  # Name will be defined in experiment config
+dataset_name: GoM  # Default to GoM, can be: GoM, LV, PBMC, Repressilator
 seed: 42
 device: cuda
+
+# Validation split parameters
+validation_split: 0.1  # 20% for validation, 80% for training
+shuffle_before_split: true  # Whether to shuffle data before splitting
 
 # Hydra-related settings
 hydra:
@@ -36,16 +44,3 @@ hydra:
           - device
           - hydra
           - experiment_name 
-
-# Latent mapping training configuration (runs after main training)
-latent_mapping:
-  enabled: true  # Set to false to skip latent mapping training
-  mapping_method: "neural_network"  # Options: "neural_network", "ridge", "linear"
-  hidden_dim: 128
-  ridge_alpha: 1e-3
-  num_epochs: 100
-  learning_rate: 1e-3
-  batch_size: 32
-  log_interval: 10
-  save_interval: 20
-  use_tqdm: true 

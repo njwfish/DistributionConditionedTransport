@@ -1,0 +1,7 @@
+# @package _global_.sampling
+
+# Exponential sampling - weight = exp(|dt|) / ln(2)
+mode: "exponential"
+num_samples: null  # Use dataset length
+replacement: true
+const_weight: 1.0  # Not used in exponential mode, but kept for consistency 

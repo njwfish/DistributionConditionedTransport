@@ -101,6 +101,7 @@ class FlowMatchingGenerator(nn.Module):
             wrapped_model, solver="dopri5", sensitivity="adjoint", atol=1e-4, rtol=1e-4
         )
         
+        # TODO: is it a problem that we always integrate from 0 to 1 here? I think this is correct, so no.
         with torch.no_grad():
             # Return only final point
             traj = node.trajectory(

@@ -1,0 +1,7 @@
+# @package _global_.sampling
+
+# Unidirectional sampling - only samples with dt > 0 get positive weight
+mode: "unidirectional"
+num_samples: null  # Use dataset length
+replacement: true
+const_weight: 1.0  # Weight for samples with dt > 0 

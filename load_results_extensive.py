@@ -66,7 +66,7 @@ DATASET_CONFIGS = {
 
 class UnifiedResultsLoader:
     def __init__(self, dataset_name, seed=42, forecast_method='snapMMD', 
-                 predictor_type=None, sampling_type=None, experiment_pattern='hyperparam'):
+                 predictor_type=None, sampling_type=None, predictor_loss_weight=None, experiment_pattern='hyperparam'):
         """
         Initialize the unified results loader.
         
@@ -76,6 +76,7 @@ class UnifiedResultsLoader:
             forecast_method: 'snapMMD' or 'CDE'
             predictor_type: Predictor type for hyperparameter experiments (e.g., 'dt_mlp_sinusoidal')
             sampling_type: Sampling type for hyperparameter experiments (e.g., 'bidirectional')
+            predictor_loss_weight: Predictor loss weight for hyperparameter experiments (e.g., 0.01)
             experiment_pattern: Pattern type for finding experiments ('hyperparam' or 'unified')
         """
         if dataset_name not in DATASET_CONFIGS:
@@ -89,6 +90,7 @@ class UnifiedResultsLoader:
         self.forecast_method = forecast_method
         self.predictor_type = predictor_type
         self.sampling_type = sampling_type
+        self.predictor_loss_weight = predictor_loss_weight
         self.experiment_pattern = experiment_pattern
         
         # Seed is only relevant for snapMMD method
@@ -102,8 +104,10 @@ class UnifiedResultsLoader:
     
     def setup_logging(self, output_folder="figures"):
         """Set up logging to file in the nested directory structure."""
-        # Create nested directory structure: figures/<dataset>_<predictor>_<sampling>/
-        if self.predictor_type and self.sampling_type:
+        # Create nested directory structure: figures/<dataset>_<predictor>_<sampling>_<predictor_loss_weight>/
+        if self.predictor_type and self.sampling_type and self.predictor_loss_weight is not None:
+            folder_name = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_{self.predictor_loss_weight}"
+        elif self.predictor_type and self.sampling_type:
             folder_name = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}"
         else:
             folder_name = f"{self.dataset_name}_{self.forecast_method}"
@@ -112,7 +116,9 @@ class UnifiedResultsLoader:
         os.makedirs(nested_output_folder, exist_ok=True)
         
         # Create log filename
-        if self.predictor_type and self.sampling_type:
+        if self.predictor_type and self.sampling_type and self.predictor_loss_weight is not None:
+            log_filename = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_{self.predictor_loss_weight}_analysis_{self.forecast_method}.log"
+        elif self.predictor_type and self.sampling_type:
             log_filename = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_analysis_{self.forecast_method}.log"
         elif self.seed is not None:
             log_filename = f"{self.dataset_name}_analysis_seed_{self.seed}_{self.forecast_method}.log"
@@ -209,13 +215,13 @@ class UnifiedResultsLoader:
 
     def extract_hyperparameters_from_config(self, experiment_dir):
         """
-        Extract predictor and sampling hyperparameters from config.yaml
+        Extract predictor, sampling hyperparameters, and predictor_loss_weights from config.yaml
         
         Args:
             experiment_dir: Path to experiment directory containing config.yaml
             
         Returns:
-            Dictionary with 'predictor' and 'sampling' keys
+            Dictionary with 'predictor', 'sampling', 'predictor_loss_weights', and 'seed' keys
         """
         config_path = os.path.join(experiment_dir, 'config.yaml')
         if not os.path.exists(config_path):
@@ -292,10 +298,185 @@ class UnifiedResultsLoader:
         else:
             raise ValueError(f"Unknown sampling mode '{mode}' in {experiment_dir}")
         
+        # Extract predictor_loss_weights from experiment config
+        if 'experiment' not in config:
+            raise KeyError(f"'experiment' key not found in config.yaml at {experiment_dir}")
+        
+        experiment_config = config['experiment']
+        if not isinstance(experiment_config, dict):
+            raise ValueError(f"Invalid experiment configuration in {experiment_dir}: expected dict")
+        
+        if 'predictor_loss_weight' not in experiment_config:
+            raise KeyError(f"'predictor_loss_weight' not found in experiment config at {experiment_dir}")
+        
+        predictor_loss_weight = experiment_config['predictor_loss_weight']
+        
+        # Extract seed
+        if 'seed' not in config:
+            raise KeyError(f"'seed' key not found in config.yaml at {experiment_dir}")
+        
+        seed = config['seed']
+        
         return {
             'predictor': predictor_type,
-            'sampling': sampling_type
+            'sampling': sampling_type,
+            'predictor_loss_weight': predictor_loss_weight,
+            'seed': seed
         }
+
+    def group_experiments_by_hyperparameters(self, experiment_dirs):
+        """
+        Group experiments by hyperparameters (excluding seed).
+        
+        Args:
+            experiment_dirs: List of experiment directory paths
+            
+        Returns:
+            Dictionary mapping hyperparameter tuples to lists of experiment directories
+        """
+        groups = {}
+        
+        for exp_dir in experiment_dirs:
+            try:
+                hyperparams = self.extract_hyperparameters_from_config(exp_dir)
+                
+                # Create key excluding seed
+                key = (
+                    hyperparams['predictor'], 
+                    hyperparams['sampling'], 
+                    hyperparams['predictor_loss_weight']
+                )
+                
+                if key not in groups:
+                    groups[key] = []
+                
+                groups[key].append({
+                    'dir': exp_dir,
+                    'seed': hyperparams['seed'],
+                    'hyperparams': hyperparams
+                })
+                
+            except Exception as e:
+                if self.logger:
+                    self.logger.warning(f"Failed to extract hyperparameters from {exp_dir}: {e}")
+                else:
+                    print(f"Warning: Failed to extract hyperparameters from {exp_dir}: {e}")
+                continue
+        
+        # Sort experiments within each group by seed for consistent ordering
+        for key in groups:
+            groups[key].sort(key=lambda x: x['seed'])
+        
+        return groups
+
+    def compute_average_forecast_from_group(self, experiment_group, dataset_name):
+        """
+        Compute average forecast from a group of experiments with the same hyperparameters but different seeds.
+        
+        Args:
+            experiment_group: List of experiment dictionaries for the same hyperparameter set
+            dataset_name: Name of the dataset
+            
+        Returns:
+            Dictionary with averaged forecast data and individual seed results
+        """
+        forecasts = []
+        mmd_scores = []
+        emd_scores = []
+        valid_seeds = []
+        
+        for exp_data in experiment_group:
+            try:
+                # Set up a temporary loader for this experiment
+                exp_dir = exp_data['dir']
+                hyperparams = exp_data['hyperparams']
+                
+                temp_loader = UnifiedResultsLoader(
+                    dataset_name,
+                    forecast_method=self.forecast_method,
+                    predictor_type=hyperparams['predictor'],
+                    sampling_type=hyperparams['sampling'],
+                    predictor_loss_weight=hyperparams['predictor_loss_weight'],
+                    experiment_pattern=self.experiment_pattern
+                )
+                
+                # Set the experiment directory for CDE forecasting
+                temp_loader.experiment_dir = exp_dir
+                
+                # Load data and forecast for this experiment
+                results = temp_loader.load_data_and_forecast()
+                forecast_data = results['forecast_data']['forecast']
+                
+                forecasts.append(forecast_data)
+                valid_seeds.append(exp_data['seed'])
+                
+                # Calculate MMD and EMD for this individual experiment
+                if self.forecast_method == 'CDE':
+                    cde_forecast = results['forecast_data']['forecast']
+                    
+                    mmd_result = calculate_mmd_scores(dataset_name, forecast_method=self.forecast_method, 
+                                                     cde_forecast_data=cde_forecast, logger=None)
+                    if mmd_result:
+                        mmd_scores.append(mmd_result['mean_mmd_squared'])
+                    
+                    if DATASET_CONFIGS[dataset_name]['calculate_emd']:
+                        emd_result = calculate_emd_scores(dataset_name, forecast_method=self.forecast_method, 
+                                                         cde_forecast_data=cde_forecast, logger=None)
+                        if emd_result:
+                            emd_scores.append(emd_result['mean_emd'])
+                
+            except Exception as e:
+                if self.logger:
+                    self.logger.warning(f"Failed to load forecast from {exp_data['dir']} (seed {exp_data['seed']}): {e}")
+                else:
+                    print(f"Warning: Failed to load forecast from {exp_data['dir']} (seed {exp_data['seed']}): {e}")
+                continue
+        
+        if not forecasts:
+            raise ValueError(f"No valid forecasts found in experiment group")
+        
+        # Convert to numpy arrays and compute average
+        forecasts_array = np.array(forecasts)  # Shape: (n_seeds, n_timesteps, n_particles, n_features)
+        average_forecast = np.mean(forecasts_array, axis=0)  # Average over seeds
+        
+        # Prepare results structure similar to what load_data_and_forecast returns
+        # We'll use the first experiment's training data since it should be the same across seeds
+        first_exp_dir = experiment_group[0]['dir']
+        first_hyperparams = experiment_group[0]['hyperparams']
+        
+        temp_loader = UnifiedResultsLoader(
+            dataset_name,
+            forecast_method=self.forecast_method,
+            predictor_type=first_hyperparams['predictor'],
+            sampling_type=first_hyperparams['sampling'],
+            predictor_loss_weight=first_hyperparams['predictor_loss_weight'],
+            experiment_pattern=self.experiment_pattern
+        )
+        temp_loader.experiment_dir = first_exp_dir
+        first_results = temp_loader.load_data_and_forecast()
+        
+        # Create averaged results
+        averaged_results = {
+            'training_data': first_results['training_data'],  # Same across all seeds
+            'forecast_data': {
+                'forecast': average_forecast,
+                'X_val_forecast': first_results['forecast_data']['X_val_forecast']  # Same across all seeds
+            },
+            'metadata': {
+                'task_name': dataset_name,
+                'config': first_results['metadata']['config'],
+                'forecast_method': self.forecast_method,
+                'averaged_over_seeds': valid_seeds,
+                'n_seeds': len(valid_seeds)
+            },
+            'individual_results': {
+                'mmd_scores': mmd_scores,
+                'emd_scores': emd_scores,
+                'seeds': valid_seeds
+            }
+        }
+        
+        return averaged_results
 
     def load_experiment_by_dataset(self, dataset_name, base_dir):
         """
@@ -571,8 +752,10 @@ class UnifiedResultsLoader:
     
     def plot_main_results(self, results, output_folder="figures"):
         """Plot main results (handles both 2D and 3D)."""
-        # Create nested directory structure: figures/<dataset>_<predictor>_<sampling>/
-        if self.predictor_type and self.sampling_type:
+        # Create nested directory structure: figures/<dataset>_<predictor>_<sampling>_<predictor_loss_weight>/
+        if self.predictor_type and self.sampling_type and self.predictor_loss_weight is not None:
+            folder_name = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_{self.predictor_loss_weight}"
+        elif self.predictor_type and self.sampling_type:
             folder_name = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}"
         else:
             folder_name = f"{self.dataset_name}_{self.forecast_method}"
@@ -594,6 +777,9 @@ class UnifiedResultsLoader:
         
         if self.seed is not None:
             fig.suptitle(f"{config['title']} Results (Seed {self.seed})")
+        elif 'averaged_over_seeds' in results['metadata']:
+            n_seeds = results['metadata']['n_seeds']
+            fig.suptitle(f"{config['title']} Results (Average over {n_seeds} seeds)")
         else:
             fig.suptitle(f"{config['title']} Results ({self.forecast_method})")
         
@@ -660,7 +846,9 @@ class UnifiedResultsLoader:
         plt.tight_layout()
         
         # Save figure
-        if self.predictor_type and self.sampling_type:
+        if self.predictor_type and self.sampling_type and self.predictor_loss_weight is not None:
+            filename = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_{self.predictor_loss_weight}_results_{self.forecast_method}.png"
+        elif self.predictor_type and self.sampling_type:
             filename = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_results_{self.forecast_method}.png"
         elif self.seed is not None:
             filename = f"{self.dataset_name}_results_seed_{self.seed}_{self.forecast_method}.png"
@@ -679,8 +867,10 @@ class UnifiedResultsLoader:
     
     def plot_trajectories(self, results, output_folder="figures"):
         """Plot individual particle/cell trajectories - creates two separate plots."""
-        # Create nested directory structure: figures/<dataset>_<predictor>_<sampling>/
-        if self.predictor_type and self.sampling_type:
+        # Create nested directory structure: figures/<dataset>_<predictor>_<sampling>_<predictor_loss_weight>/
+        if self.predictor_type and self.sampling_type and self.predictor_loss_weight is not None:
+            folder_name = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_{self.predictor_loss_weight}"
+        elif self.predictor_type and self.sampling_type:
             folder_name = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}"
         else:
             folder_name = f"{self.dataset_name}_{self.forecast_method}"
@@ -713,6 +903,9 @@ class UnifiedResultsLoader:
         
         if self.seed is not None:
             fig1.suptitle(f"{config['title']} Trajectories to Forecast (Seed {self.seed})")
+        elif 'averaged_over_seeds' in results['metadata']:
+            n_seeds = results['metadata']['n_seeds']
+            fig1.suptitle(f"{config['title']} Trajectories to Forecast (Average over {n_seeds} seeds)")
         else:
             fig1.suptitle(f"{config['title']} Trajectories to Forecast ({self.forecast_method})")
         
@@ -816,7 +1009,9 @@ class UnifiedResultsLoader:
         plt.tight_layout()
         
         # Save figure 1
-        if self.predictor_type and self.sampling_type:
+        if self.predictor_type and self.sampling_type and self.predictor_loss_weight is not None:
+            filename1 = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_{self.predictor_loss_weight}_results_{self.forecast_method}_trajectories_to_forecast.png"
+        elif self.predictor_type and self.sampling_type:
             filename1 = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_results_{self.forecast_method}_trajectories_to_forecast.png"
         elif self.seed is not None:
             filename1 = f"{self.dataset_name}_results_seed_{self.seed}_{self.forecast_method}_trajectories_to_forecast.png"
@@ -835,6 +1030,9 @@ class UnifiedResultsLoader:
         
         if self.seed is not None:
             fig2.suptitle(f"{config['title']} Trajectories to Ground Truth (Seed {self.seed})")
+        elif 'averaged_over_seeds' in results['metadata']:
+            n_seeds = results['metadata']['n_seeds']
+            fig2.suptitle(f"{config['title']} Trajectories to Ground Truth (Average over {n_seeds} seeds)")
         else:
             fig2.suptitle(f"{config['title']} Trajectories to Ground Truth ({self.forecast_method})")
         
@@ -921,7 +1119,9 @@ class UnifiedResultsLoader:
         plt.tight_layout()
         
         # Save figure 2
-        if self.predictor_type and self.sampling_type:
+        if self.predictor_type and self.sampling_type and self.predictor_loss_weight is not None:
+            filename2 = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_{self.predictor_loss_weight}_results_{self.forecast_method}_trajectories_to_truth.png"
+        elif self.predictor_type and self.sampling_type:
             filename2 = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_results_{self.forecast_method}_trajectories_to_truth.png"
         elif self.seed is not None:
             filename2 = f"{self.dataset_name}_results_seed_{self.seed}_{self.forecast_method}_trajectories_to_truth.png"
@@ -946,8 +1146,10 @@ class UnifiedResultsLoader:
         if 'interactive_html' not in config['special_plots']:
             return
         
-        # Create nested directory structure: figures/<dataset>_<predictor>_<sampling>/
-        if self.predictor_type and self.sampling_type:
+        # Create nested directory structure: figures/<dataset>_<predictor>_<sampling>_<predictor_loss_weight>/
+        if self.predictor_type and self.sampling_type and self.predictor_loss_weight is not None:
+            folder_name = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_{self.predictor_loss_weight}"
+        elif self.predictor_type and self.sampling_type:
             folder_name = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}"
         else:
             folder_name = f"{self.dataset_name}_{self.forecast_method}"
@@ -1023,7 +1225,9 @@ class UnifiedResultsLoader:
         
         # Set layout
         axes_labels = self.get_axes_labels()
-        if self.predictor_type and self.sampling_type:
+        if self.predictor_type and self.sampling_type and self.predictor_loss_weight is not None:
+            title_text = f'{config["title"]} Training Data, Ground Truth & Forecast ({self.predictor_type}, {self.sampling_type}, {self.predictor_loss_weight}) - Interactive'
+        elif self.predictor_type and self.sampling_type:
             title_text = f'{config["title"]} Training Data, Ground Truth & Forecast ({self.predictor_type}, {self.sampling_type}) - Interactive'
         elif self.seed is not None:
             title_text = f'{config["title"]} Training Data, Ground Truth & Forecast (Seed {self.seed}) - Interactive'
@@ -1042,7 +1246,9 @@ class UnifiedResultsLoader:
         )
         
         # Save HTML
-        if self.predictor_type and self.sampling_type:
+        if self.predictor_type and self.sampling_type and self.predictor_loss_weight is not None:
+            filename = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_{self.predictor_loss_weight}_results_{self.forecast_method}_interactive.html"
+        elif self.predictor_type and self.sampling_type:
             filename = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_results_{self.forecast_method}_interactive.html"
         elif self.seed is not None:
             filename = f"{self.dataset_name}_results_seed_{self.seed}_{self.forecast_method}_interactive.html"
@@ -1062,8 +1268,10 @@ class UnifiedResultsLoader:
         if 'multi_angle' not in config['special_plots']:
             return
         
-        # Create nested directory structure: figures/<dataset>_<predictor>_<sampling>/
-        if self.predictor_type and self.sampling_type:
+        # Create nested directory structure: figures/<dataset>_<predictor>_<sampling>_<predictor_loss_weight>/
+        if self.predictor_type and self.sampling_type and self.predictor_loss_weight is not None:
+            folder_name = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_{self.predictor_loss_weight}"
+        elif self.predictor_type and self.sampling_type:
             folder_name = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}"
         else:
             folder_name = f"{self.dataset_name}_{self.forecast_method}"
@@ -1124,7 +1332,9 @@ class UnifiedResultsLoader:
         ax.set_xlabel(axes_labels[0])
         ax.set_ylabel(axes_labels[1])
         ax.set_zlabel(axes_labels[2])
-        if self.predictor_type and self.sampling_type:
+        if self.predictor_type and self.sampling_type and self.predictor_loss_weight is not None:
+            ax.set_title(f'{config["title"]} Results ({self.predictor_type}, {self.sampling_type}, {self.predictor_loss_weight}) - {view_name.title()} View')
+        elif self.predictor_type and self.sampling_type:
             ax.set_title(f'{config["title"]} Results ({self.predictor_type}, {self.sampling_type}) - {view_name.title()} View')
         elif self.seed is not None:
             ax.set_title(f'{config["title"]} Results (Seed {self.seed}) - {view_name.title()} View')
@@ -1133,7 +1343,9 @@ class UnifiedResultsLoader:
         ax.legend()
         
         # Save figure
-        if self.predictor_type and self.sampling_type:
+        if self.predictor_type and self.sampling_type and self.predictor_loss_weight is not None:
+            filename = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_{self.predictor_loss_weight}_results_{self.forecast_method}_{view_name}_view.png"
+        elif self.predictor_type and self.sampling_type:
             filename = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_results_{self.forecast_method}_{view_name}_view.png"
         elif self.seed is not None:
             filename = f"{self.dataset_name}_results_seed_{self.seed}_{self.forecast_method}_{view_name}_view.png"
@@ -1154,8 +1366,10 @@ class UnifiedResultsLoader:
         if 'individual_final' not in config['special_plots']:
             return
         
-        # Create nested directory structure: figures/<dataset>_<predictor>_<sampling>/
-        if self.predictor_type and self.sampling_type:
+        # Create nested directory structure: figures/<dataset>_<predictor>_<sampling>_<predictor_loss_weight>/
+        if self.predictor_type and self.sampling_type and self.predictor_loss_weight is not None:
+            folder_name = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_{self.predictor_loss_weight}"
+        elif self.predictor_type and self.sampling_type:
             folder_name = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}"
         else:
             folder_name = f"{self.dataset_name}_{self.forecast_method}"
@@ -1181,7 +1395,9 @@ class UnifiedResultsLoader:
         ax1.set_xlabel(axes_labels[0])
         ax1.set_ylabel(axes_labels[1])
         ax1.set_zlabel(axes_labels[2])
-        if self.predictor_type and self.sampling_type:
+        if self.predictor_type and self.sampling_type and self.predictor_loss_weight is not None:
+            ax1.set_title(f'{config["title"]} Ground Truth at Final Timepoint ({self.predictor_type}, {self.sampling_type}, {self.predictor_loss_weight})')
+        elif self.predictor_type and self.sampling_type:
             ax1.set_title(f'{config["title"]} Ground Truth at Final Timepoint ({self.predictor_type}, {self.sampling_type})')
         elif self.seed is not None:
             ax1.set_title(f'{config["title"]} Ground Truth at Final Timepoint (Seed {self.seed})')
@@ -1190,7 +1406,9 @@ class UnifiedResultsLoader:
         
         plt.tight_layout()
         
-        if self.predictor_type and self.sampling_type:
+        if self.predictor_type and self.sampling_type and self.predictor_loss_weight is not None:
+            filename1 = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_{self.predictor_loss_weight}_results_{self.forecast_method}_ground_truth_only.png"
+        elif self.predictor_type and self.sampling_type:
             filename1 = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_results_{self.forecast_method}_ground_truth_only.png"
         elif self.seed is not None:
             filename1 = f"{self.dataset_name}_results_seed_{self.seed}_{self.forecast_method}_ground_truth_only.png"
@@ -1214,7 +1432,9 @@ class UnifiedResultsLoader:
         ax2.set_xlabel(axes_labels[0])
         ax2.set_ylabel(axes_labels[1])
         ax2.set_zlabel(axes_labels[2])
-        if self.predictor_type and self.sampling_type:
+        if self.predictor_type and self.sampling_type and self.predictor_loss_weight is not None:
+            ax2.set_title(f'{config["title"]} Forecast at Final Timepoint ({self.predictor_type}, {self.sampling_type}, {self.predictor_loss_weight})')
+        elif self.predictor_type and self.sampling_type:
             ax2.set_title(f'{config["title"]} Forecast at Final Timepoint ({self.predictor_type}, {self.sampling_type})')
         elif self.seed is not None:
             ax2.set_title(f'{config["title"]} Forecast at Final Timepoint (Seed {self.seed})')
@@ -1223,7 +1443,9 @@ class UnifiedResultsLoader:
         
         plt.tight_layout()
         
-        if self.predictor_type and self.sampling_type:
+        if self.predictor_type and self.sampling_type and self.predictor_loss_weight is not None:
+            filename2 = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_{self.predictor_loss_weight}_results_{self.forecast_method}_forecast_only.png"
+        elif self.predictor_type and self.sampling_type:
             filename2 = f"{self.dataset_name}_{self.predictor_type}_{self.sampling_type}_results_{self.forecast_method}_forecast_only.png"
         elif self.seed is not None:
             filename2 = f"{self.dataset_name}_results_seed_{self.seed}_{self.forecast_method}_forecast_only.png"
@@ -1588,15 +1810,18 @@ def main_hyperparameter_analysis():
             experiment_dirs = temp_loader.find_all_experiments_with_hash(dataset_name, base_outputs_dir, args.experiment_pattern)
             print(f"Found {len(experiment_dirs)} experiments for {dataset_name}")
             
-            # Process each experiment
-            for exp_dir in experiment_dirs:
+            # Group experiments by hyperparameters (excluding seed)
+            experiment_groups = temp_loader.group_experiments_by_hyperparameters(experiment_dirs)
+            print(f"Grouped into {len(experiment_groups)} unique hyperparameter combinations")
+            
+            # Process each group of experiments (same hyperparameters, different seeds)
+            for hyperparam_key, experiment_group in experiment_groups.items():
                 try:
-                    # Extract hyperparameters from config
-                    hyperparams = temp_loader.extract_hyperparameters_from_config(exp_dir)
-                    predictor_type = hyperparams['predictor']
-                    sampling_type = hyperparams['sampling']
+                    # Extract hyperparameters from the key
+                    predictor_type, sampling_type, predictor_loss_weight = hyperparam_key
+                    seeds = [exp['seed'] for exp in experiment_group]
                     
-                    print(f"\n--- Processing {dataset_name}: {predictor_type} + {sampling_type} ---")
+                    print(f"\n--- Processing {dataset_name}: {predictor_type} + {sampling_type} + {predictor_loss_weight} (seeds: {seeds}) ---")
                     
                     # Create loader with hyperparameters
                     loader = UnifiedResultsLoader(
@@ -1604,28 +1829,22 @@ def main_hyperparameter_analysis():
                         forecast_method=args.forecast_method,
                         predictor_type=predictor_type,
                         sampling_type=sampling_type,
+                        predictor_loss_weight=predictor_loss_weight,
                         experiment_pattern=args.experiment_pattern
                     )
                     
                     # Set up logging
                     log_filepath = loader.setup_logging(args.output_folder)
                     
-                    loader.logger.info(f"Starting analysis for {dataset_name} with {predictor_type} + {sampling_type}")
-                    loader.logger.info(f"Experiment directory: {exp_dir}")
+                    loader.logger.info(f"Starting analysis for {dataset_name} with {predictor_type} + {sampling_type} + {predictor_loss_weight}")
+                    loader.logger.info(f"Processing {len(experiment_group)} experiments with seeds: {seeds}")
                     loader.logger.info(f"Using {args.forecast_method} forecasting method")
                     
                     # Set up PCA if needed (only once per dataset)
-                    if predictor_type == hyperparams['predictor'] and sampling_type == hyperparams['sampling']:
-                        loader.setup_pca_if_needed()
+                    loader.setup_pca_if_needed()
                     
-                    # Load data for CDE forecasting (using the specific experiment directory)
-                    if args.forecast_method == 'CDE':
-                        # Override the experiment directory loading for this specific case
-                        loader.experiment_dir = exp_dir
-                        results = loader.load_data_and_forecast()
-                    else:
-                        # For snapMMD, we need to implement the loading logic
-                        results = loader.load_data_and_forecast()
+                    # Compute average forecast from the experiment group
+                    results = loader.compute_average_forecast_from_group(experiment_group, dataset_name)
                     
                     if not args.skip_plots:
                         loader.logger.info(f"Generating plots...")
@@ -1641,37 +1860,56 @@ def main_hyperparameter_analysis():
                         loader.plot_individual_final_timepoints(results, args.output_folder)
                     
                     if not args.skip_metrics:
-                        loader.logger.info(f"Calculating metrics...")
-                        print(f"Calculating metrics for {predictor_type} + {sampling_type}...")
+                        loader.logger.info(f"Logging individual seed results and computing statistics...")
+                        print(f"Computing grouped metrics for {predictor_type} + {sampling_type} + {predictor_loss_weight}...")
                         
-                        # Extract forecast data for CDE method
-                        cde_forecast = None
-                        if args.forecast_method == 'CDE':
-                            cde_forecast = results['forecast_data']['forecast']
+                        # Extract individual results
+                        individual_results = results['individual_results']
+                        mmd_scores = individual_results['mmd_scores']
+                        emd_scores = individual_results['emd_scores']
+                        valid_seeds = individual_results['seeds']
                         
-                        # MMD scores
-                        mmd_results = calculate_mmd_scores(dataset_name, forecast_method=args.forecast_method, 
-                                                         cde_forecast_data=cde_forecast, logger=loader.logger)
+                        # Log individual seed results
+                        loader.logger.info(f"Individual MMD^2 scores by seed:")
+                        for seed, mmd_score in zip(valid_seeds, mmd_scores):
+                            mmd = np.sqrt(mmd_score)
+                            loader.logger.info(f"  Seed {seed}: MMD = {mmd:.6f}, MMD^2 = {mmd_score:.6f}")
+                            
+                        if emd_scores:
+                            loader.logger.info(f"Individual EMD scores by seed:")
+                            for seed, emd_score in zip(valid_seeds, emd_scores):
+                                loader.logger.info(f"  Seed {seed}: EMD = {emd_score:.6f}")
                         
-                        # EMD scores
-                        emd_results = calculate_emd_scores(dataset_name, forecast_method=args.forecast_method, 
-                                                         cde_forecast_data=cde_forecast, logger=loader.logger)
+                        # Compute and log statistics
+                        if mmd_scores:
+                            mmd_squared_array = np.array(mmd_scores)
+                            mmd_array = np.sqrt(mmd_squared_array)
+                            
+                            mean_mmd = np.mean(mmd_array)
+                            std_mmd = np.std(mmd_array)
+                            mean_mmd_squared = np.mean(mmd_squared_array)
+                            std_mmd_squared = np.std(mmd_squared_array)
+                            
+                            loader.logger.info(f"MMD Statistics (n={len(mmd_scores)}):")
+                            loader.logger.info(f"  MMD: {mean_mmd:.6f} ± {std_mmd:.6f}")
+                            loader.logger.info(f"  MMD^2: {mean_mmd_squared:.6f} ± {std_mmd_squared:.6f}")
+                            print(f"  MMD: {mean_mmd:.6f} ± {std_mmd:.6f}")
+                            print(f"  MMD^2: {mean_mmd_squared:.6f} ± {std_mmd_squared:.6f}")
                         
-                        # Log results
-                        if mmd_results is not None:
-                            loader.logger.info(f"MMD Score: {mmd_results['mean_mmd']:.6f}")
-                            loader.logger.info(f"MMD^2 Score: {mmd_results['mean_mmd_squared']:.6f}")
-                            print(f"  MMD Score: {mmd_results['mean_mmd']:.6f}")
-                        
-                        if emd_results is not None:
-                            loader.logger.info(f"EMD Score: {emd_results['mean_emd']:.6f}")
-                            print(f"  EMD Score: {emd_results['mean_emd']:.6f}")
+                        if emd_scores:
+                            emd_array = np.array(emd_scores)
+                            mean_emd = np.mean(emd_array)
+                            std_emd = np.std(emd_array)
+                            
+                            loader.logger.info(f"EMD Statistics (n={len(emd_scores)}):")
+                            loader.logger.info(f"  EMD: {mean_emd:.6f} ± {std_emd:.6f}")
+                            print(f"  EMD: {mean_emd:.6f} ± {std_emd:.6f}")
                     
                     # Get output folder for this experiment
-                    folder_name = f"{dataset_name}_{predictor_type}_{sampling_type}"
+                    folder_name = f"{dataset_name}_{predictor_type}_{sampling_type}_{predictor_loss_weight}"
                     figures_path = os.path.join(args.output_folder, folder_name)
                     
-                    completion_message = f"Analysis complete for {dataset_name} ({predictor_type} + {sampling_type})"
+                    completion_message = f"Analysis complete for {dataset_name} ({predictor_type} + {sampling_type} + {predictor_loss_weight}, {len(valid_seeds)} seeds)"
                     loader.logger.info(completion_message)
                     loader.logger.info(f"Figures saved to: {figures_path}/")
                     loader.logger.info(f"Analysis log saved to: {log_filepath}")

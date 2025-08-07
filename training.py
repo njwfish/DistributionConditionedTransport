@@ -24,7 +24,7 @@ class Trainer:
         patience=10,
         use_tqdm=True,
         mask_context_prob=0.0,
-        sub_epoch=None
+        sub_epoch=None,
     ):
         """
         Initialize the trainer.
@@ -152,9 +152,10 @@ class Trainer:
         self,
         encoder,
         generator,
-        dataloader,
+        train_dataloader,
         optimizer,
         loss_manager,
+        val_dataloader=None,
         scheduler=None,
         device=None,
         output_dir='./outputs',
@@ -166,6 +167,15 @@ class Trainer:
         
         encoder.to(device)
         generator.to(device)
+        
+        # Use train_dataloader for training and val_dataloader for evaluation
+        # If no val_dataloader provided, use train_dataloader for evaluation (legacy behavior)
+        eval_dataloader = val_dataloader if val_dataloader is not None else train_dataloader
+        
+        if val_dataloader is not None:
+            self.logger.info(f"Using separate validation set for evaluation ({len(val_dataloader.dataset)} samples)")
+        else:
+            self.logger.info("No validation set provided. Using training set for evaluation (not recommended)")
         
         stats = {
             'train_losses': [],
@@ -243,11 +253,9 @@ class Trainer:
             self.logger.info(f"Resuming from checkpoint: {last_checkpoint}")
             checkpoint = torch.load(last_checkpoint, weights_only=False)
             encoder.load_state_dict(checkpoint['encoder_state_dict'])
-            # Handle both old and new checkpoint formats
-            if hasattr(generator, 'learn_target_mapping') and generator.learn_target_mapping:
-                generator.load_state_dict(checkpoint['generator_state_dict'])
-            else:
-                generator.model.load_state_dict(checkpoint['generator_state_dict'])
+
+            generator.load_state_dict(checkpoint['generator_state_dict'])
+
             if 'optimizer_state_dict' in checkpoint:
                 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             if 'scheduler_state_dict' in checkpoint:
@@ -256,7 +264,7 @@ class Trainer:
             if 'step' in checkpoint:
                 step = checkpoint['step'] + 1
             else:
-                step = (start_epoch - 1) * len(dataloader) + 1
+                step = (start_epoch - 1) * len(train_dataloader) + 1
             # Log resuming to W&B
             if wandb.run is not None:
                 wandb.run.summary["resumed_from_epoch"] = start_epoch
@@ -267,15 +275,15 @@ class Trainer:
         # Main training loop
         for epoch in range(start_epoch, self.num_epochs):
             encoder.train()
-            generator.model.train()
+            generator.train()
             
             epoch_losses = []
             
             # Create progress bar if requested
             if self.use_tqdm:
-                pbar = tqdm(dataloader, desc=f"Epoch {epoch+1}/{self.num_epochs}")
+                pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{self.num_epochs}")
             else:
-                pbar = dataloader
+                pbar = train_dataloader
             
             # Train for one epoch
             for batch_idx, batch in enumerate(pbar):
@@ -293,7 +301,7 @@ class Trainer:
                 
                 # Log every log_interval batches
                 if batch_idx % self.log_interval == 0:
-                    self.logger.info(f"Epoch {epoch+1}, Batch {batch_idx}/{len(dataloader)}, Loss: {loss.item():.6f}")
+                    self.logger.info(f"Epoch {epoch+1}, Batch {batch_idx}/{len(train_dataloader)}, Loss: {loss.item():.6f}")
                     if self.use_tqdm:
                         pbar.set_postfix(loss=f"{loss.item():.6f}")
                     
@@ -313,11 +321,8 @@ class Trainer:
                         self.logger.info(f"Learning rate: {current_lr:.6f}")
                     if (sub_epoch + 1) % self.save_interval == 0:
                         checkpoint_path = os.path.join(output_dir, f"checkpoint_epoch_{epoch+1}.pt")
-                        # Save generator state based on whether it has target mapping
-                        if hasattr(generator, 'learn_target_mapping') and generator.learn_target_mapping:
-                            generator_state = generator.state_dict()
-                        else:
-                            generator_state = generator.model.state_dict()
+
+                        generator_state = generator.state_dict()
                         
                         torch.save({
                             'epoch': epoch + 1,
@@ -360,12 +365,8 @@ class Trainer:
             if (epoch + 1) % self.save_interval == 0:
                 checkpoint_path = os.path.join(output_dir, f"checkpoint_epoch_{epoch+1}.pt")
                 
-                # Save generator state based on whether it has target mapping
-                if hasattr(generator, 'learn_target_mapping') and generator.learn_target_mapping:
-                    generator_state = generator.state_dict()
-                else:
-                    generator_state = generator.model.state_dict()
-                
+                generator_state = generator.state_dict()
+
                 torch.save({
                     'epoch': epoch + 1,
                     'encoder_state_dict': encoder.state_dict(),
@@ -383,7 +384,7 @@ class Trainer:
             
             # Evaluation and early stopping logic
             if ((epoch + 1) % self.eval_interval == 0 or (epoch + 1) == self.num_epochs):
-                eval_loss = self._evaluate(encoder, generator, dataloader, device)
+                eval_loss = self._evaluate(encoder, generator, eval_dataloader, device, loss_manager)
                 stats['eval_losses'].append(eval_loss)
                 
                 self.logger.info(f"Evaluation Loss: {eval_loss:.6f}")
@@ -395,70 +396,6 @@ class Trainer:
                         "epoch/epoch": epoch + 1,
                     }, step=step)
 
-                # Generate some samples with the trained model
-                samples = self.generate_samples(encoder, generator, dataloader)
-                if samples is not None:
-                    self.logger.info(f"Source samples shape: {samples.get('source', 'N/A').shape if hasattr(samples.get('source', None), 'shape') else 'N/A'}")
-                    self.logger.info(f"Target samples shape: {samples.get('target', 'N/A').shape if hasattr(samples.get('target', None), 'shape') else 'N/A'}")
-                    self.logger.info(f"Generated samples shape: {samples.get('generated', 'N/A').shape if hasattr(samples.get('generated', None), 'shape') else 'N/A'}")
-                
-                    # Log generated samples to W&B (optional)
-                    if wandb.run is not None:
-                        # Handle different types of samples
-                        if 'generated_texts' in samples:
-                            n_examples = min(6, len(samples['source_texts']))
-                            n_examples_per_example = min(6, len(samples['source_texts'][0]))
-                            # For text data, use our text visualization
-                            text_output_dir = os.path.join(output_dir, f"text_samples_epoch_{epoch+1}")
-                            visualize_text_data(
-                                text_output_dir,
-                                samples['source_texts'],
-                                samples['target_texts'],
-                                samples['generated_texts'],
-                            )
-
-                            # Create a dataframe with source, target, and generated texts
-                            flat_source = []
-                            flat_target = []
-                            flat_generated = []
-                            set_indices = []
-                            for i in range(n_examples):
-                                for j in range(n_examples_per_example):
-                                    flat_source.append(samples['source_texts'][i][j])
-                                    flat_target.append(samples['target_texts'][i][j])
-                                    flat_generated.append(samples['generated_texts'][i][j])
-                                    set_indices.append(i)
-
-                            import pandas as pd
-                            df = pd.DataFrame({
-                                'source': flat_source,
-                                'target': flat_target,
-                                'generated': flat_generated,
-                                'set_index': set_indices
-                            })
-
-                            print(df.head())
-
-                            # Log table with source, target, and generated texts
-                            wandb.log({
-                                "epoch/text_samples": wandb.Table(dataframe=df)
-                            }, step=step)
-                            
-                        elif 'source' in samples and 'target' in samples and 'generated' in samples and hasattr(samples['source'], 'shape'):
-                            # For numerical or image data, use the updated visualization
-                            n_examples = min(6, samples['source'].shape[0])
-                            for i in range(n_examples):
-                                save_path = os.path.join(output_dir, f"coupled_samples_{i}_epoch_{epoch+1}.png")
-                                visualize_coupled_data(
-                                    save_path, 
-                                    samples['source'][i], 
-                                    samples['target'][i],
-                                    samples['generated'][i]
-                                )
-
-                                wandb.log({
-                                    f"samples/coupled_{i}": wandb.Image(save_path)
-                                })
                 
                 # Check if this is the best model so far
                 if eval_loss < self.best_loss:
@@ -466,12 +403,8 @@ class Trainer:
                     stats['best_epoch'] = epoch + 1
                     best_model_path = os.path.join(output_dir, "best_model.pt")
                     
-                    # Save generator state based on whether it has target mapping
-                    if hasattr(generator, 'learn_target_mapping') and generator.learn_target_mapping:
-                        generator_state = generator.state_dict()
-                    else:
-                        generator_state = generator.model.state_dict()
-                    
+                    generator_state = generator.state_dict()
+
                     torch.save({
                         'epoch': epoch + 1,
                         'encoder_state_dict': encoder.state_dict(),
@@ -519,56 +452,19 @@ class Trainer:
         
         return output_dir, stats
     
-    def _evaluate(self, encoder, generator, dataloader, device, num_eval_batches=10):
+    def _evaluate(self, encoder, generator, dataloader, device, loss_manager):
         """Run evaluation and return average loss."""
         encoder.eval()
-        generator.model.eval()
+        generator.eval()
         
         total_loss = 0
         num_batches = 0
         
         with torch.no_grad():
             for batch in dataloader:
-                if num_eval_batches is not None and num_batches >= num_eval_batches:
-                    break
-                # Handle samples which can be either a tensor or a dictionary
-                if isinstance(batch['source_samples'], torch.Tensor):
-                    source_samples = batch['source_samples'].to(device)
-                    target_samples = batch['target_samples'].to(device)
-                    
-                    source_latent = encoder(source_samples)
-                    target_latent = encoder(target_samples)
-                    
-                    loss = generator.loss(
-                        source_samples.view(-1, *source_samples.shape[2:]),
-                        target_samples.view(-1, *target_samples.shape[2:]),
-                        source_latent, 
-                        target_latent
-                    )
-                else:
-                    # For dictionary samples (like PubMed dataset), move tensors to device
-                    source_samples = {}
-                    target_samples = {}
-                    
-                    for key, value in batch['source_samples'].items():
-                        if isinstance(value, torch.Tensor):
-                            source_samples[key] = value.to(device)
-                        else:
-                            source_samples[key] = value
-                            
-                    for key, value in batch['target_samples'].items():
-                        if isinstance(value, torch.Tensor):
-                            target_samples[key] = value.to(device)
-                        else:
-                            target_samples[key] = value
-                    
-                    # Encode samples to latent space
-                    source_latent = encoder(source_samples)
-                    target_latent = encoder(target_samples)
-                    
-                    # Calculate loss
-                    loss = generator.loss(source_samples, target_samples, source_latent, target_latent)
-                
+                # TODO: legacy code was not using loss manager here, is there any specific reason for this?
+                # Use loss manager for consistent loss computation
+                loss, losses = loss_manager.loss(encoder, generator, batch, device)
                 total_loss += loss.item()
                 num_batches += 1
         
@@ -583,7 +479,7 @@ class Trainer:
         generator.to(device)
         
         encoder.eval()
-        generator.model.eval()
+        generator.eval()
         
         with torch.no_grad():
             for batch in dataloader:
@@ -597,6 +493,7 @@ class Trainer:
                     source_latent = encoder(source_samples)
                     target_latent = encoder(target_samples)
 
+                    # TODO: if we actually want to call the generate_samples mehtod here, we need to make sure that this line is still up to date.
                     generated = generator.sample(source_samples.reshape(-1, *data_shape), source_latent, target_latent)
                     
                     return {

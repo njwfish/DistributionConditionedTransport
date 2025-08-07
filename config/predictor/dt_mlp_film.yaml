@@ -1,0 +1,8 @@
+# @package _global_.predictor
+_target_: predictor.dt_conditioned_predictor.DTConditionedMLPPredictor
+latent_dim: ${experiment.latent_dim}
+hidden_dim: 128
+num_layers: 2
+conditioning_mode: "film"
+dt_embed_dim: 16  # Not used in FiLM mode but kept for consistency
+normalize_dt: true 

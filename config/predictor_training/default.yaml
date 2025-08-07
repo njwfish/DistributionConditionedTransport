@@ -1,6 +1,7 @@
 # @package _global_.predictor_training
 _target_: latent_mapping_training.LatentMappingTrainer
-model: predictor.predictor.MLPPredictor
+# TODO: I don't like this, I'll need to change this to no longer be overridden by the encoder.predictor in main.py.
+model: predictor.predictor.MLPPredictor  # This gets overridden by encoder.predictor in main.py
 num_epochs: 100
 learning_rate: 1e-3
 batch_size: 32

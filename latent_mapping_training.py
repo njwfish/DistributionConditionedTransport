@@ -118,10 +118,17 @@ class LatentMappingTrainer:
                 source_latents, target_latents = self._extract_latents(batch, encoder, device)
                 
                 # Forward pass through mapping model
-                predicted_target_latents = self.model(source_latents)
-                
-                # Compute loss (MSE)
-                loss, _ = self.model.loss(predicted_target_latents, target_latents)
+                if getattr(self.model, 'requires_dt', False):
+                    # dt-conditioned predictor
+                    dt = batch['dt'].to(device) if 'dt' in batch else torch.zeros(source_latents.shape[0], device=device)
+                    predicted_target_latents = self.model(source_latents, dt)
+                    # Compute loss
+                    loss, _ = self.model.loss(source_latents, target_latents, dt)
+                else:
+                    # standard predictor
+                    predicted_target_latents = self.model(source_latents)
+                    # Compute loss (MSE)
+                    loss, _ = self.model.loss(predicted_target_latents, target_latents)
                 
                 # Backward pass
                 self.optimizer.zero_grad()
@@ -223,10 +230,17 @@ class LatentMappingTrainer:
                 source_latents, target_latents = self._extract_latents(batch, encoder, device)
                 
                 # Forward pass
-                predicted_target_latents = self.model(source_latents)
-                
-                # Compute loss
-                loss, _ = self.model.loss(predicted_target_latents, target_latents)
+                if getattr(self.model, 'requires_dt', False):
+                    # dt-conditioned predictor
+                    dt = batch['dt'].to(device) if 'dt' in batch else torch.zeros(source_latents.shape[0], device=device)
+                    predicted_target_latents = self.model(source_latents, dt)
+                    # Compute loss
+                    loss, _ = self.model.loss(source_latents, target_latents, dt)
+                else:
+                    # standard predictor
+                    predicted_target_latents = self.model(source_latents)
+                    # Compute loss
+                    loss, _ = self.model.loss(predicted_target_latents, target_latents)
                 total_loss += loss.item()
                 num_batches += 1
         

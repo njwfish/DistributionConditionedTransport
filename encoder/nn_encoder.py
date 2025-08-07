@@ -45,12 +45,13 @@ class kNNEncoder(nn.Module):
         x_flat = x.view(-1, feature_dim)  # [batch_size * set_size, feature_dim]
         
         # Create batch vector for knn_graph
-        batch_vector = torch.arange(batch_size, device='cpu').repeat_interleave(set_size)
+        batch_vector = torch.arange(batch_size, device='cuda').repeat_interleave(set_size)
         
         # Build k-NN graphs for all samples at once using batch argument
         edge_index = torch_geometric.nn.pool.knn_graph(
-            x_flat.cpu(), k=self.knn_k, batch=batch_vector
+            x_flat.cpu(), k=self.knn_k, batch=batch_vector.cpu()
         )
+        edge_index = edge_index.to(x.device)
         
         # Apply GCN layers
         z = x_flat

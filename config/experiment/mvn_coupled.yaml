@@ -7,7 +7,6 @@ description: "Multivariate normal distribution experiment with coupled distribut
 # Override defaults from config.yaml
 defaults:
   - /dataset: mvn
-  - /encoder: gnn
   - /training: default5000
   - /collate: random_pairing  # Use random pairing for source/target
 

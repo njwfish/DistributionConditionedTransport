@@ -7,7 +7,7 @@ description: "bin-to-bin optimization of protein fitness now with actual bin jum
 # Override defaults from config.yaml
 defaults:
   - /encoder: esm
-  - /generator: esm2_dfm_bin2bin #progen2
+  - /generator: progen2
   - /scheduler: cosine
   - /loss: default_bin2bin
 

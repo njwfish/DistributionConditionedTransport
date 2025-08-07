@@ -12,7 +12,9 @@ defaults:
   - /generator: flow_matching
   - /training: default500
   - /loss: predictor
-
+  - /predictor: dt_mlp_sinusoidal  # Use dt-conditioned MLP with sinusoidal encoding
+  - /sampling: bidirectional
+  
 # Experiment-specific parameters
 use_predicted_latent: true
 predictor_loss_weight: 0

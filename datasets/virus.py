@@ -9,6 +9,7 @@ import logging
 from Bio import SeqIO
 from collections import defaultdict
 from tqdm import tqdm
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,9 @@ class ViralDataset(Dataset):
                  seed: Optional[int] = 212121,
                  tokenize: bool = False,
                  lines_to_read: int = 10**8,
-                 max_sets_per_fam: int = 1):
+                 max_sets_per_fam: int = 10,
+                 include_location: bool = False,
+                 max_draws_per_epoch: int = 10000):
         
         if seed is not None:
             random.seed(seed)
@@ -33,6 +36,8 @@ class ViralDataset(Dataset):
         self.set_size = set_size
         self.max_length = max_length
         self.max_sets_per_fam = max_sets_per_fam
+        self.max_draws_per_epoch = max_draws_per_epoch
+        self.include_location = include_location
         
         self.esm_tokenizer = AutoTokenizer.from_pretrained(esm_name, trust_remote_code=True)
         self.progen_tokenizer = AutoTokenizer.from_pretrained(progen_name, trust_remote_code=True)
@@ -42,6 +47,7 @@ class ViralDataset(Dataset):
         self.progen_tokenizer.eos_token = '<|eos|>'
 
         self.tokenized_data_file = f'{self.data_dir}/virus_tokenized_data.pt'
+        self.index_pairs = np.array([(i, j) for i in range(self.data.shape[0]) for j in range(self.data.shape[0]) if i != j])
 
         if not os.path.exists(self.tokenized_data_file) or tokenize:
             self._tokenize_data(lines_to_read=lines_to_read)
@@ -68,7 +74,10 @@ class ViralDataset(Dataset):
                 virus_type, state = type_loc.split("^^") if "^^" in type_loc else (type_loc, "?")
 
                 if date[5:7] != '00' and date[-2:] != '00' and date[4] == '-':
-                    key = date[:7] + '-' + location  # yyyy-mm-location
+                    if self.include_location:
+                        key = date[:7] + '-' + location  # yyyy-mm-location
+                    else:
+                        key = date[:7]
                     if len(seqs_by_monthloc[key]) < max_per_monthloc:
                         seqs_by_monthloc[key].append(str(record.seq))
             except:
@@ -79,8 +88,9 @@ class ViralDataset(Dataset):
         for timeloc, seqs in tqdm(seqs_by_monthloc.items()):
             if len(seqs) != self.set_size:
                 continue
-
-            n_sets = 1#min(len(seqs) // self.set_size, self.max_sets_per_fam)
+            
+            print("LEN",len(seqs))
+            n_sets = min(len(seqs) // self.set_size, self.max_sets_per_fam)
             np.random.shuffle(seqs)
 
             for i in range(n_sets):
@@ -191,21 +201,88 @@ class ViralDataset(Dataset):
         
         return tokens.input_ids[0], tokens.attention_mask[0]
 
+    def _parse_time_loc(self, time_loc_str):
+        """
+        Parse time-loc string to extract yyyy-mm date portion.
+        
+        Args:
+            time_loc_str: String in format "yyyy-mm" or "yyyy-mm-location"
+            
+        Returns:
+            datetime object representing the year and month
+        """
+        # Extract just the yyyy-mm portion (first 7 characters)
+        date_str = time_loc_str[:7]
+        try:
+            return datetime.strptime(date_str, "%Y-%m")
+        except ValueError:
+            logger.warning(f"Could not parse date from time_loc: {time_loc_str}")
+            return None
+
+    def _calculate_month_difference(self, time_loc_1, time_loc_2):
+        """
+        Calculate the difference in months between two time-loc strings.
+        
+        Args:
+            time_loc_1: First time-loc string (source)
+            time_loc_2: Second time-loc string (target)
+            
+        Returns:
+            Integer representing the difference in months (target - source)
+            Positive values mean target is later than source
+            Negative values mean target is earlier than source
+        """
+        date1 = self._parse_time_loc(time_loc_1)
+        date2 = self._parse_time_loc(time_loc_2)
+        
+        if date1 is None or date2 is None:
+            return None
+        
+        # Calculate month difference (target - source)
+        month_diff = (date2.year - date1.year) * 12 + (date2.month - date1.month)
+        return month_diff
+
     def __len__(self):
-        return len(self.data)
+        # TODO: not sure how to do this correctly since we want to pair subsets of the data with each other at random. For now, just setting a shorter length.
+        return self.max_draws_per_epoch
     
     def __getitem__(self, idx):
-        item = self.data[idx]
-        esm_input_ids = item['samples']['esm_input_ids']
-        esm_attention_mask = item['samples']['esm_attention_mask']
-        progen_input_ids = item['samples']['progen_input_ids']
-        progen_attention_mask = item['samples']['progen_attention_mask']
+        source_idx, target_idx = np.random.choice(np.arange(len(self.data)), size=2, replace=False)
 
-        return { 'samples' : {
-            'esm_input_ids': esm_input_ids,
-            'esm_attention_mask': esm_attention_mask,
-            'progen_input_ids': progen_input_ids,
-            'progen_attention_mask': progen_attention_mask},
-            'time-loc': item['time-loc'],
-            'raw_texts': tuple(item['raw_texts'])
+        item_source = self.data[source_idx]
+        item_target = self.data[target_idx]
+
+        esm_input_ids_source = item_source['samples']['esm_input_ids']
+        esm_attention_mask_source = item_source['samples']['esm_attention_mask']
+        progen_input_ids_source = item_source['samples']['progen_input_ids']
+        progen_attention_mask_source = item_source['samples']['progen_attention_mask']
+        
+        esm_input_ids_target = item_target['samples']['esm_input_ids']
+        esm_attention_mask_target = item_target['samples']['esm_attention_mask']
+        progen_input_ids_target = item_target['samples']['progen_input_ids']
+        progen_attention_mask_target = item_target['samples']['progen_attention_mask']
+
+        # Calculate month difference between source and target times
+        month_difference = self._calculate_month_difference(
+            item_source['time-loc'], 
+            item_target['time-loc']
+        )
+        
+        return { 'samples_source' : {
+            'esm_input_ids_source': esm_input_ids_source,
+            'esm_attention_mask_source': esm_attention_mask_source,
+            'progen_input_ids_source': progen_input_ids_source,
+            'progen_attention_mask_source': progen_attention_mask_source,
+            },
+            'samples_target' : {
+                'esm_input_ids_target': esm_input_ids_target,
+                'esm_attention_mask_target': esm_attention_mask_target,
+                'progen_input_ids_target': progen_input_ids_target,
+                'progen_attention_mask_target': progen_attention_mask_target,
+            },
+            'time_source': item_source['time-loc'],
+            'time_target': item_target['time-loc'],
+            'dt': month_difference,
+            'raw_texts_source': tuple(item_source['raw_texts']),
+            'raw_texts_target': tuple(item_target['raw_texts'])
         }

@@ -27,7 +27,7 @@ class FlowMatchingGenerator(nn.Module):
     def __init__(
         self, 
         model, 
-        sigma_min=1e-4
+        sigma_min=0
     ):
         """
         Flow Matching Generator for coupled distribution embeddings.

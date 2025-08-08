@@ -1,0 +1,24 @@
+# @package _global_.experiment
+
+# Experiment name and description
+name: mvn_mixed_coupled_exp
+description: "Multivariate normal distribution experiment with Dirichlet mixing and coupled distribution embeddings"
+
+# Override defaults from config.yaml
+defaults:
+  - /dataset: mvn
+  - /model: diffusion_mlp
+  - /generator: flow_matching  # Use flow matching for coupled embeddings
+  - /training: default5000
+  - /collate: dirichlet_k_mixing  # Dirichlet mixing with random pairing
+
+# Experiment-specific parameters
+latent_dim: 64
+hidden_dim: 128
+set_size: 500
+batch_size: 256
+lr: 2e-4
+
+# Mixing parameters
+n_mix: 3  # Number of sets to mix from
+alpha: 0.5  # Dirichlet concentration parameter 

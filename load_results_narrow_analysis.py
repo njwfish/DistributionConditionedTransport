@@ -4,12 +4,16 @@ Adapted script to analyze results from run_narrow.sh specifically.
 Computes mean ± standard deviation across 10 random seeds for each dataset
 and generates forecast plots for the specific hyperparameter combination used.
 
-This script is based on load_results_extensive.py but specifically filters for:
+This script supports both snapMMD and CDE forecast methods and is based on 
+load_results_extensive.py but specifically filters for:
 - Predictors: dt_ridge_sinusoidal
 - Samplers: dt_equals_one  
 - Predictor loss weights: 0
 - Seeds: 0-9 (10 seeds each)
 - Datasets: GoM, PBMC, LV, Repressilator
+
+For snapMMD: Loads pre-computed forecasts from snapMMD_forecasts/ directory
+For CDE: Generates forecasts from trained model checkpoints
 """
 
 import numpy as np
@@ -71,6 +75,8 @@ class NarrowAnalysisLoader(UnifiedResultsLoader):
         self.target_seeds = list(range(10))  # Seeds 0-9 as specified in run_narrow.sh
         self.original_dataset_name = dataset_name  # Keep the original name for directory search
         self.dataset_name_mapping = dataset_name_mapping  # Store the mapping for later use
+        # Explicit snapMMD seeds as used in load_results_unified.py
+        self.snapmmd_seeds = [1, 2, 3, 4, 5, 40, 41, 42, 43, 44]
         
     def filter_experiments_for_narrow_params(self, experiment_dirs):
         """
@@ -109,6 +115,49 @@ class NarrowAnalysisLoader(UnifiedResultsLoader):
         
         return matching_experiments
     
+    def load_snapmmd_forecast_for_seed(self, dataset_name, seed):
+        """
+        Load snapMMD forecast for a specific seed, matching the logic from load_results_unified.py
+        
+        Args:
+            dataset_name: Name of the dataset (config format)
+            seed: Random seed
+            
+        Returns:
+            Dictionary with forecast data
+        """
+        try:
+            if self.logger:
+                self.logger.info(f"Loading snapMMD forecast for {dataset_name} with seed {seed}...")
+            
+            forecast_data = np.load(f"snapMMD_forecasts/{dataset_name}_forecast_{seed}.npz")
+            
+            # Extract forecast results - take only the second element (index 1:)
+            # snapMMD forecast has shape (2, N, D), we want (1, N, D)
+            forecast = forecast_data['forecast'][1:]  # Take second element only
+            X_val_forecast = forecast_data['X_val']
+            
+            if self.logger:
+                self.logger.info(f"Loaded snapMMD forecast for seed {seed}, shape: {forecast.shape}")
+            
+            return {
+                'forecast': forecast,
+                'X_val_forecast': X_val_forecast
+            }
+            
+        except FileNotFoundError:
+            if self.logger:
+                self.logger.warning(f"snapMMD forecast file not found: snapMMD_forecasts/{dataset_name}_forecast_{seed}.npz")
+            else:
+                print(f"Warning: snapMMD forecast file not found: snapMMD_forecasts/{dataset_name}_forecast_{seed}.npz")
+            return None
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Error loading snapMMD forecast for seed {seed}: {e}")
+            else:
+                print(f"Error loading snapMMD forecast for seed {seed}: {e}")
+            return None
+    
     def compute_average_forecast_from_group(self, experiment_group, dataset_name):
         """
         Override parent method to handle dataset name mapping correctly.
@@ -129,33 +178,66 @@ class NarrowAnalysisLoader(UnifiedResultsLoader):
         # Use the mapped dataset name for config compatibility
         config_dataset_name = self.dataset_name_mapping.get(dataset_name, dataset_name)
         
-        for exp_data in experiment_group:
-            try:
-                # Set up a temporary loader for this experiment
-                exp_dir = exp_data['dir']
-                hyperparams = exp_data['hyperparams']
+        if self.forecast_method == 'snapMMD':
+            # For snapMMD, load forecast files directly based on seeds
+            for exp_data in experiment_group:
+                try:
+                    seed = exp_data['seed']
+                    
+                    # Load snapMMD forecast for this seed
+                    snapmmd_forecast = self.load_snapmmd_forecast_for_seed(config_dataset_name, seed)
+                    if snapmmd_forecast is None:
+                        continue
+                        
+                    forecast_data = snapmmd_forecast['forecast']
+                    forecasts.append(forecast_data)
+                    valid_seeds.append(seed)
+                    
+                    # Calculate MMD and EMD for this seed
+                    mmd_result = calculate_mmd_scores(config_dataset_name, seeds=[seed], forecast_method='snapMMD', logger=None)
+                    if mmd_result:
+                        mmd_scores.append(mmd_result['mean_mmd_squared'])
+                    
+                    if DATASET_CONFIGS[config_dataset_name]['calculate_emd']:
+                        emd_result = calculate_emd_scores(config_dataset_name, seeds=[seed], forecast_method='snapMMD', logger=None)
+                        if emd_result:
+                            emd_scores.append(emd_result['mean_emd'])
                 
-                temp_loader = UnifiedResultsLoader(
-                    config_dataset_name,  # Use mapped name here
-                    forecast_method=self.forecast_method,
-                    predictor_type=hyperparams['predictor'],
-                    sampling_type=hyperparams['sampling'],
-                    predictor_loss_weight=hyperparams['predictor_loss_weight'],
-                    experiment_pattern=self.experiment_pattern
-                )
-                
-                # Set the experiment directory for CDE forecasting
-                temp_loader.experiment_dir = exp_dir
-                
-                # Load data and forecast for this experiment
-                results = temp_loader.load_data_and_forecast()
-                forecast_data = results['forecast_data']['forecast']
-                
-                forecasts.append(forecast_data)
-                valid_seeds.append(exp_data['seed'])
-                
-                # Calculate MMD and EMD for this individual experiment
-                if self.forecast_method == 'CDE':
+                except Exception as e:
+                    if self.logger:
+                        self.logger.warning(f"Failed to load snapMMD forecast for seed {exp_data['seed']}: {e}")
+                    else:
+                        print(f"Warning: Failed to load snapMMD forecast for seed {exp_data['seed']}: {e}")
+                    continue
+        
+        elif self.forecast_method == 'CDE':
+            # For CDE, load from experiment directories
+            for exp_data in experiment_group:
+                try:
+                    # Set up a temporary loader for this experiment
+                    exp_dir = exp_data['dir']
+                    hyperparams = exp_data['hyperparams']
+                    
+                    temp_loader = UnifiedResultsLoader(
+                        config_dataset_name,  # Use mapped name here
+                        forecast_method=self.forecast_method,
+                        predictor_type=hyperparams['predictor'],
+                        sampling_type=hyperparams['sampling'],
+                        predictor_loss_weight=hyperparams['predictor_loss_weight'],
+                        experiment_pattern=self.experiment_pattern
+                    )
+                    
+                    # Set the experiment directory for CDE forecasting
+                    temp_loader.experiment_dir = exp_dir
+                    
+                    # Load data and forecast for this experiment
+                    results = temp_loader.load_data_and_forecast()
+                    forecast_data = results['forecast_data']['forecast']
+                    
+                    forecasts.append(forecast_data)
+                    valid_seeds.append(exp_data['seed'])
+                    
+                    # Calculate MMD and EMD for this individual experiment
                     cde_forecast = results['forecast_data']['forecast']
                     
                     mmd_result = calculate_mmd_scores(config_dataset_name, forecast_method=self.forecast_method, 
@@ -168,13 +250,16 @@ class NarrowAnalysisLoader(UnifiedResultsLoader):
                                                          cde_forecast_data=cde_forecast, logger=None)
                         if emd_result:
                             emd_scores.append(emd_result['mean_emd'])
-                
-            except Exception as e:
-                if self.logger:
-                    self.logger.warning(f"Failed to load forecast from {exp_data['dir']} (seed {exp_data['seed']}): {e}")
-                else:
-                    print(f"Warning: Failed to load forecast from {exp_data['dir']} (seed {exp_data['seed']}): {e}")
-                continue
+                    
+                except Exception as e:
+                    if self.logger:
+                        self.logger.warning(f"Failed to load forecast from {exp_data['dir']} (seed {exp_data['seed']}): {e}")
+                    else:
+                        print(f"Warning: Failed to load forecast from {exp_data['dir']} (seed {exp_data['seed']}): {e}")
+                    continue
+        
+        else:
+            raise ValueError(f"Unsupported forecast method: {self.forecast_method}")
         
         if not forecasts:
             raise ValueError(f"No valid forecasts found in experiment group")
@@ -188,16 +273,32 @@ class NarrowAnalysisLoader(UnifiedResultsLoader):
         first_exp_dir = experiment_group[0]['dir']
         first_hyperparams = experiment_group[0]['hyperparams']
         
-        temp_loader = UnifiedResultsLoader(
-            config_dataset_name,  # Use mapped name here too
-            forecast_method=self.forecast_method,
-            predictor_type=first_hyperparams['predictor'],
-            sampling_type=first_hyperparams['sampling'],
-            predictor_loss_weight=first_hyperparams['predictor_loss_weight'],
-            experiment_pattern=self.experiment_pattern
-        )
-        temp_loader.experiment_dir = first_exp_dir
-        first_results = temp_loader.load_data_and_forecast()
+        if self.forecast_method == 'snapMMD':
+            # For snapMMD, we need to load training data but use snapMMD forecast format
+            temp_loader = UnifiedResultsLoader(
+                config_dataset_name,
+                seed=valid_seeds[0],  # Use first valid seed for snapMMD
+                forecast_method='snapMMD',  # Use snapMMD to load the forecast correctly
+                predictor_type=first_hyperparams['predictor'],
+                sampling_type=first_hyperparams['sampling'],
+                predictor_loss_weight=first_hyperparams['predictor_loss_weight'],
+                experiment_pattern=self.experiment_pattern
+            )
+            # Load training data and first forecast for structure reference
+            first_results = temp_loader.load_data_and_forecast()
+            
+        elif self.forecast_method == 'CDE':
+            # For CDE, use the experiment directory
+            temp_loader = UnifiedResultsLoader(
+                config_dataset_name,  # Use mapped name here too
+                forecast_method=self.forecast_method,
+                predictor_type=first_hyperparams['predictor'],
+                sampling_type=first_hyperparams['sampling'],
+                predictor_loss_weight=first_hyperparams['predictor_loss_weight'],
+                experiment_pattern=self.experiment_pattern
+            )
+            temp_loader.experiment_dir = first_exp_dir
+            first_results = temp_loader.load_data_and_forecast()
         
         # Create averaged results
         averaged_results = {
@@ -241,44 +342,53 @@ class NarrowAnalysisLoader(UnifiedResultsLoader):
         else:
             print(f"Starting narrow analysis for dataset: {dataset_name}")
         
-        # Find all experiment directories for this dataset (use original name for directory search)
-        try:
-            search_dataset_name = self.original_dataset_name if hasattr(self, 'original_dataset_name') else dataset_name
-            all_experiment_dirs = self.find_all_experiments_with_hash(search_dataset_name, base_outputs_dir, self.experiment_pattern)
+        # Build the list of runs to process
+        if self.forecast_method == 'snapMMD':
+            # For snapMMD, do not inspect configs; use explicit seed list
+            matching_experiments = [{ 'seed': s } for s in self.snapmmd_seeds]
+            found_seeds = self.snapmmd_seeds
             if self.logger:
-                self.logger.info(f"Found {len(all_experiment_dirs)} total experiments for {dataset_name}")
+                self.logger.info(f"Using snapMMD seeds: {found_seeds}")
             else:
-                print(f"Found {len(all_experiment_dirs)} total experiments for {dataset_name}")
-        except Exception as e:
-            error_msg = f"Failed to find experiments for {dataset_name}: {e}"
-            if self.logger:
-                self.logger.error(error_msg)
-            else:
-                print(f"Error: {error_msg}")
-            return None
-        
-        # Filter for our specific parameters
-        matching_experiments = self.filter_experiments_for_narrow_params(all_experiment_dirs)
-        
-        if not matching_experiments:
-            error_msg = f"No experiments found for {dataset_name} with target parameters (dt_ridge_sinusoidal + dt_equals_one + predictor_loss_weight=0)"
-            if self.logger:
-                self.logger.error(error_msg)
-            else:
-                print(f"Error: {error_msg}")
-            return None
-        
-        found_seeds = [exp['seed'] for exp in matching_experiments]
-        missing_seeds = set(self.target_seeds) - set(found_seeds)
-        
-        if self.logger:
-            self.logger.info(f"Found {len(matching_experiments)} matching experiments with seeds: {found_seeds}")
-            if missing_seeds:
-                self.logger.warning(f"Missing experiments for seeds: {sorted(missing_seeds)}")
+                print(f"Using snapMMD seeds: {found_seeds}")
         else:
-            print(f"Found {len(matching_experiments)} matching experiments with seeds: {found_seeds}")
-            if missing_seeds:
-                print(f"Warning: Missing experiments for seeds: {sorted(missing_seeds)}")
+            # For CDE, find experiment directories and filter by exact hyperparameters
+            try:
+                search_dataset_name = self.original_dataset_name if hasattr(self, 'original_dataset_name') else dataset_name
+                all_experiment_dirs = self.find_all_experiments_with_hash(search_dataset_name, base_outputs_dir, self.experiment_pattern)
+                if self.logger:
+                    self.logger.info(f"Found {len(all_experiment_dirs)} total experiments for {dataset_name}")
+                else:
+                    print(f"Found {len(all_experiment_dirs)} total experiments for {dataset_name}")
+            except Exception as e:
+                error_msg = f"Failed to find experiments for {dataset_name}: {e}"
+                if self.logger:
+                    self.logger.error(error_msg)
+                else:
+                    print(f"Error: {error_msg}")
+                return None
+            
+            matching_experiments = self.filter_experiments_for_narrow_params(all_experiment_dirs)
+            
+            if not matching_experiments:
+                error_msg = f"No experiments found for {dataset_name} with target parameters (dt_ridge_sinusoidal + dt_equals_one + predictor_loss_weight=0)"
+                if self.logger:
+                    self.logger.error(error_msg)
+                else:
+                    print(f"Error: {error_msg}")
+                return None
+            
+            found_seeds = [exp['seed'] for exp in matching_experiments]
+            missing_seeds = set(self.target_seeds) - set(found_seeds)
+            
+            if self.logger:
+                self.logger.info(f"Found {len(matching_experiments)} matching experiments with seeds: {found_seeds}")
+                if missing_seeds:
+                    self.logger.warning(f"Missing experiments for seeds: {sorted(missing_seeds)}")
+            else:
+                print(f"Found {len(matching_experiments)} matching experiments with seeds: {found_seeds}")
+                if missing_seeds:
+                    print(f"Warning: Missing experiments for seeds: {sorted(missing_seeds)}")
         
         # Set up PCA if needed (for PBMC)
         self.setup_pca_if_needed()
@@ -393,6 +503,13 @@ class NarrowAnalysisLoader(UnifiedResultsLoader):
                     print(f"EMD Statistics (n={len(emd_scores)}):")
                     print(f"  EMD: {mean_emd:.6f} ± {std_emd:.6f}")
                 
+                # Determine missing seeds based on method
+                if self.forecast_method == 'snapMMD':
+                    target = set(self.snapmmd_seeds)
+                else:
+                    target = set(self.target_seeds)
+                missing_seeds = sorted(list(target - set(valid_seeds)))
+
                 # Store metrics in results
                 results['summary_metrics'] = {
                     'mmd_stats': {
@@ -423,7 +540,7 @@ class NarrowAnalysisLoader(UnifiedResultsLoader):
 def main():
     """Main function for narrow analysis of run_narrow.sh results."""
     parser = argparse.ArgumentParser(
-        description='Analyze results from run_narrow.sh: compute mean ± std across 10 seeds for specific hyperparameters'
+        description='Analyze results from run_narrow.sh: compute mean ± std across 10 seeds for specific hyperparameters. Supports both snapMMD and CDE methods.'
     )
     parser.add_argument('--datasets', nargs='+', 
                        choices=['GoM', 'PBMC', 'LV', 'Repressilator'],
@@ -431,7 +548,7 @@ def main():
                        help='Dataset names to process (default: all 4 datasets from run_narrow.sh)')
     parser.add_argument('--forecast-method', type=str, default='CDE', 
                        choices=['snapMMD', 'CDE'],
-                       help='Forecasting method: snapMMD or CDE (default: CDE)')
+                       help='Forecasting method: snapMMD (load pre-computed forecasts) or CDE (generate from models) (default: CDE)')
     parser.add_argument('--output-folder', type=str, default='figures_narrow',
                        help='Output folder for figures (default: figures_narrow)')
     parser.add_argument('--skip-plots', action='store_true',

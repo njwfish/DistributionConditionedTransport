@@ -1738,7 +1738,7 @@ def main():
     # Load data
     results = loader.load_data_and_forecast()
     
-    if not args.skip_plots:
+    if True: #not args.skip_plots:
         loader.logger.info(f"Generating plots for {args.dataset}...")
         print(f"Generating plots for {args.dataset}...")
         
@@ -1751,7 +1751,7 @@ def main():
         loader.plot_multi_angle_views(results, args.output_folder)
         loader.plot_individual_final_timepoints(results, args.output_folder)
     
-    if not args.skip_metrics:
+    if True: #not args.skip_metrics:
         loader.logger.info(f"Calculating metrics for {args.dataset}...")
         print(f"Calculating metrics for {args.dataset}...")
         

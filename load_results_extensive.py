@@ -222,6 +222,9 @@ class UnifiedResultsLoader:
             
         Returns:
             Dictionary with 'predictor', 'sampling', 'predictor_loss_weights', and 'seed' keys
+            
+        Raises:
+            ValueError: If experiment.use_predicted_latent is True (experiment should be skipped)
         """
         config_path = os.path.join(experiment_dir, 'config.yaml')
         if not os.path.exists(config_path):
@@ -229,6 +232,12 @@ class UnifiedResultsLoader:
         
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
+        
+        # Check if experiment.use_predicted_latent is True and skip if so
+        if 'experiment' in config and isinstance(config['experiment'], dict):
+            use_predicted_latent = config['experiment'].get('use_predicted_latent', False)
+            if use_predicted_latent:
+                raise ValueError(f"Skipping experiment with use_predicted_latent=True: {experiment_dir}")
         
         # Extract predictor type - fail if not found
         if 'predictor' not in config:
@@ -356,6 +365,19 @@ class UnifiedResultsLoader:
                     'hyperparams': hyperparams
                 })
                 
+            except ValueError as e:
+                # Handle experiments that should be skipped (use_predicted_latent=True)
+                if "use_predicted_latent=True" in str(e):
+                    if self.logger:
+                        self.logger.info(f"Skipping experiment with use_predicted_latent=True: {exp_dir}")
+                    else:
+                        print(f"Skipping experiment with use_predicted_latent=True: {exp_dir}")
+                else:
+                    if self.logger:
+                        self.logger.warning(f"Failed to extract hyperparameters from {exp_dir}: {e}")
+                    else:
+                        print(f"Warning: Failed to extract hyperparameters from {exp_dir}: {e}")
+                continue
             except Exception as e:
                 if self.logger:
                     self.logger.warning(f"Failed to extract hyperparameters from {exp_dir}: {e}")

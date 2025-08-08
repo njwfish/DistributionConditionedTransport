@@ -47,11 +47,19 @@ class ViralDataset(Dataset):
         self.progen_tokenizer.eos_token = '<|eos|>'
 
         self.tokenized_data_file = f'{self.data_dir}/virus_tokenized_data.pt'
-        self.index_pairs = np.array([(i, j) for i in range(self.data.shape[0]) for j in range(self.data.shape[0]) if i != j])
-
+        # Ensure data is prepared before building any indices
         if not os.path.exists(self.tokenized_data_file) or tokenize:
             self._tokenize_data(lines_to_read=lines_to_read)
         self.data = torch.load(self.tokenized_data_file)
+        # Build index pairs after data is loaded
+        self.index_pairs = np.array(
+            [
+                (i, j)
+                for i in range(len(self.data))
+                for j in range(len(self.data))
+                if i != j
+            ]
+        )
 
     def _tokenize_data(self, lines_to_read=10**8):
 

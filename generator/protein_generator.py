@@ -181,7 +181,7 @@ class ConditionedProgen2(nn.Module):
         return logits
 
 
-class Progen2Generator:
+class Progen2Generator(nn.Module):
     """Generator class using conditioned Progen2 for the distribution embeddings framework."""
     
     def __init__(
@@ -206,6 +206,8 @@ class Progen2Generator:
             temperature: Sampling temperature
             max_length: Maximum length for generation
         """
+        super().__init__()
+
         self.model = ConditionedProgen2(
             progen2_name=progen2_name,
             latent_dim=latent_dim,
@@ -246,15 +248,17 @@ class Progen2Generator:
         # TODO: is it correct that we have no use for the target attention mask?
         target_attention_mask = x_target['progen_attention_mask']
         
+        # TODO: Figure out whether you want to do seq to seq or mask to seq.
         # Shift for causal language modeling: predict each token using previous tokens
-        logits = self.model(source_ids, source_attention_mask, latent_source, latent_target)
+        #logits = self.model(source_ids, source_attention_mask, latent_source, latent_target)
+        logits = self.model(target_ids, target_attention_mask, latent_source, latent_target)
         shift_logits = logits[:, :-1, :]
         
         # Reshape input_ids if needed to match logits
-        if len(source_ids.shape) == 3 and len(shift_logits.shape) == 3:
-            if source_ids.shape[0] * source_ids.shape[1] == shift_logits.shape[0]:
+        if len(target_ids.shape) == 3 and len(shift_logits.shape) == 3:
+            if target_ids.shape[0] * target_ids.shape[1] == shift_logits.shape[0]:
                 # Reshape input_ids to match the reshaped logits
-                source_ids = source_ids.view(-1, source_ids.shape[-1])
+                target_ids = source_ids.view(-1, target_ids.shape[-1])
         
         shift_labels = target_ids[:, 1:]
         

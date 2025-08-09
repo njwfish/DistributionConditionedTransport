@@ -25,7 +25,7 @@ class ViralDataset(Dataset):
                  lines_to_read: int = 10**8,
                  max_sets_per_fam: int = 10,
                  include_location: bool = False,
-                 max_draws_per_epoch: int = 10000):
+                 max_draws_per_epoch: int = 1000):
         
         if seed is not None:
             random.seed(seed)
@@ -51,15 +51,17 @@ class ViralDataset(Dataset):
         if not os.path.exists(self.tokenized_data_file) or tokenize:
             self._tokenize_data(lines_to_read=lines_to_read)
         self.data = torch.load(self.tokenized_data_file)
+        with open("auxillary_log.log", "a") as f:
+            f.write(f"len(self.data): {len(self.data)}\n")
         # Build index pairs after data is loaded
-        self.index_pairs = np.array(
-            [
-                (i, j)
-                for i in range(len(self.data))
-                for j in range(len(self.data))
-                if i != j
-            ]
-        )
+        #self.index_pairs = np.array(
+        #    [
+        #        (i, j)
+        #        for i in range(len(self.data))
+        #        for j in range(len(self.data))
+        #        if i != j
+        #    ]
+        #)
 
     def _tokenize_data(self, lines_to_read=10**8):
 
@@ -276,20 +278,21 @@ class ViralDataset(Dataset):
             item_target['time-loc']
         )
         
-        return { 'samples_source' : {
-            'esm_input_ids_source': esm_input_ids_source,
-            'esm_attention_mask_source': esm_attention_mask_source,
-            'progen_input_ids_source': progen_input_ids_source,
-            'progen_attention_mask_source': progen_attention_mask_source,
+        # TODO: in it's current version sometimes the source and target samples seem to have different batch sizes... not sure right now why, just had a weird bug.
+        return { 'source_samples' : {
+            'esm_input_ids': esm_input_ids_source,
+            'esm_attention_mask': esm_attention_mask_source,
+            'progen_input_ids': progen_input_ids_source,
+            'progen_attention_mask': progen_attention_mask_source,
             },
-            'samples_target' : {
-                'esm_input_ids_target': esm_input_ids_target,
-                'esm_attention_mask_target': esm_attention_mask_target,
-                'progen_input_ids_target': progen_input_ids_target,
-                'progen_attention_mask_target': progen_attention_mask_target,
+            'target_samples' : {
+                'esm_input_ids': esm_input_ids_target,
+                'esm_attention_mask': esm_attention_mask_target,
+                'progen_input_ids': progen_input_ids_target,
+                'progen_attention_mask': progen_attention_mask_target,
             },
-            'time_source': item_source['time-loc'],
-            'time_target': item_target['time-loc'],
+            'source_time': item_source['time-loc'],
+            'target_time': item_target['time-loc'],
             'dt': month_difference,
             'raw_texts_source': tuple(item_source['raw_texts']),
             'raw_texts_target': tuple(item_target['raw_texts'])

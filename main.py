@@ -7,6 +7,9 @@ import wandb
 import os
 import numpy as np
 
+import torch.nn as nn
+
+
 # Import our resolver for sum operations
 import utils.hash_utils as hash_utils
 from latent_mapping_training import LatentMappingTrainer
@@ -186,8 +189,11 @@ def main(cfg: DictConfig):
         # TODO: it would probably be good to re-implement the option to train the predictor after having trained everything else.
         if hasattr(cfg, "predictor"):
             predictor = hydra.utils.instantiate(cfg.predictor)
-            # SELU by default but adding this to make sure it's the same as the encoder
-            predictor.latent_act = encoder.latent_act
+            if hasattr(encoder, "latent_act"):
+                # SELU by default but adding this to make sure it's the same as the encoder
+                predictor.latent_act = encoder.latent_act
+            else:
+                predictor.latent_act = nn.SELU()
             encoder.predictor = predictor
 
         # Create generator (with model already instantiated)

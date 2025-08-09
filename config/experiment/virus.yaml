@@ -12,7 +12,8 @@ defaults:
   - /scheduler: cosine
   - /loss: predictor
   - /predictor: dt_mlp_sinusoidal  # Use dt-conditioned MLP with sinusoidal encoding
-  - /sampling: bidirectional
+  - /sampling: unidirectional
+  - /training: default_virus
 
 # Experiment-specific parameters
 use_predicted_latent: true

@@ -15,6 +15,10 @@ class ESMFeatureExtractor(nn.Module):
         self.proj = nn.Linear(h, output_dim) if output_dim != h else nn.Identity()
 
     def forward(self, input_ids, attention_mask=None):
+        # Ensure ESM runs in FP32 to avoid dtype mismatch with fp16 PLM when needed
+        prev_dtype = None
+        if hasattr(self.esm, 'dtype'):
+            prev_dtype = next(self.esm.parameters()).dtype
         x = self.esm(input_ids, attention_mask=attention_mask).last_hidden_state
         if self.pooling == "cls":
             pooled = x[:, 0]

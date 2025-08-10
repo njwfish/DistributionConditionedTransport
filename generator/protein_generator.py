@@ -28,7 +28,9 @@ class ConditionedProgen2(nn.Module):
         latent_dim=32,
         condition_dim=256,
         freeze_progen2=False,
-        condition_method="prefix"
+        condition_method="prefix",
+        use_gradient_checkpointing: bool = False,
+        precision: str | None = None,
     ):
         """
         Initialize a conditioned Progen2 model.
@@ -43,7 +45,38 @@ class ConditionedProgen2(nn.Module):
         super().__init__()
         
         # Initialize Progen2 model
-        self.progen2 = AutoModelForCausalLM.from_pretrained(progen2_name, trust_remote_code=True)
+        # Determine requested dtype early to load weights in that dtype
+        requested_dtype = None
+        if precision:
+            p = precision.lower()
+            if p in ("fp16", "half"):
+                requested_dtype = torch.float16
+            elif p in ("bf16", "bfloat16"):
+                requested_dtype = torch.bfloat16
+            elif p in ("fp32", "float32"):
+                requested_dtype = torch.float32
+
+        self.progen2 = AutoModelForCausalLM.from_pretrained(
+            progen2_name,
+            trust_remote_code=True,
+            torch_dtype=requested_dtype,
+            low_cpu_mem_usage=True,
+        )
+
+        # TODO: not sure whether this actually helps/works...
+        # Memory optimizations
+        if use_gradient_checkpointing and hasattr(self.progen2, 'gradient_checkpointing_enable'):
+            try:
+                self.progen2.gradient_checkpointing_enable()
+                # disable cache to allow gradient checkpointing
+                if hasattr(self.progen2.config, 'use_cache'):
+                    self.progen2.config.use_cache = False
+            except Exception:
+                pass
+
+        # Set model dtype if requested
+        if requested_dtype is not None:
+            self.progen2.to(dtype=requested_dtype)
         
         # Freeze Progen2 if specified
         if freeze_progen2:
@@ -88,13 +121,18 @@ class ConditionedProgen2(nn.Module):
         else:
             raise ValueError(f"Unknown conditioning method: {condition_method}")
 
+        # Align dtype of conditioning projection with model
+        if requested_dtype is not None:
+            self.condition_proj.to(dtype=requested_dtype)
+
     def forward(self, input_ids, attention_mask, latent_source, latent_target):
         """
         Forward pass through the conditioned Progen2 model.
+        Memory-optimized to process sequences individually when dealing with sets.
         
         Args:
-            input_ids: Tensor of token IDs [batch_size, seq_len]
-            attention_mask: Attention mask [batch_size, seq_len]
+            input_ids: Tensor of token IDs [batch_size, seq_len] or [batch_size, set_size, seq_len]
+            attention_mask: Attention mask [batch_size, seq_len] or [batch_size, set_size, seq_len]
             latent_source: Source latent distribution embedding [batch_size, latent_dim]
             latent_target: Target latent distribution embedding [batch_size, latent_dim]
             
@@ -106,6 +144,9 @@ class ConditionedProgen2(nn.Module):
         # Combine the two latents - concatenate them to create a richer conditioning signal
         combined_latent = torch.cat([latent_source, latent_target], dim=-1)
         
+        # Ensure latent dtype matches projection weights to avoid matmul dtype mismatch
+        proj_weight_dtype = self.condition_proj[0].weight.dtype if isinstance(self.condition_proj, nn.Sequential) else combined_latent.dtype
+        combined_latent = combined_latent.to(proj_weight_dtype)
         # Project combined latent to correct dimension
         condition = self.condition_proj(combined_latent)
         
@@ -113,28 +154,85 @@ class ConditionedProgen2(nn.Module):
             # Use the condition as a prefix hidden state
             # Create a prefix token
             
-            # Handle attention mask dimension properly - check shape and reshape if needed
+            # Handle attention mask dimension properly - check shape and process individually for memory efficiency
             if len(attention_mask.shape) == 3:  # [batch_size, set_size, seq_len]
-                # Reshape if needed
+                # MEMORY OPTIMIZATION: Process sequences individually instead of batching
                 set_size, seq_len = attention_mask.shape[1:]
-                attention_mask = attention_mask.view(batch_size * set_size, seq_len)
-                input_ids = input_ids.view(batch_size * set_size, seq_len)
-                condition = condition.unsqueeze(1).repeat(1, set_size, 1).view(batch_size * set_size, -1)
-                batch_size = batch_size * set_size
+                all_logits = []
+                
+                for seq_idx in range(set_size):
+                    # Process each sequence in the set individually
+                    seq_input_ids = input_ids[:, seq_idx, :]  # [batch_size, seq_len]
+                    seq_attention_mask = attention_mask[:, seq_idx, :]  # [batch_size, seq_len]
+                    
+                    # Process this individual sequence
+                    seq_logits = self._forward_single_sequence(
+                        seq_input_ids, seq_attention_mask, condition, method="prefix"
+                    )
+                    all_logits.append(seq_logits)
+                
+                # Concatenate results back to [batch_size * set_size, seq_len, vocab_size]
+                logits = torch.cat(all_logits, dim=0)
+                
+            else:
+                # Standard processing for single sequences
+                logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="prefix")
+            
+        elif self.condition_method == "additive":
+            # Handle attention mask dimension properly - process individually for memory efficiency
+            if len(attention_mask.shape) == 3:  # [batch_size, set_size, seq_len]
+                # MEMORY OPTIMIZATION: Process sequences individually instead of batching
+                set_size, seq_len = attention_mask.shape[1:]
+                all_logits = []
+                
+                for seq_idx in range(set_size):
+                    # Process each sequence in the set individually
+                    seq_input_ids = input_ids[:, seq_idx, :]  # [batch_size, seq_len]
+                    seq_attention_mask = attention_mask[:, seq_idx, :]  # [batch_size, seq_len]
+                    
+                    # Process this individual sequence
+                    seq_logits = self._forward_single_sequence(
+                        seq_input_ids, seq_attention_mask, condition, method="additive"
+                    )
+                    all_logits.append(seq_logits)
+                
+                # Concatenate results back to [batch_size * set_size, seq_len, vocab_size]
+                logits = torch.cat(all_logits, dim=0)
+                
+            else:
+                # Standard processing for single sequences
+                logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="additive")
+        
+        return logits
+
+    def _forward_single_sequence(self, input_ids, attention_mask, condition, method="prefix"):
+        """
+        Memory-optimized forward pass for a single sequence.
+        
+        Args:
+            input_ids: Token IDs [batch_size, seq_len]
+            attention_mask: Attention mask [batch_size, seq_len]
+            condition: Projected condition [batch_size, hidden_dim]
+            method: "prefix" or "additive"
+            
+        Returns:
+            Logits for the sequence [batch_size, seq_len, vocab_size]
+        """
+        if method == "prefix":
+            batch_size = input_ids.shape[0]
             
             # Add prefix to attention mask
             prefix_attention = torch.ones(batch_size, 1, dtype=attention_mask.dtype, device=attention_mask.device)
             extended_attention_mask = torch.cat([prefix_attention, attention_mask], dim=1)
             
-            # Get embeddings for the input sequence (directly from token embeddings or wte)
+            # Get embeddings for the input sequence
             if hasattr(self.progen2.transformer, 'wte'):
-                # Usually Progen2 uses wte for word token embeddings
                 token_embeds = self.progen2.transformer.wte(input_ids)
             else:
-                # Fallback to manual embedding lookup
                 token_embeds = self.progen2.get_input_embeddings()(input_ids)
             
-            # Create prefix embedding
+            # Match dtype and create prefix embedding
+            condition = condition.to(token_embeds.dtype)
             prefix_embeds = condition.unsqueeze(1)  # [batch_size, 1, hidden_dim]
             
             # Concatenate prefix embedding with input embeddings
@@ -150,16 +248,7 @@ class ConditionedProgen2(nn.Module):
             # Get logits and remove the prefix logit
             logits = outputs.logits[:, 1:, :]
             
-        elif self.condition_method == "additive":
-            # Handle attention mask dimension properly - check shape and reshape if needed
-            if len(attention_mask.shape) == 3:  # [batch_size, set_size, seq_len]
-                # Reshape if needed
-                set_size, seq_len = attention_mask.shape[1:]
-                attention_mask = attention_mask.view(batch_size * set_size, seq_len)
-                input_ids = input_ids.view(batch_size * set_size, seq_len)
-                condition = condition.unsqueeze(1).repeat(1, set_size, 1).view(batch_size * set_size, -1)
-                batch_size = batch_size * set_size
-            
+        elif method == "additive":
             # Process with the model first
             outputs = self.progen2(
                 input_ids=input_ids,
@@ -172,12 +261,13 @@ class ConditionedProgen2(nn.Module):
             hidden_states = outputs.hidden_states[-1]
             
             # Add the condition to each position
-            condition = condition.unsqueeze(1)  # [batch_size, 1, hidden_dim]
-            hidden_states = hidden_states + condition
+            condition = condition.to(hidden_states.dtype)
+            condition_broadcast = condition.unsqueeze(1)  # [batch_size, 1, hidden_dim]
+            hidden_states = hidden_states + condition_broadcast
             
             # Project back to vocabulary
             logits = self.progen2.lm_head(hidden_states)
-        
+            
         return logits
 
 
@@ -192,7 +282,9 @@ class Progen2Generator(nn.Module):
         freeze_progen2=False,
         condition_method="prefix",
         temperature=1.0,
-        max_length=512
+        max_length=512,
+        use_gradient_checkpointing: bool = False,
+        precision: str | None = None,
     ):
         """
         Initialize the Progen2 generator.
@@ -213,7 +305,9 @@ class Progen2Generator(nn.Module):
             latent_dim=latent_dim,
             condition_dim=condition_dim,
             freeze_progen2=freeze_progen2,
-            condition_method=condition_method
+            condition_method=condition_method,
+            use_gradient_checkpointing=use_gradient_checkpointing,
+            precision=precision,
         )
         
         self.temperature = temperature
@@ -264,10 +358,18 @@ class Progen2Generator(nn.Module):
         
         # Calculate loss
         loss_fct = nn.CrossEntropyLoss(reduction='mean')
-        loss = loss_fct(
-            shift_logits.reshape(-1, shift_logits.size(-1)),
-            shift_labels.reshape(-1)
-        )
+        # If model is in reduced precision, temporarily compute loss in fp32 for stability
+        logits_dtype = shift_logits.dtype
+        if logits_dtype in (torch.float16, torch.bfloat16):
+            loss = loss_fct(
+                shift_logits.float().reshape(-1, shift_logits.size(-1)),
+                shift_labels.reshape(-1)
+            )
+        else:
+            loss = loss_fct(
+                shift_logits.reshape(-1, shift_logits.size(-1)),
+                shift_labels.reshape(-1)
+            )
         
         return loss
 

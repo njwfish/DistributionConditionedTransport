@@ -6,4 +6,5 @@ save_interval: 1
 eval_interval: 1
 early_stopping: false
 patience: 5
-use_tqdm: false 
+use_tqdm: false
+gradient_accumulation_steps: ${experiment.gradient_accumulation_steps} 

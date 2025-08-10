@@ -25,6 +25,7 @@ class Trainer:
         use_tqdm=True,
         mask_context_prob=0.0,
         sub_epoch=None,
+        gradient_accumulation_steps=1,
     ):
         """
         Initialize the trainer.
@@ -51,6 +52,7 @@ class Trainer:
         self.patience = patience
         self.use_tqdm = use_tqdm
         self.mask_context_prob = mask_context_prob
+        self.gradient_accumulation_steps = gradient_accumulation_steps
         
         self.logger = logging.getLogger(__name__)
         self.best_loss = float('inf')
@@ -285,33 +287,58 @@ class Trainer:
             else:
                 pbar = train_dataloader
             
-            # Train for one epoch
+            # Train for one epoch with gradient accumulation
+            accumulation_loss = 0.0
+            accumulation_losses = {}
+            
             for batch_idx, batch in enumerate(pbar):
                 # Handle samples which can be either a tensor or a dictionary
                 loss, losses = loss_manager.loss(encoder, generator, batch, device)
                 
-                optimizer.zero_grad()
+                # Scale loss by accumulation steps for proper averaging
+                loss = loss / self.gradient_accumulation_steps
                 
-                # Backpropagate
+                # Backpropagate (but don't step optimizer yet)
                 loss.backward()
-                optimizer.step()
                 
-                # Record loss
-                epoch_losses.append(loss.item())
+                # Accumulate losses for logging
+                accumulation_loss += loss.item()
+                for key, value in losses.items():
+                    if key not in accumulation_losses:
+                        accumulation_losses[key] = 0.0
+                    accumulation_losses[key] += value / self.gradient_accumulation_steps
+                
+                # Update weights every gradient_accumulation_steps
+                if (batch_idx + 1) % self.gradient_accumulation_steps == 0:
+                    optimizer.step()
+                    optimizer.zero_grad()
+                    
+                    # Record accumulated loss
+                    epoch_losses.append(accumulation_loss)
+                    
+                    # Reset accumulation
+                    final_loss = accumulation_loss
+                    final_losses = accumulation_losses.copy()
+                    accumulation_loss = 0.0
+                    accumulation_losses = {}
+                else:
+                    # For logging purposes, use current accumulated values
+                    final_loss = accumulation_loss
+                    final_losses = accumulation_losses.copy()
                 
                 # Log every log_interval batches
                 if batch_idx % self.log_interval == 0:
-                    self.logger.info(f"Epoch {epoch+1}, Batch {batch_idx}/{len(train_dataloader)}, Loss: {loss.item():.6f}")
+                    self.logger.info(f"Epoch {epoch+1}, Batch {batch_idx}/{len(train_dataloader)}, Loss: {final_loss:.6f}")
                     if self.use_tqdm:
-                        pbar.set_postfix(loss=f"{loss.item():.6f}")
+                        pbar.set_postfix(loss=f"{final_loss:.6f}")
                     
-                    # Log batch metrics to W&B
-                    if wandb.run is not None:
+                    # Log batch metrics to W&B (only when accumulation step is complete)
+                    if wandb.run is not None and (batch_idx + 1) % self.gradient_accumulation_steps == 0:
                         wandb.log({
-                            "batch/loss": loss.item(),
+                            "batch/loss": final_loss,
                             "batch/step": step,
                             "batch/epoch": epoch + 1,
-                        } | {f'batch/{k}': v for k, v in losses.items()}, step=step)
+                        } | {f'batch/{k}': v for k, v in final_losses.items()}, step=step)
 
                 if self.sub_epoch and (step % self.sub_epoch_interval == 0) and (step != 0):
                     sub_epoch = step // self.sub_epoch_interval
@@ -335,6 +362,12 @@ class Trainer:
                         self.logger.info(f"Saved checkpoint to {checkpoint_path}")      
 
                 step += 1
+            
+            # Handle any remaining gradients that weren't stepped
+            if accumulation_loss > 0:
+                optimizer.step()
+                optimizer.zero_grad()
+                epoch_losses.append(accumulation_loss)
             
             # Calculate average loss for this epoch
             avg_epoch_loss = sum(epoch_losses) / len(epoch_losses)

@@ -68,13 +68,22 @@ class ViralDataset(Dataset):
         seqs_by_monthloc = defaultdict(list)
         
         # TODO: should I keep this parameter this way? Might be good to not put too much weight on a single source. But then again, this is way to small if we bunch all locations together at once.
-        max_per_monthloc = self.set_size  # cap per group
+        max_per_monthloc = lines_to_read #self.set_size  # cap per group
 
         logger.info('building dict')
+        
+        # Debug log path for progress tracking
+        debug_log_path = "/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/parse_time_loc_debug.log"
 
         record_iterator = SeqIO.parse(fn, "fasta")
 
-        for _ in tqdm(range(lines_to_read)):
+        for line_idx in tqdm(range(lines_to_read)):
+            # Log progress every 10,000 lines
+            if line_idx % 10000 == 0:
+                with open(debug_log_path, "a") as debug_file:
+                    debug_file.write(f"FASTA Reading Progress: {line_idx}/{lines_to_read} lines processed\n")
+                    debug_file.flush()
+            
             try:
                 record = next(record_iterator)
                 fields = record.description.split("|")
@@ -86,63 +95,123 @@ class ViralDataset(Dataset):
                 
                 # TODO: I need to add the filter for the case in which the month in the data is only a single integer.
 
-                if date[5:7] != '00' and date[-2:] != '00' and date[4] == '-':
+                if date[5:7] != '00' and date[-2:] != '00' and date[4] == '-' and date[6].isdigit():
                     if self.include_location:
                         key = date[:7] + '-' + location  # yyyy-mm-location
                     else:
                         key = date[:7]
                     if len(seqs_by_monthloc[key]) < max_per_monthloc:
                         seqs_by_monthloc[key].append(str(record.seq))
-            # TODO: maybe remove this try-except for more transparent error handling.
-            except:
+                        
+            except UnicodeDecodeError as e:
+                # Log detailed Unicode decode error information
+                with open(debug_log_path, "a") as debug_file:
+                    debug_file.write(f"\n=== UNICODE DECODE ERROR ===\n")
+                    debug_file.write(f"Timestamp: {datetime.now().isoformat()}\n")
+                    debug_file.write(f"FASTA line index: {line_idx}\n")
+                    debug_file.write(f"Error type: {type(e).__name__}\n")
+                    debug_file.write(f"Error message: {str(e)}\n")
+                    debug_file.write(f"Error encoding: {e.encoding}\n")
+                    debug_file.write(f"Error object: {e.object}\n")
+                    debug_file.write(f"Error start position: {e.start}\n")
+                    debug_file.write(f"Error end position: {e.end}\n")
+                    debug_file.write(f"Error reason: {e.reason}\n")
+                    debug_file.write(f"Problematic bytes around position: {e.object[max(0, e.start-50):e.end+50]}\n")
+                    debug_file.write("=== END UNICODE ERROR DEBUG ===\n\n")
+                    debug_file.flush()
+                
+                # Also print to console for immediate visibility
+                print(f"Unicode decode error at FASTA line {line_idx}! Check {debug_log_path} for details. Skipping this record.")
+                
+                # Continue to next record instead of crashing
                 continue
+                
+            except StopIteration:
+                # End of file reached
+                with open(debug_log_path, "a") as debug_file:
+                    debug_file.write(f"End of FASTA file reached at line {line_idx}\n")
+                    debug_file.flush()
+                #break
+                
+            except Exception as e:
+                # Log any other unexpected errors
+                with open(debug_log_path, "a") as debug_file:
+                    debug_file.write(f"\n=== UNEXPECTED ERROR ===\n")
+                    debug_file.write(f"Timestamp: {datetime.now().isoformat()}\n")
+                    debug_file.write(f"FASTA line index: {line_idx}\n")
+                    debug_file.write(f"Error type: {type(e).__name__}\n")
+                    debug_file.write(f"Error message: {str(e)}\n")
+                    debug_file.write("=== END UNEXPECTED ERROR DEBUG ===\n\n")
+                    debug_file.flush()
+                
+                print(f"Unexpected error at FASTA line {line_idx}! Check {debug_log_path} for details. Skipping this record.")
+                continue
+
 
         tokenized_data = []
+        
+        total_timelocs = len(seqs_by_monthloc)
+        with open(debug_log_path, "a") as debug_file:
+            debug_file.write(f"Starting tokenization of {total_timelocs} time-location groups\n")
+            debug_file.flush()
 
-        for timeloc, seqs in tqdm(seqs_by_monthloc.items()):
-            # TODO: I suppose this is because with max_per_monthloc = self.set_size, if this doesn't match it would be an indicator of a monthloc with too little data.
-            if len(seqs) != self.set_size:
-                continue
-            
-            # TODO: why was this set to 1 before? I guess because everything was trimmed to not exceed set size. But should I keep this? 
-            # TODO: And what should I choose for max sets per fam if I even keep it?
-            n_sets = min(len(seqs) // self.set_size, self.max_sets_per_fam)
+        for timeloc_idx, (timeloc, seqs) in enumerate(tqdm(seqs_by_monthloc.items())):
+            # Log every iteration of time-location processing
+            with open(debug_log_path, "a") as debug_file:
+                debug_file.write(f"Processing time-location {timeloc_idx + 1}/{total_timelocs}: '{timeloc}' with {len(seqs)} sequences\n")
+                debug_file.flush()
+            ## TODO: I suppose this is because with max_per_monthloc = self.set_size, if this doesn't match it would be an indicator of a monthloc with too little data.
+            ## TODO: if I tokenize every sequence, should I just skip this? After all, it means that we'll also have smaller sets 
+            #if len(seqs) < self.set_size:
+            #    continue
+            #
+            ## TODO: why was this set to 1 before? I guess because everything was trimmed to not exceed set size. But should I keep this? 
+            ## TODO: And what should I choose for max sets per fam if I even keep it?
+            ## TODO: for now I am not adding the +1 because I want to leave out smaller sets.
+            #if len(seqs) % self.set_size != 0:
+            #    n_sets = len(seqs) // self.set_size #+ 1
+            #else:
+            #    n_sets = len(seqs) // self.set_size 
+                
             np.random.shuffle(seqs)
 
-            for i in range(n_sets):
-                batch = seqs[i*self.set_size : (i+1)*self.set_size]
+            esm_input_ids = []
+            esm_attention_mask = []
+            progen_input_ids = []
+            progen_attention_mask = []
+            texts = []
 
-                esm_input_ids = []
-                esm_attention_mask = []
-                progen_input_ids = []
-                progen_attention_mask = []
-                texts = []
+            for seq_idx, seq in enumerate(seqs):
+                # Log progress every 100th sequence within each time-location group
+                if seq_idx % 100 == 0:
+                    with open(debug_log_path, "a") as debug_file:
+                        debug_file.write(f"  Tokenizing sequence {seq_idx + 1}/{len(seqs)} in time-location '{timeloc}'\n")
+                        debug_file.flush()
 
-                for seq in batch:
-
-                    pg2 = self._tokenize_for_progen(seq)
-                    progen_input_ids.append(pg2[0])
-                    progen_attention_mask.append(pg2[1])
-                    esm = self._tokenize_for_esm(seq)
-                    esm_input_ids.append(esm[0])
-                    esm_attention_mask.append(esm[1])
-                    texts.append(seq[:self.max_length]) # note truncated
+                pg2 = self._tokenize_for_progen(seq)
+                progen_input_ids.append(pg2[0])
+                progen_attention_mask.append(pg2[1])
+                esm = self._tokenize_for_esm(seq)
+                esm_input_ids.append(esm[0])
+                esm_attention_mask.append(esm[1])
+                texts.append(seq[:self.max_length]) # note truncated
 
 
-                esm_input_ids = torch.stack(esm_input_ids)
-                esm_attention_mask = torch.stack(esm_attention_mask)
-                progen_input_ids = torch.stack(progen_input_ids)
-                progen_attention_mask = torch.stack(progen_attention_mask)
+            esm_input_ids = torch.stack(esm_input_ids)
+            esm_attention_mask = torch.stack(esm_attention_mask)
+            progen_input_ids = torch.stack(progen_input_ids)
+            progen_attention_mask = torch.stack(progen_attention_mask)
 
-                tokenized_data.append({
-                    'samples' : {
-                    'esm_input_ids': esm_input_ids,
-                    'esm_attention_mask': esm_attention_mask,
-                    'progen_input_ids': progen_input_ids,
-                    'progen_attention_mask': progen_attention_mask,},
-                    'time-loc': timeloc,
-                    'raw_texts': texts
-                })
+            tokenized_data.append({
+                'samples' : {
+                'esm_input_ids': esm_input_ids,
+                'esm_attention_mask': esm_attention_mask,
+                'progen_input_ids': progen_input_ids,
+                'progen_attention_mask': progen_attention_mask,},
+                'time-loc': timeloc,
+                'raw_texts': texts
+            })
+            
         torch.save(tokenized_data, self.tokenized_data_file)
         logger.info(f"tokenized data saved to {self.tokenized_data_file}")
 

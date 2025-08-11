@@ -6,7 +6,7 @@ description: "bin-to-bin optimization of protein fitness now with actual bin jum
 
 # Override defaults from config.yaml
 defaults:
-  - /dataset: virus
+  - /dataset: virus_debug
   - /encoder: esm
   - /generator: progen2
   - /scheduler: cosine

@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch.nn.functional as F
+from typing import Optional
 
 # This module has been replaced by a more complex sequential network in ConditionedProgen2
 # class ZToPrefix(nn.Module):
@@ -30,7 +31,7 @@ class ConditionedProgen2(nn.Module):
         freeze_progen2=False,
         condition_method="prefix",
         use_gradient_checkpointing: bool = False,
-        precision: str | None = None,
+        precision: Optional[str] = None,
     ):
         """
         Initialize a conditioned Progen2 model.
@@ -42,10 +43,23 @@ class ConditionedProgen2(nn.Module):
             freeze_progen2: Whether to freeze the Progen2 parameters
             condition_method: How to condition the model ('prefix' or 'additive')
         """
+        import logging
+        import time
+        import os
+        debug_logger = logging.getLogger('debug_performance')
+        debug_logger.info(f"=== ConditionedProgen2.__init__ STARTED ===")
+        debug_logger.info(f"Model name: {progen2_name}")
+        
+        # Check environment for potential issues
+        debug_logger.info(f"HF_HOME: {os.environ.get('HF_HOME', 'not set')}")
+        debug_logger.info(f"TRANSFORMERS_CACHE: {os.environ.get('TRANSFORMERS_CACHE', 'not set')}")
+        debug_logger.info(f"HF_HUB_OFFLINE: {os.environ.get('HF_HUB_OFFLINE', 'not set')}")
+        
         super().__init__()
         
         # Initialize Progen2 model
         # Determine requested dtype early to load weights in that dtype
+        debug_logger.info("Determining precision settings...")
         requested_dtype = None
         if precision:
             p = precision.lower()
@@ -55,36 +69,70 @@ class ConditionedProgen2(nn.Module):
                 requested_dtype = torch.bfloat16
             elif p in ("fp32", "float32"):
                 requested_dtype = torch.float32
+        debug_logger.info(f"Requested dtype: {requested_dtype}")
 
-        self.progen2 = AutoModelForCausalLM.from_pretrained(
-            progen2_name,
-            trust_remote_code=True,
-            torch_dtype=requested_dtype,
-            low_cpu_mem_usage=True,
-        )
+        # Check if model might be cached locally
+        from transformers import AutoConfig
+        try:
+            debug_logger.info("Checking if model config is available locally...")
+            config_check_start = time.time()
+            config = AutoConfig.from_pretrained(progen2_name, trust_remote_code=True, local_files_only=True)
+            debug_logger.info(f"Model config found locally (took {time.time() - config_check_start:.2f}s)")
+        except Exception:
+            debug_logger.info("Model not found locally - will need to download")
+        
+        debug_logger.info(f"Starting AutoModelForCausalLM.from_pretrained for {progen2_name}...")
+        model_load_start = time.time()
+        
+        # Add more explicit loading parameters that might help with speed
+        try:
+            self.progen2 = AutoModelForCausalLM.from_pretrained(
+                progen2_name,
+                trust_remote_code=True,
+                torch_dtype=requested_dtype,
+                device_map=None,  # Don't automatically place on GPU yet
+                local_files_only=False,  # Allow downloading if needed
+                resume_download=True,  # Resume interrupted downloads
+            )
+            debug_logger.info(f"ProGen2 model loaded successfully (took {time.time() - model_load_start:.2f}s)")
+        except Exception as e:
+            debug_logger.error(f"Failed to load ProGen2 model: {e}")
+            debug_logger.info("Trying fallback loading strategy...")
+            # Fallback with minimal parameters
+            self.progen2 = AutoModelForCausalLM.from_pretrained(
+                progen2_name,
+                trust_remote_code=True,
+            )
+            debug_logger.info(f"ProGen2 model loaded with fallback (took {time.time() - model_load_start:.2f}s)")
 
         # TODO: not sure whether this actually helps/works...
         # Memory optimizations
+        debug_logger.info("Applying memory optimizations...")
         if use_gradient_checkpointing and hasattr(self.progen2, 'gradient_checkpointing_enable'):
             try:
                 self.progen2.gradient_checkpointing_enable()
                 # disable cache to allow gradient checkpointing
                 if hasattr(self.progen2.config, 'use_cache'):
                     self.progen2.config.use_cache = False
-            except Exception:
-                pass
+                debug_logger.info("Gradient checkpointing enabled")
+            except Exception as e:
+                debug_logger.warning(f"Failed to enable gradient checkpointing: {e}")
 
         # Set model dtype if requested
         if requested_dtype is not None:
+            debug_logger.info(f"Converting model to dtype: {requested_dtype}")
             self.progen2.to(dtype=requested_dtype)
         
         # Freeze Progen2 if specified
         if freeze_progen2:
+            debug_logger.info("Freezing ProGen2 parameters...")
             for param in self.progen2.parameters():
                 param.requires_grad = False
+            debug_logger.info("ProGen2 parameters frozen")
         
         # Get the embedding dimension from the model config
         # Different models might use different attribute names
+        debug_logger.info("Determining hidden dimension from model config...")
         if hasattr(self.progen2.config, 'hidden_size'):
             self.hidden_dim = self.progen2.config.hidden_size
         elif hasattr(self.progen2.config, 'n_embd'):
@@ -96,13 +144,15 @@ class ConditionedProgen2(nn.Module):
         else:
             # Default value if none of the above attributes exist
             self.hidden_dim = 768
-            print(f"Warning: Could not determine hidden dimension from model config. Using default: {self.hidden_dim}")
+            debug_logger.warning(f"Could not determine hidden dimension from model config. Using default: {self.hidden_dim}")
         
+        debug_logger.info(f"Hidden dimension: {self.hidden_dim}")
         self.condition_method = condition_method
         
         # Project latent to correct dimension (same approach as in GPT-2)
         # Note: input dimension is doubled since we concatenate source and target latents
         combined_latent_dim = latent_dim * 2
+        debug_logger.info(f"Creating conditioning projection network (input_dim={combined_latent_dim}, condition_dim={condition_dim}, hidden_dim={self.hidden_dim})...")
         
         if self.condition_method == "prefix":
             # For prefix conditioning, project to hidden states
@@ -123,7 +173,10 @@ class ConditionedProgen2(nn.Module):
 
         # Align dtype of conditioning projection with model
         if requested_dtype is not None:
+            debug_logger.info(f"Setting conditioning projection dtype to: {requested_dtype}")
             self.condition_proj.to(dtype=requested_dtype)
+        
+        debug_logger.info("=== ConditionedProgen2.__init__ COMPLETED ===")        
 
     def forward(self, input_ids, attention_mask, latent_source, latent_target):
         """
@@ -139,7 +192,13 @@ class ConditionedProgen2(nn.Module):
         Returns:
             Logits for next token prediction
         """
+        import logging
+        import time
+        debug_logger = logging.getLogger('debug_performance')
+        forward_start = time.time()
+        
         batch_size = input_ids.shape[0]
+        debug_logger.debug(f"Generator forward: input shape {input_ids.shape}, batch_size {batch_size}")
         
         # Combine the two latents - concatenate them to create a richer conditioning signal
         combined_latent = torch.cat([latent_source, latent_target], dim=-1)
@@ -156,45 +215,78 @@ class ConditionedProgen2(nn.Module):
             
             # Handle attention mask dimension properly - check shape and process individually for memory efficiency
             if len(attention_mask.shape) == 3:  # [batch_size, set_size, seq_len]
-                # MEMORY OPTIMIZATION: Process sequences individually instead of batching
+                # MEMORY OPTIMIZATION: Process sequences with mini-batching to balance memory and speed
                 set_size, seq_len = attention_mask.shape[1:]
+                debug_logger.debug(f"Sequential processing: {set_size} sequences of length {seq_len}")
+                sequential_start = time.time()
+                
+                # Process sequences in small groups (mini-batches) to balance memory vs speed
+                mini_batch_size = min(2, set_size)  # Process 2 sequences at a time max
                 all_logits = []
                 
-                for seq_idx in range(set_size):
-                    # Process each sequence in the set individually
-                    seq_input_ids = input_ids[:, seq_idx, :]  # [batch_size, seq_len]
-                    seq_attention_mask = attention_mask[:, seq_idx, :]  # [batch_size, seq_len]
+                for start_idx in range(0, set_size, mini_batch_size):
+                    end_idx = min(start_idx + mini_batch_size, set_size)
+                    mini_batch_start = time.time()
                     
-                    # Process this individual sequence
-                    seq_logits = self._forward_single_sequence(
-                        seq_input_ids, seq_attention_mask, condition, method="prefix"
+                    # Extract mini-batch of sequences
+                    mini_input_ids = input_ids[:, start_idx:end_idx, :].contiguous()  # [batch_size, mini_batch_size, seq_len]
+                    mini_attention_mask = attention_mask[:, start_idx:end_idx, :].contiguous()  # [batch_size, mini_batch_size, seq_len]
+                    
+                    # Reshape to process mini-batch
+                    mini_batch_actual_size = end_idx - start_idx
+                    reshaped_input_ids = mini_input_ids.view(batch_size * mini_batch_actual_size, seq_len)
+                    reshaped_attention_mask = mini_attention_mask.view(batch_size * mini_batch_actual_size, seq_len)
+                    
+                    # Expand condition for mini-batch
+                    expanded_condition = condition.unsqueeze(1).repeat(1, mini_batch_actual_size, 1).view(batch_size * mini_batch_actual_size, -1)
+                    
+                    # Process mini-batch
+                    mini_logits = self._forward_single_sequence(
+                        reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="prefix"
                     )
-                    all_logits.append(seq_logits)
+                    all_logits.append(mini_logits)
+                    
+                    if start_idx == 0:
+                        debug_logger.debug(f"First mini-batch ({mini_batch_actual_size} seqs) took {time.time() - mini_batch_start:.3f}s")
                 
                 # Concatenate results back to [batch_size * set_size, seq_len, vocab_size]
                 logits = torch.cat(all_logits, dim=0)
+                debug_logger.debug(f"Optimized sequential processing completed in {time.time() - sequential_start:.3f}s")
                 
             else:
                 # Standard processing for single sequences
                 logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="prefix")
             
         elif self.condition_method == "additive":
-            # Handle attention mask dimension properly - process individually for memory efficiency
+            # Handle attention mask dimension properly - process with mini-batching for memory efficiency
             if len(attention_mask.shape) == 3:  # [batch_size, set_size, seq_len]
-                # MEMORY OPTIMIZATION: Process sequences individually instead of batching
+                # MEMORY OPTIMIZATION: Process sequences with mini-batching to balance memory and speed
                 set_size, seq_len = attention_mask.shape[1:]
+                
+                # Process sequences in small groups (mini-batches) to balance memory vs speed
+                mini_batch_size = min(2, set_size)  # Process 2 sequences at a time max
                 all_logits = []
                 
-                for seq_idx in range(set_size):
-                    # Process each sequence in the set individually
-                    seq_input_ids = input_ids[:, seq_idx, :]  # [batch_size, seq_len]
-                    seq_attention_mask = attention_mask[:, seq_idx, :]  # [batch_size, seq_len]
+                for start_idx in range(0, set_size, mini_batch_size):
+                    end_idx = min(start_idx + mini_batch_size, set_size)
                     
-                    # Process this individual sequence
-                    seq_logits = self._forward_single_sequence(
-                        seq_input_ids, seq_attention_mask, condition, method="additive"
+                    # Extract mini-batch of sequences
+                    mini_input_ids = input_ids[:, start_idx:end_idx, :].contiguous()  # [batch_size, mini_batch_size, seq_len]
+                    mini_attention_mask = attention_mask[:, start_idx:end_idx, :].contiguous()  # [batch_size, mini_batch_size, seq_len]
+                    
+                    # Reshape to process mini-batch
+                    mini_batch_actual_size = end_idx - start_idx
+                    reshaped_input_ids = mini_input_ids.view(batch_size * mini_batch_actual_size, seq_len)
+                    reshaped_attention_mask = mini_attention_mask.view(batch_size * mini_batch_actual_size, seq_len)
+                    
+                    # Expand condition for mini-batch
+                    expanded_condition = condition.unsqueeze(1).repeat(1, mini_batch_actual_size, 1).view(batch_size * mini_batch_actual_size, -1)
+                    
+                    # Process mini-batch
+                    mini_logits = self._forward_single_sequence(
+                        reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="additive"
                     )
-                    all_logits.append(seq_logits)
+                    all_logits.append(mini_logits)
                 
                 # Concatenate results back to [batch_size * set_size, seq_len, vocab_size]
                 logits = torch.cat(all_logits, dim=0)
@@ -203,6 +295,7 @@ class ConditionedProgen2(nn.Module):
                 # Standard processing for single sequences
                 logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="additive")
         
+        debug_logger.debug(f"Generator forward completed in {time.time() - forward_start:.3f}s")
         return logits
 
     def _forward_single_sequence(self, input_ids, attention_mask, condition, method="prefix"):
@@ -284,7 +377,7 @@ class Progen2Generator(nn.Module):
         temperature=1.0,
         max_length=512,
         use_gradient_checkpointing: bool = False,
-        precision: str | None = None,
+        precision: Optional[str] = None,
     ):
         """
         Initialize the Progen2 generator.
@@ -298,8 +391,15 @@ class Progen2Generator(nn.Module):
             temperature: Sampling temperature
             max_length: Maximum length for generation
         """
+        import logging
+        import time
+        debug_logger = logging.getLogger('debug_performance')
+        debug_logger.info("=== Progen2Generator.__init__ STARTED ===")
+        
         super().__init__()
 
+        debug_logger.info("Creating ConditionedProgen2 model...")
+        conditioned_model_start = time.time()
         self.model = ConditionedProgen2(
             progen2_name=progen2_name,
             latent_dim=latent_dim,
@@ -309,20 +409,27 @@ class Progen2Generator(nn.Module):
             use_gradient_checkpointing=use_gradient_checkpointing,
             precision=precision,
         )
+        debug_logger.info(f"ConditionedProgen2 model created (took {time.time() - conditioned_model_start:.2f}s)")
         
         self.temperature = temperature
         self.max_length = max_length
         
         # Initialize tokenizer (for generation)
+        debug_logger.info(f"Loading tokenizer for {progen2_name}...")
+        tokenizer_start = time.time()
         self.tokenizer = AutoTokenizer.from_pretrained(progen2_name, trust_remote_code=True)
+        debug_logger.info(f"Tokenizer loaded (took {time.time() - tokenizer_start:.2f}s)")
         
         # Add special tokens if they don't exist
+        debug_logger.info("Setting up special tokens...")
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = '<|pad|>'
         if self.tokenizer.bos_token is None:
             self.tokenizer.bos_token = '<|bos|>'
         if self.tokenizer.eos_token is None:
             self.tokenizer.eos_token = '<|eos|>'
+        debug_logger.info("Special tokens configured")
+        debug_logger.info("=== Progen2Generator.__init__ COMPLETED ===")        
     
     def loss(self, x_source, x_target, latent_source, latent_target):
         """

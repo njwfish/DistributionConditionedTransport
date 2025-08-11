@@ -6,6 +6,7 @@ import logging
 import wandb
 import os
 import numpy as np
+import time
 
 import torch.nn as nn
 
@@ -57,14 +58,43 @@ def main(cfg: DictConfig):
     logger = logging.getLogger(__name__)
     logger.info("\n" + OmegaConf.to_yaml(cfg))
     
+    # Set up detailed debug logging to separate file
+    debug_logger = logging.getLogger('debug_performance')
+    debug_logger.setLevel(logging.DEBUG)
+    
+    # Create file handler for debug logging in base directory
+    original_cwd = hydra.utils.get_original_cwd()
+    debug_log_path = f'/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/debug_logging_seed{cfg.seed}.log'
+    debug_handler = logging.FileHandler(debug_log_path, mode='w')  # Overwrite each run
+    debug_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    debug_handler.setFormatter(debug_formatter)
+    debug_logger.addHandler(debug_handler)
+    
+    # Also add console handler for debug logger
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(debug_formatter)
+    debug_logger.addHandler(console_handler)
+    
+    start_time = time.time()
+    debug_logger.info("=== MAIN FUNCTION STARTED ===")
+    debug_logger.info(f"CUDA available: {torch.cuda.is_available()}")
+    debug_logger.info(f"Number of GPUs: {torch.cuda.device_count()}")
+    if torch.cuda.is_available():
+        debug_logger.info(f"Current GPU: {torch.cuda.current_device()}")
+        debug_logger.info(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
+    
     # Compute config hash for reproducibility
+    debug_logger.info("Computing config hash...")
     config_hash = hash_utils.hash_config(cfg)
     logger.info(f"Configuration hash: {config_hash}")
+    debug_logger.info(f"Config hash computed: {config_hash} (took {time.time() - start_time:.2f}s)")
     
     # Check if we have already run this experiment
-    original_cwd = hydra.utils.get_original_cwd()
+    debug_logger.info("Checking for existing experiments...")
+    check_start = time.time()
     base_output_dir = os.path.join(original_cwd, "outputs")
     existing_dir = hash_utils.find_matching_output_dir(cfg, base_dir=base_output_dir)
+    debug_logger.info(f"Existing experiment check completed (took {time.time() - check_start:.2f}s)")
     
     if existing_dir is not None:
         logger.info(f"Found existing results for this configuration: {existing_dir}")
@@ -87,9 +117,14 @@ def main(cfg: DictConfig):
     
     try:
         # Create the dataset
+        debug_logger.info("Creating dataset...")
+        dataset_start = time.time()
         full_dataset = hydra.utils.instantiate(cfg.dataset)
+        debug_logger.info(f"Dataset created with {len(full_dataset)} samples (took {time.time() - dataset_start:.2f}s)")
 
         # Create train-validation split
+        debug_logger.info("Creating train-validation split...")
+        split_start = time.time()
         validation_split = getattr(cfg, 'validation_split', 0.2)
         shuffle_before_split = getattr(cfg, 'shuffle_before_split', True)
         
@@ -107,10 +142,13 @@ def main(cfg: DictConfig):
             train_dataset = full_dataset
             val_dataset = None
             logger.info(f"No validation split requested. Using full dataset ({len(full_dataset)} samples) for training.")
-
+        
+        debug_logger.info(f"Train-validation split completed (took {time.time() - split_start:.2f}s)")
 
         # Improved DataLoader with parallel workers and pinned memory
-        num_workers = min(4, os.cpu_count())  # Use at most 8 workers or available CPU cores
+        debug_logger.info("Setting up DataLoaders...")
+        dataloader_start = time.time()
+        num_workers = min(2, os.cpu_count())  # Reduced from 4 to 2 to avoid DataLoader warnings and reduce memory contention
         
         # Base dataloader kwargs
         base_dataloader_kwargs = {
@@ -168,7 +206,7 @@ def main(cfg: DictConfig):
             # Use default random shuffling
             train_dataloader_kwargs['shuffle'] = True
         
-        # Create train dataloader
+                # Create train dataloader
         train_dataloader = DataLoader(**train_dataloader_kwargs)
         
         # Create validation dataloader (if validation dataset exists)
@@ -179,14 +217,19 @@ def main(cfg: DictConfig):
             val_dataloader_kwargs['shuffle'] = False  # Don't shuffle validation data
             val_dataloader = DataLoader(**val_dataloader_kwargs)
             logger.info(f"Created validation dataloader with {len(val_dataset)} samples")
- 
         
+        debug_logger.info(f"DataLoaders created (took {time.time() - dataloader_start:.2f}s)")
         
         # Create encoder
+        debug_logger.info("Creating encoder...")
+        encoder_start = time.time()
         encoder = hydra.utils.instantiate(cfg.encoder)
+        debug_logger.info(f"Encoder created (took {time.time() - encoder_start:.2f}s)")
 
         # TODO: make sure the predictor really has both options of being used during training or only trained during training. 
         # TODO: it would probably be good to re-implement the option to train the predictor after having trained everything else.
+        debug_logger.info("Creating predictor...")
+        predictor_start = time.time()
         if hasattr(cfg, "predictor"):
             predictor = hydra.utils.instantiate(cfg.predictor)
             if hasattr(encoder, "latent_act"):
@@ -195,12 +238,19 @@ def main(cfg: DictConfig):
             else:
                 predictor.latent_act = nn.SELU()
             encoder.predictor = predictor
+        debug_logger.info(f"Predictor created (took {time.time() - predictor_start:.2f}s)")
 
         # Create generator (with model already instantiated)
+        debug_logger.info("Creating generator...")
+        generator_start = time.time()
         generator = hydra.utils.instantiate(cfg.generator)
+        debug_logger.info(f"Generator created (took {time.time() - generator_start:.2f}s)")
         
         # Get model parameters
+        debug_logger.info("Setting up training components...")
+        setup_start = time.time()
         model_parameters = list(encoder.parameters()) + list(generator.parameters())
+        debug_logger.info(f"Total model parameters: {sum(p.numel() for p in model_parameters):,}")
         
         # Create optimizer and scheduler
         optimizer = hydra.utils.instantiate(cfg.optimizer)(params=model_parameters)
@@ -210,8 +260,19 @@ def main(cfg: DictConfig):
 
         # Create trainer
         trainer = hydra.utils.instantiate(cfg.training)
+        debug_logger.info(f"Training components created (took {time.time() - setup_start:.2f}s)")
+        
+        # GPU Transfer Check
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        debug_logger.info(f"Moving models to device: {device}")
+        gpu_start = time.time()
+        encoder = encoder.to(device)
+        generator = generator.to(device)
+        debug_logger.info(f"Models moved to {device} (took {time.time() - gpu_start:.2f}s)")
         
         # Run training with the hash-based output directory
+        debug_logger.info("Starting training...")
+        train_start = time.time()
         output_dir, stats = trainer.train(
             encoder=encoder,
             generator=generator,
@@ -224,6 +285,8 @@ def main(cfg: DictConfig):
             config=cfg,
         )
         
+        debug_logger.info(f"Training completed (took {time.time() - train_start:.2f}s)")
+        debug_logger.info(f"Total main function time: {time.time() - start_time:.2f}s")
         logger.info(f"Training completed. Best epoch: {stats['best_epoch']}")
         
                     

@@ -164,11 +164,19 @@ class Trainer:
         config=None,
     ):
         """Train the model with W&B logging."""
+        # Set up debug logging
+        debug_logger = logging.getLogger('debug_performance')
+        debug_logger.info("=== TRAINING FUNCTION STARTED ===")
+        training_start = time.time()
+        
         if device is None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
+        debug_logger.info(f"Moving models to device: {device}")
+        gpu_transfer_start = time.time()
         encoder.to(device)
         generator.to(device)
+        debug_logger.info(f"GPU transfer completed (took {time.time() - gpu_transfer_start:.2f}s)")
         
         # Use train_dataloader for training and val_dataloader for evaluation
         # If no val_dataloader provided, use train_dataloader for evaluation (legacy behavior)
@@ -273,9 +281,13 @@ class Trainer:
         
         start_time = time.time()
         self.logger.info(f"Starting training on {device}...")
+        debug_logger.info("About to enter main training loop...")
         
         # Main training loop
         for epoch in range(start_epoch, self.num_epochs):
+            epoch_start = time.time()
+            debug_logger.info(f"=== EPOCH {epoch+1} STARTED ===")
+            
             encoder.train()
             generator.train()
             
@@ -291,9 +303,18 @@ class Trainer:
             accumulation_loss = 0.0
             accumulation_losses = {}
             
+            debug_logger.info(f"Starting batch processing for epoch {epoch+1} (total batches: {len(train_dataloader)})")
             for batch_idx, batch in enumerate(pbar):
+                if batch_idx == 0:
+                    debug_logger.info("Processing first batch...")
+                    first_batch_start = time.time()
+                
                 # Handle samples which can be either a tensor or a dictionary
+                batch_loss_start = time.time()
                 loss, losses = loss_manager.loss(encoder, generator, batch, device)
+                
+                if batch_idx == 0:
+                    debug_logger.info(f"First batch loss computation (took {time.time() - batch_loss_start:.2f}s)")
                 
                 # Scale loss by accumulation steps for proper averaging
                 loss = loss / self.gradient_accumulation_steps

@@ -24,8 +24,7 @@ class ViralDataset(Dataset):
                  tokenize: bool = False,
                  lines_to_read: int = 10**8,
                  max_sets_per_fam: int = 10,
-                 include_location: bool = False,
-                 max_draws_per_epoch: int = 1000):
+                 include_location: bool = False):
         
         if seed is not None:
             random.seed(seed)
@@ -35,8 +34,8 @@ class ViralDataset(Dataset):
         self.data_dir = data_dir
         self.set_size = set_size
         self.max_length = max_length
+        # TODO: decide whether to remove this or not.
         self.max_sets_per_fam = max_sets_per_fam
-        self.max_draws_per_epoch = max_draws_per_epoch
         self.include_location = include_location
         
         self.esm_tokenizer = AutoTokenizer.from_pretrained(esm_name, trust_remote_code=True)
@@ -67,6 +66,8 @@ class ViralDataset(Dataset):
 
         fn = self.data_dir+'/spikeprot0430.fasta'
         seqs_by_monthloc = defaultdict(list)
+        
+        # TODO: should I keep this parameter this way? Might be good to not put too much weight on a single source. But then again, this is way to small if we bunch all locations together at once.
         max_per_monthloc = self.set_size  # cap per group
 
         logger.info('building dict')
@@ -82,6 +83,8 @@ class ViralDataset(Dataset):
                 submitter, location) = (fields + ["?"] * 11)[:11]
 
                 virus_type, state = type_loc.split("^^") if "^^" in type_loc else (type_loc, "?")
+                
+                # TODO: I need to add the filter for the case in which the month in the data is only a single integer.
 
                 if date[5:7] != '00' and date[-2:] != '00' and date[4] == '-':
                     if self.include_location:
@@ -90,16 +93,19 @@ class ViralDataset(Dataset):
                         key = date[:7]
                     if len(seqs_by_monthloc[key]) < max_per_monthloc:
                         seqs_by_monthloc[key].append(str(record.seq))
+            # TODO: maybe remove this try-except for more transparent error handling.
             except:
                 continue
 
         tokenized_data = []
 
         for timeloc, seqs in tqdm(seqs_by_monthloc.items()):
+            # TODO: I suppose this is because with max_per_monthloc = self.set_size, if this doesn't match it would be an indicator of a monthloc with too little data.
             if len(seqs) != self.set_size:
                 continue
             
-            print("LEN",len(seqs))
+            # TODO: why was this set to 1 before? I guess because everything was trimmed to not exceed set size. But should I keep this? 
+            # TODO: And what should I choose for max sets per fam if I even keep it?
             n_sets = min(len(seqs) // self.set_size, self.max_sets_per_fam)
             np.random.shuffle(seqs)
 
@@ -253,30 +259,50 @@ class ViralDataset(Dataset):
         return month_diff
 
     def __len__(self):
-        # TODO: not sure how to do this correctly since we want to pair subsets of the data with each other at random. For now, just setting a shorter length.
-        return self.max_draws_per_epoch
+        return len(self.data)
     
     def __getitem__(self, idx):
-        source_idx, target_idx = np.random.choice(np.arange(len(self.data)), size=2, replace=False)
 
-        item_source = self.data[source_idx]
-        item_target = self.data[target_idx]
+
+        item_source = self.data[idx]
 
         esm_input_ids_source = item_source['samples']['esm_input_ids']
         esm_attention_mask_source = item_source['samples']['esm_attention_mask']
         progen_input_ids_source = item_source['samples']['progen_input_ids']
         progen_attention_mask_source = item_source['samples']['progen_attention_mask']
         
-        esm_input_ids_target = item_target['samples']['esm_input_ids']
-        esm_attention_mask_target = item_target['samples']['esm_attention_mask']
-        progen_input_ids_target = item_target['samples']['progen_input_ids']
-        progen_attention_mask_target = item_target['samples']['progen_attention_mask']
-
-        # Calculate month difference between source and target times
-        month_difference = self._calculate_month_difference(
-            item_source['time-loc'], 
-            item_target['time-loc']
-        )
+        # Parse time-loc with detailed error handling and debugging
+        debug_log_path = "/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/parse_time_loc_debug.log"
+        
+        try:
+            # Log successful access for debugging
+            with open(debug_log_path, "a") as debug_file:
+                debug_file.write(f"SUCCESS: Dataset index {idx}, time-loc: '{item_source['time-loc']}'\n")
+                debug_file.flush()
+            
+            additional_info = self._parse_time_loc(item_source['time-loc'])
+        except Exception as e:
+            # Write detailed error information to log file
+            with open(debug_log_path, "a") as debug_file:
+                debug_file.write(f"\n=== ERROR in _parse_time_loc ===\n")
+                debug_file.write(f"Timestamp: {datetime.now().isoformat()}\n")
+                debug_file.write(f"Dataset index: {idx}\n")
+                debug_file.write(f"Error type: {type(e).__name__}\n")
+                debug_file.write(f"Error message: {str(e)}\n")
+                debug_file.write(f"item_source['time-loc'] value: '{item_source['time-loc']}'\n")
+                debug_file.write(f"item_source['time-loc'] type: {type(item_source['time-loc'])}\n")
+                debug_file.write(f"item_source['time-loc'] length: {len(item_source['time-loc']) if hasattr(item_source['time-loc'], '__len__') else 'N/A'}\n")
+                debug_file.write(f"item_source['time-loc'] repr: {repr(item_source['time-loc'])}\n")
+                debug_file.write(f"Full item_source keys: {list(item_source.keys())}\n")
+                debug_file.write(f"Full item_source: {item_source}\n")
+                debug_file.write("=== END ERROR DEBUG ===\n\n")
+                debug_file.flush()  # Ensure it's written immediately
+            
+            # Also print to console for immediate visibility
+            print(f"ERROR in _parse_time_loc at index {idx}! Check {debug_log_path} for details.")
+            
+            # Re-raise the exception so the error isn't silently ignored
+            additional_info = None
         
         # TODO: in it's current version sometimes the source and target samples seem to have different batch sizes... not sure right now why, just had a weird bug.
         return { 'source_samples' : {
@@ -285,15 +311,6 @@ class ViralDataset(Dataset):
             'progen_input_ids': progen_input_ids_source,
             'progen_attention_mask': progen_attention_mask_source,
             },
-            'target_samples' : {
-                'esm_input_ids': esm_input_ids_target,
-                'esm_attention_mask': esm_attention_mask_target,
-                'progen_input_ids': progen_input_ids_target,
-                'progen_attention_mask': progen_attention_mask_target,
-            },
             'source_time': item_source['time-loc'],
-            'target_time': item_target['time-loc'],
-            'dt': month_difference,
-            'raw_texts_source': tuple(item_source['raw_texts']),
-            'raw_texts_target': tuple(item_target['raw_texts'])
+            'additional_info': additional_info
         }

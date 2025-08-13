@@ -1,0 +1,52 @@
+# @package _global_.experiment
+
+# Experiment name and description
+name: evolvepro_bin2bin
+description: "bin-to-bin optimization of protein fitness now with actual bin jumping"
+
+# Override defaults from config.yaml
+defaults:
+  - /dataset: virus_tokenize
+  - /encoder: esm
+  - /generator: progen2
+  - /scheduler: cosine
+  - /loss: predictor
+  - /predictor: dt_mlp_sinusoidal  # Use dt-conditioned MLP with sinusoidal encoding
+  - /sampling: unidirectional
+  - /training: default_virus
+
+pll_idx: 0
+num_workers: 1
+
+# Experiment-specific parameters
+use_predicted_latent: true
+predictor_loss_weight: 0
+
+# Experiment-specific parameters
+latent_dim: 128 # TODO: make sure that this is really the correct latent_dim for the ESM2 8M model. Also make sure that there is no conflict due to double usage.
+hidden_dim: 256 # TODO: is this really the correct hidden_dim for the ESM2 model??
+# Training/data sizing (kept small to avoid OOM)
+batch_size: 1
+set_size: 4
+lr: 2e-5
+
+# ESM model settings
+esm_model_name: 'facebook/esm2_t6_8M_UR50D'
+freeze_esm2: false
+
+# ProGen2 settings
+progen2_model_name: 'hugohrban/progen2-small'
+max_length: 1000
+tokenize: false 
+condition_dim: 32
+freeze_progen2: false
+# Memory optimization settings  
+use_gradient_checkpointing: true
+precision: fp16
+gradient_accumulation_steps: 4  # Accumulate gradients to reduce memory per step
+condition_method: prefix
+temperature: 1.0
+
+
+
+

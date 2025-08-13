@@ -268,34 +268,23 @@ class ViralDataset(Dataset):
                 del tokenized_data
                 save_counter += 1
             
-            # Free the sequence dictionary to save memory before final combine step
+            # Free the sequence dictionary to save memory
             del seqs_by_monthloc
             
-            # Combine all intermediate files into final output
+            # TERMINATING HERE to avoid OOM issues during combining step
+            # Intermediate files will be combined separately with a high-memory script
             with open(debug_log_path, "a") as debug_file:
-                debug_file.write(f"Combining {save_counter} intermediate files into final output\n")
+                debug_file.write(f"Tokenization completed successfully! Created {save_counter} intermediate files.\n")
+                debug_file.write(f"Intermediate files pattern: {self.tokenized_data_file}.part_*\n")
+                debug_file.write(f"Use separate high-memory script to combine these into final output.\n")
                 debug_file.flush()
             
-            final_tokenized_data = []
-            for part_idx in range(save_counter):
-                intermediate_file = f'{self.tokenized_data_file}.part_{part_idx}'
-                if os.path.exists(intermediate_file):
-                    part_data = torch.load(intermediate_file)
-                    final_tokenized_data.extend(part_data)
-                    del part_data  # Free memory immediately
-                    os.remove(intermediate_file)  # Clean up intermediate file
-                    
-                    # Log progress for large files
-                    if part_idx % 10 == 0:
-                        with open(debug_log_path, "a") as debug_file:
-                            debug_file.write(f"Combined {part_idx + 1}/{save_counter} intermediate files\n")
-                            debug_file.flush()
+            logger.info(f"Tokenization phase complete! Created {save_counter} intermediate files: {self.tokenized_data_file}.part_*")
+            logger.info(f"Run separate combining script with high memory to create final {self.tokenized_data_file}")
             
-            torch.save(final_tokenized_data, self.tokenized_data_file)
-            logger.info(f"Final tokenized data with {len(final_tokenized_data)} sequences saved to {self.tokenized_data_file}")
-            
-            # Free final data structure
-            del final_tokenized_data
+            # NOTE: Final combining step moved to separate script to avoid OOM issues
+            sys.exit()
+            return  # Exit here without combining
             
         except Exception as e:
             # If any error occurs, make sure file handle is closed

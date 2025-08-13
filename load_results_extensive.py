@@ -9,7 +9,7 @@ import argparse
 import hydra
 import logging
 import yaml
-from snapMMD.dls import MMDLoss, RBF
+from utils.snapMMD import MMDLoss, RBF
 from scipy.optimize import linprog
 from sklearn.decomposition import PCA
 import plotly.graph_objects as go

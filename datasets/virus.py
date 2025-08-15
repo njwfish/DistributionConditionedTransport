@@ -46,7 +46,7 @@ class ViralDataset(Dataset):
         self.progen_tokenizer.bos_token = '<|bos|>'
         self.progen_tokenizer.eos_token = '<|eos|>'
 
-        self.tokenized_data_file = f'{self.data_dir}/virus_tokenized_data.pt'
+        self.tokenized_data_file = f'{self.data_dir}/virus_tokenized_data_for_tde.pt'
         # Ensure data is prepared before building any indices
         if not os.path.exists(self.tokenized_data_file) or tokenize:
             self._tokenize_data(lines_to_read=lines_to_read)
@@ -54,14 +54,14 @@ class ViralDataset(Dataset):
         with open("auxillary_log.log", "a") as f:
             f.write(f"len(self.data): {len(self.data)}\n")
         # Build index pairs after data is loaded
-        #self.index_pairs = np.array(
-        #    [
-        #        (i, j)
-        #        for i in range(len(self.data))
-        #        for j in range(len(self.data))
-        #        if i != j
-        #    ]
-        #)
+        self.index_pairs = np.array(
+            [
+                (i, j)
+                for i in range(len(self.data))
+                for j in range(len(self.data))
+                if i != j
+            ]
+        )
 
     def _tokenize_data(self, lines_to_read=10**8):
 
@@ -253,15 +253,19 @@ class ViralDataset(Dataset):
         return month_diff
 
     def __len__(self):
-        # TODO: not sure how to do this correctly since we want to pair subsets of the data with each other at random. For now, just setting a shorter length.
-        return self.max_draws_per_epoch
+        # TODO: not sure how to do this correctly since we want to pair subsets of the data with each other at random. For now, just doing all the pairs.
+        # TODO: it is probably better in the long run to sample random pairs rather than doing all pairs, 
+        ### but for that we need to change the sampler setup to correctly weigh pairs.
+        n = len(self.data)
+        return n * (n - 1)
     
     def __getitem__(self, idx):
         source_idx, target_idx = np.random.choice(np.arange(len(self.data)), size=2, replace=False)
 
         item_source = self.data[source_idx]
         item_target = self.data[target_idx]
-
+        
+        # TODO: the way I'm doing things here might be a bit inefficient.
         esm_input_ids_source = item_source['samples']['esm_input_ids']
         esm_attention_mask_source = item_source['samples']['esm_attention_mask']
         progen_input_ids_source = item_source['samples']['progen_input_ids']
@@ -272,10 +276,24 @@ class ViralDataset(Dataset):
         progen_input_ids_target = item_target['samples']['progen_input_ids']
         progen_attention_mask_target = item_target['samples']['progen_attention_mask']
 
+        subset_indices_source = np.random.choice(esm_input_ids_source.shape[0], size=self.set_size, replace=False)
+
+        esm_input_ids_source = esm_input_ids_source[subset_indices_source]
+        esm_attention_mask_source = esm_attention_mask_source[subset_indices_source]
+        progen_input_ids_source = progen_input_ids_source[subset_indices_source]
+        progen_attention_mask_source = progen_attention_mask_source[subset_indices_source]
+
+        subset_indices_target = np.random.choice(esm_input_ids_target.shape[0], size=self.set_size, replace=False)
+
+        esm_input_ids_target = esm_input_ids_target[subset_indices_target]
+        esm_attention_mask_target = esm_attention_mask_target[subset_indices_target]
+        progen_input_ids_target = progen_input_ids_target[subset_indices_target]
+        progen_attention_mask_target = progen_attention_mask_target[subset_indices_target]
+
         # Calculate month difference between source and target times
         month_difference = self._calculate_month_difference(
-            item_source['time-loc'], 
-            item_target['time-loc']
+            item_source['time'], 
+            item_target['time']
         )
         
         # TODO: in it's current version sometimes the source and target samples seem to have different batch sizes... not sure right now why, just had a weird bug.
@@ -291,9 +309,9 @@ class ViralDataset(Dataset):
                 'progen_input_ids': progen_input_ids_target,
                 'progen_attention_mask': progen_attention_mask_target,
             },
-            'source_time': item_source['time-loc'],
-            'target_time': item_target['time-loc'],
+            'source_time': item_source['time'],
+            'target_time': item_target['time'],
             'dt': month_difference,
-            'raw_texts_source': tuple(item_source['raw_texts']),
-            'raw_texts_target': tuple(item_target['raw_texts'])
+            #'raw_texts_source': tuple([item_source['raw_texts'][i] for i in subset_indices_source]),
+            #'raw_texts_target': tuple([item_target['raw_texts'][i] for i in subset_indices_target])
         }

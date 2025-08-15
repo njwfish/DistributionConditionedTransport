@@ -1,4 +1,5 @@
 from transformers import EsmModel
+from utils.hf_local import resolve_local_or_repo
 from encoder.encoders import DistributionEncoder
 import torch
 import torch.nn as nn
@@ -7,7 +8,8 @@ import torch.nn.functional as F
 class ESMFeatureExtractor(nn.Module):
     def __init__(self, esm_model_name="facebook/esm2_t6_8M_UR50D", output_dim=320, pooling="mean", freeze=False):
         super().__init__()
-        self.esm = EsmModel.from_pretrained(esm_model_name)
+        local_or_repo = resolve_local_or_repo(esm_model_name)
+        self.esm = EsmModel.from_pretrained(local_or_repo)
         if freeze:
             for p in self.esm.parameters(): p.requires_grad = False
         self.pooling = pooling

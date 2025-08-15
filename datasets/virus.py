@@ -1,4 +1,5 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from utils.hf_local import resolve_local_or_repo
 from torch.utils.data import Dataset
 import torch
 import numpy as np
@@ -39,8 +40,8 @@ class ViralDataset(Dataset):
         self.max_draws_per_epoch = max_draws_per_epoch
         self.include_location = include_location
         
-        self.esm_tokenizer = AutoTokenizer.from_pretrained(esm_name, trust_remote_code=True)
-        self.progen_tokenizer = AutoTokenizer.from_pretrained(progen_name, trust_remote_code=True)
+        self.esm_tokenizer = AutoTokenizer.from_pretrained(resolve_local_or_repo(esm_name), trust_remote_code=True)
+        self.progen_tokenizer = AutoTokenizer.from_pretrained(resolve_local_or_repo(progen_name), trust_remote_code=True)
         
         self.progen_tokenizer.pad_token = '<|pad|>'
         self.progen_tokenizer.bos_token = '<|bos|>'

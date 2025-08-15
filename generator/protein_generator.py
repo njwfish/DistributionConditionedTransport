@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from utils.hf_local import resolve_local_or_repo
 import torch.nn.functional as F
 from typing import Optional
 
@@ -76,7 +77,7 @@ class ConditionedProgen2(nn.Module):
         try:
             debug_logger.info("Checking if model config is available locally...")
             config_check_start = time.time()
-            config = AutoConfig.from_pretrained(progen2_name, trust_remote_code=True, local_files_only=True)
+            config = AutoConfig.from_pretrained(resolve_local_or_repo(progen2_name), trust_remote_code=True, local_files_only=True)
             debug_logger.info(f"Model config found locally (took {time.time() - config_check_start:.2f}s)")
         except Exception:
             debug_logger.info("Model not found locally - will need to download")
@@ -87,7 +88,7 @@ class ConditionedProgen2(nn.Module):
         # Add more explicit loading parameters that might help with speed
         try:
             self.progen2 = AutoModelForCausalLM.from_pretrained(
-                progen2_name,
+                resolve_local_or_repo(progen2_name),
                 trust_remote_code=True,
                 torch_dtype=requested_dtype,
                 device_map=None,  # Don't automatically place on GPU yet
@@ -100,7 +101,7 @@ class ConditionedProgen2(nn.Module):
             debug_logger.info("Trying fallback loading strategy...")
             # Fallback with minimal parameters
             self.progen2 = AutoModelForCausalLM.from_pretrained(
-                progen2_name,
+                resolve_local_or_repo(progen2_name),
                 trust_remote_code=True,
             )
             debug_logger.info(f"ProGen2 model loaded with fallback (took {time.time() - model_load_start:.2f}s)")
@@ -417,7 +418,7 @@ class Progen2Generator(nn.Module):
         # Initialize tokenizer (for generation)
         debug_logger.info(f"Loading tokenizer for {progen2_name}...")
         tokenizer_start = time.time()
-        self.tokenizer = AutoTokenizer.from_pretrained(progen2_name, trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(resolve_local_or_repo(progen2_name), trust_remote_code=True)
         debug_logger.info(f"Tokenizer loaded (took {time.time() - tokenizer_start:.2f}s)")
         
         # Add special tokens if they don't exist
@@ -459,7 +460,7 @@ class Progen2Generator(nn.Module):
         if len(target_ids.shape) == 3 and len(shift_logits.shape) == 3:
             if target_ids.shape[0] * target_ids.shape[1] == shift_logits.shape[0]:
                 # Reshape input_ids to match the reshaped logits
-                target_ids = source_ids.view(-1, target_ids.shape[-1])
+                target_ids = target_ids.view(-1, target_ids.shape[-1])
         
         shift_labels = target_ids[:, 1:]
         

@@ -1,7 +1,9 @@
 import torch
 import math
-from torch.utils.data import WeightedRandomSampler
-from typing import Optional, Union
+import numpy as np
+from torch.utils.data import WeightedRandomSampler, Subset
+from typing import Optional, Union, Any
+import os
 import logging
 
 logger = logging.getLogger(__name__)
@@ -24,7 +26,10 @@ class CustomWeightedSampler(WeightedRandomSampler):
         sampling_mode: str = "bidirectional",
         num_samples: Optional[int] = None,
         replacement: bool = True,
-        const_weight: float = 1.0
+        const_weight: float = 1.0,
+        time_index_path: Optional[str] = None,
+        time_scale: float = 1.0,
+        cfg: Optional[Any] = None,
     ):
         """
         Initialize the custom weighted sampler.
@@ -43,6 +48,20 @@ class CustomWeightedSampler(WeightedRandomSampler):
         self.dataset = dataset
         self.sampling_mode = sampling_mode
         self.const_weight = const_weight
+        self.time_index_path = time_index_path
+        self.time_scale = float(time_scale) if time_scale is not None else 1.0
+        self.cfg = cfg
+        # Optionally load precomputed year-month indices for the base dataset elements
+        self._time_indices: Optional[np.ndarray] = None
+        self._base_n: Optional[int] = None
+        if self.time_index_path is not None:
+            npz = np.load(self.time_index_path)
+            self._time_indices = np.array(npz['time_indices'], dtype=np.int64)
+            # Determine base dataset object and base element count n
+            self._base_n = len(dataset)
+            if self._base_n != len(self._time_indices):
+                raise ValueError(f"Mismatch between base dataset element count (n={self._base_n}) and time_indices length ({len(self._time_indices)}). ")
+
         
         # Compute weights based on sampling mode
         weights = self._compute_weights()
@@ -74,56 +93,26 @@ class CustomWeightedSampler(WeightedRandomSampler):
         elif self.sampling_mode == "unidirectional":
             # Only samples with dt > 0 get positive weight
             for idx in range(len(self.dataset)):
-                try:
-                    item = self.dataset[idx]
-                    if isinstance(item, dict) and 'dt' in item:
-                        dt = item['dt']
-                        if dt > 0:
-                            weights[idx] = self.const_weight
-                        else:
-                            weights[idx] = 0.0
-                    else:
-                        logger.warning(f"Item at index {idx} is not a dict or doesn't contain 'dt' key. "
-                                     f"Setting weight to 0.")
-                        weights[idx] = 0.0
-                except Exception as e:
-                    logger.warning(f"Error accessing item at index {idx}: {e}. Setting weight to 0.")
+                dt = self._get_dt(idx)
+                if dt > 0:
+                    weights[idx] = self.const_weight
+                else:
                     weights[idx] = 0.0
+
                     
         elif self.sampling_mode == "exponential":
             # Weight = exp(|dt|) / ln(2)
-            ln_2 = math.log(2)
             for idx in range(len(self.dataset)):
-                try:
-                    item = self.dataset[idx]
-                    if isinstance(item, dict) and 'dt' in item:
-                        dt = item['dt']
-                        weights[idx] = math.exp(-abs(dt)) / ln_2
-                    else:
-                        logger.warning(f"Item at index {idx} is not a dict or doesn't contain 'dt' key. "
-                                     f"Setting weight to 1/ln(2).")
-                        weights[idx] = 0
-                except Exception as e:
-                    logger.warning(f"Error accessing item at index {idx}: {e}. Setting weight to 1/ln(2).")
-                    weights[idx] = 0
+                dt = self._get_dt(idx)
+                weights[idx] = math.exp(-abs(dt)) / self.cfg.experiment.sampling_exponential_weight_scale
                     
         elif self.sampling_mode == "dt_equals_one":
             # Only samples with dt == 1 get positive weight
             for idx in range(len(self.dataset)):
-                try:
-                    item = self.dataset[idx]
-                    if isinstance(item, dict) and 'dt' in item:
-                        dt = item['dt']
-                        if dt == 1:
-                            weights[idx] = self.const_weight
-                        else:
-                            weights[idx] = 0.0
-                    else:
-                        logger.warning(f"Item at index {idx} is not a dict or doesn't contain 'dt' key. "
-                                     f"Setting weight to 0.")
-                        weights[idx] = 0.0
-                except Exception as e:
-                    logger.warning(f"Error accessing item at index {idx}: {e}. Setting weight to 0.")
+                dt = self._get_dt(idx)
+                if dt == 1:
+                    weights[idx] = self.const_weight
+                else:
                     weights[idx] = 0.0
         
         # Ensure we have at least some positive weights
@@ -133,6 +122,26 @@ class CustomWeightedSampler(WeightedRandomSampler):
             raise ValueError(f"All weights are zero for sampling mode '{self.sampling_mode}'")
         
         return weights
+    
+    def _get_dt(self, pair_idx: int) -> float:
+        """Return dt using fast mapping if available; otherwise access dataset item."""
+        if self._time_indices is not None and self._base_n is not None:
+            # Map local index to global underlying pair index if we're sampling a Subset
+
+            n = self._base_n
+            # Map linear pair index to (i, j) with skipped diagonal, as in datasets
+            i = pair_idx // (n - 1)
+            j = pair_idx % (n - 1)
+            if j >= i:
+                j += 1
+            dt_months = int(self._time_indices[j]) - int(self._time_indices[i])
+            return float(dt_months) / self.time_scale if self.time_scale != 0 else float(dt_months)
+        
+        # Fallback: access dataset (may be slower and more memory intensive)
+        item = self.dataset[pair_idx]
+        if isinstance(item, dict) and 'dt' in item:
+            return float(item['dt'])
+        raise KeyError("Dataset item does not contain 'dt'")
     
     def get_weight_statistics(self) -> dict:
         """Return statistics about the computed weights."""

@@ -2,6 +2,8 @@
 
 # Bidirectional sampling - equal weights for all samples (ignores dt values)
 mode: "bidirectional"
-num_samples: null  # Use dataset length
+num_samples: ${experiment.num_samples}
 replacement: true
 const_weight: 1.0 
+time_index_path: ${experiment.time_index_path}
+time_scale: ${experiment.time_scale}

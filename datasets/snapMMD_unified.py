@@ -86,7 +86,7 @@ class SnapMMDUnified(Dataset):
         if self.config['has_x_scaling']:
             self.X_scaling = self.full_dataset['X_scaling']
         
-        self.index_pairs = np.array([(i, j) for i in range(self.data.shape[0]) for j in range(self.data.shape[0]) if i != j])
+        # Compute source/target indices on the fly in __getitem__ to avoid storing all pairs
 
     # TODO: this is for everything below: for now, I am just making it such that it takes in the entire population every time. Might want to modify to just sample both time-points and the individual unit.
     
@@ -105,7 +105,17 @@ class SnapMMDUnified(Dataset):
     
     def __getitem__(self, idx):
         if self.testing_method == "forecast":
-            source_idx, target_idx = self.index_pairs[idx]
+            # Map linear index to ordered pair (source_idx, target_idx) with source_idx != target_idx
+            # Using n*(n-1) indexing that skips the diagonal
+            # TODO: need to change this if you ever want to sample pairs from identical time-points.
+            # TODO: make sure this is correct.
+            n = self.data.shape[0]
+            i = idx // (n - 1)
+            j = idx % (n - 1)
+            if j >= i:
+                j += 1
+            source_idx, target_idx = i, j
+            
             source_samples = torch.tensor(self.data[source_idx], dtype=torch.float)
             target_samples = torch.tensor(self.data[target_idx], dtype=torch.float)
             

@@ -2,6 +2,8 @@
 
 # Exponential sampling - weight = exp(|dt|) / ln(2)
 mode: "exponential"
-num_samples: null  # Use dataset length
-replacement: true
+num_samples: ${experiment.num_samples}
+replacement: true 
 const_weight: 1.0  # Not used in exponential mode, but kept for consistency 
+time_index_path: ${experiment.time_index_path}
+time_scale: ${experiment.time_scale}

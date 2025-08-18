@@ -175,12 +175,20 @@ def main(cfg: DictConfig):
             try:
                 from utils.custom_sampler import CustomWeightedSampler
                 # TODO: do we really want to have replacement=True?
+                # Resolve optional time index file and time_scale
+                time_index_path = getattr(cfg.experiment, 'time_index_path', None)
+                time_scale = getattr(cfg.experiment, 'num_time_points', 1.0)
+
+
                 train_sampler = CustomWeightedSampler(
                     dataset=train_dataset,
                     sampling_mode=sampling_config.mode,
-                    num_samples=getattr(sampling_config, 'num_samples', None),
-                    replacement=getattr(sampling_config, 'replacement', True),
-                    const_weight=getattr(sampling_config, 'const_weight', 1.0)
+                    num_samples=getattr(cfg.experiment, 'num_samples', None),
+                    replacement=getattr(sampling_config, 'replacement', False),
+                    const_weight=getattr(sampling_config, 'const_weight', 1.0),
+                    time_index_path=time_index_path,
+                    time_scale=time_scale,
+                    cfg=cfg,
                 )
                 # Log weight statistics
                 stats = train_sampler.get_weight_statistics()

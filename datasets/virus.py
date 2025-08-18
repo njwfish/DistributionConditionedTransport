@@ -261,8 +261,15 @@ class ViralDataset(Dataset):
         return n * (n - 1)
     
     def __getitem__(self, idx):
-        source_idx, target_idx = np.random.choice(np.arange(len(self.data)), size=2, replace=False)
-
+        # TODO: need to change this if you ever want to sample pairs from identical time-points.
+        # TODO: make sure this is correct.
+        n = len(self.data)
+        i = idx // (n - 1)
+        j = idx % (n - 1)
+        if j >= i:
+            j += 1
+        source_idx, target_idx = i, j
+        
         item_source = self.data[source_idx]
         item_target = self.data[target_idx]
         

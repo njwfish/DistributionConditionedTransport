@@ -128,7 +128,9 @@ def extract_dataset_name(cfg: Dict[str, Any]) -> str:
 
 DATASET_CONFIGS: Dict[str, Dict[str, Any]] = {
     'LV': {
-        'data_path': 'data/classic/LV_simulated_dataset_1000_31_seed0.npz',
+        # TODO: avoid hard-coding the data path.
+        #'data_path': 'data/classic/LV_simulated_dataset_1000_31_seed0.npz',
+        'data_path': 'data/classic/LV_simulated_dataset_1000_11_seed0.npz',
         'dimensionality': 2,
         'axes_labels': ['Prey', 'Predator'],
         'title': 'Lotka-Volterra',
@@ -336,7 +338,7 @@ def transform_for_plot(dataset_name: str, data: np.ndarray, pca: PCA = None) -> 
 # Plotting
 # -----------------------------
 
-def plot_main_results(dataset_name: str, results: Dict[str, Any], out_dir: str, logger: logging.Logger, pca: PCA = None):
+def plot_main_results(dataset_name: str, results: Dict[str, Any], out_dir: str, logger: logging.Logger, pca: PCA = None, title_suffix: str = ""):
     os.makedirs(out_dir, exist_ok=True)
     cfg = DATASET_CONFIGS[dataset_name]
     training = results['training_data']
@@ -352,7 +354,7 @@ def plot_main_results(dataset_name: str, results: Dict[str, Any], out_dir: str, 
     else:
         fig, ax = plt.subplots(1, 1, figsize=(10, 8))
 
-    fig.suptitle(f"{cfg['title']} Results (CDE)")
+    fig.suptitle(f"{cfg['title']} Results (CDE){(' | ' + title_suffix) if title_suffix else ''}")
 
     # Plot colored training points across time
     Xs = training['Xs']
@@ -418,6 +420,32 @@ def build_output_folder_name(experiment_name: str, match_criteria: Dict[str, Any
                     break
             parts.append(sanitize_value_for_name(cur))
     return "_".join(parts)
+
+
+def build_parameters_label(match_criteria: Dict[str, Any], naming_parameters: List[str] = None) -> str:
+    """Build a human-readable label of the naming parameters for figure titles.
+    If naming_parameters is empty/None, include all flattened key=value pairs from match_criteria.
+    """
+    def value_to_str(v: Any) -> str:
+        if isinstance(v, (int, float)):
+            return ("%g" % v)
+        return str(v)
+
+    if naming_parameters is None or len(naming_parameters) == 0:
+        flat = flatten_dict(match_criteria)
+        parts = [f"{k}={value_to_str(v)}" for (k, v) in flat]
+    else:
+        parts = []
+        for path in naming_parameters:
+            cur: Any = match_criteria
+            for p in path.split('.'):
+                if isinstance(cur, dict) and p in cur:
+                    cur = cur[p]
+                else:
+                    cur = None
+                    break
+            parts.append(f"{path}={value_to_str(cur)}")
+    return ", ".join(parts)
 
 
 def summarize_differences(configs: List[Dict[str, Any]]) -> str:
@@ -514,6 +542,7 @@ def main():
     logger.info(f"Experiment name (prefix): {experiment_name}")
     logger.info(f"Outputs directory: {os.path.abspath(args.outputs_dir)}")
     logger.info(f"Match criteria: {json.dumps(match_criteria, indent=2)}")
+    parameters_label_for_title = build_parameters_label(match_criteria, naming_parameters)
 
     # Find candidate experiment directories
     if not os.path.exists(args.outputs_dir):
@@ -634,21 +663,31 @@ def main():
     # Aggregate stats
     mmd2_arr = np.array(mmd2_list)
     mmd_arr = np.sqrt(mmd2_arr)
-    print(f"MMD: {mmd_arr.mean():.6f} ± {mmd_arr.std():.6f}")
+    mmd_mean = float(mmd_arr.mean())
+    mmd_std = float(mmd_arr.std())
+    print(f"MMD: {mmd_mean:.6f} ± {mmd_std:.6f}")
     print(f"MMD^2: {mmd2_arr.mean():.6f} ± {mmd2_arr.std():.6f}")
-    logger.info(f"MMD: {mmd_arr.mean():.6f} ± {mmd_arr.std():.6f}")
+    logger.info(f"MMD: {mmd_mean:.6f} ± {mmd_std:.6f}")
     logger.info(f"MMD^2: {mmd2_arr.mean():.6f} ± {mmd2_arr.std():.6f}")
 
+    emd_title_segment = ""
     if len(emd_list) > 0:
         emd_arr = np.array(emd_list)
-        print(f"EMD: {emd_arr.mean():.6f} ± {emd_arr.std():.6f}")
-        logger.info(f"EMD: {emd_arr.mean():.6f} ± {emd_arr.std():.6f}")
+        emd_mean = float(emd_arr.mean())
+        emd_std = float(emd_arr.std())
+        print(f"EMD: {emd_mean:.6f} ± {emd_std:.6f}")
+        logger.info(f"EMD: {emd_mean:.6f} ± {emd_std:.6f}")
+        emd_title_segment = f" | EMD={emd_mean:.4g}±{emd_std:.2g}"
 
     # Plot for default seed
     if not args.skip_plots:
         if forecast_for_plot is None:
             # If not found seed==default, just take first
             forecast_for_plot = generate_cde_forecast(matched_with_seed[0][1][0], training_data)
+
+        # Prepare title suffix with naming parameters and metrics
+        metrics_title_segment = f"MMD={mmd_mean:.4g}±{mmd_std:.2g}{emd_title_segment}"
+        title_suffix = f"{parameters_label_for_title} | {metrics_title_segment}"
 
         results_struct = {
             'training_data': training_data,
@@ -662,7 +701,7 @@ def main():
                 'forecast_method': 'CDE'
             }
         }
-        plot_main_results(dataset_name, results_struct, out_dir, logger, pca)
+        plot_main_results(dataset_name, results_struct, out_dir, logger, pca, title_suffix=title_suffix)
 
     print(f"\n✓ Analysis complete. Figures and logs saved to: {out_dir}/")
     logger.info(f"Analysis complete. Output saved to: {out_dir}/")

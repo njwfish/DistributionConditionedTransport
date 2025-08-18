@@ -1,7 +1,7 @@
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import torch
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader, Subset, WeightedRandomSampler
 import logging
 import wandb
 import os
@@ -174,36 +174,55 @@ def main(cfg: DictConfig):
             logger.info(f"Using custom sampling with mode: {sampling_config.mode}")
             try:
                 from utils.custom_sampler import CustomWeightedSampler
-                # TODO: do we really want to have replacement=True?
                 # Resolve optional time index file and time_scale
                 time_index_path = getattr(cfg.experiment, 'time_index_path', None)
                 time_scale = getattr(cfg.experiment, 'num_time_points', 1.0)
 
-
-                train_sampler = CustomWeightedSampler(
-                    dataset=train_dataset,
+                # Instantiate ONCE on full_dataset to compute global weights
+                global_sampler = CustomWeightedSampler(
+                    dataset=full_dataset,
                     sampling_mode=sampling_config.mode,
-                    num_samples=getattr(cfg.experiment, 'num_samples', None),
+                    num_samples=len(full_dataset),
                     replacement=getattr(sampling_config, 'replacement', False),
                     const_weight=getattr(sampling_config, 'const_weight', 1.0),
                     time_index_path=time_index_path,
                     time_scale=time_scale,
                     cfg=cfg,
                 )
-                # Log weight statistics
-                stats = train_sampler.get_weight_statistics()
-                logger.info(f"Train sampler weight statistics: {stats}")
-                
-                # Debug print: Show non-zero weight information
+                # Log global weight statistics
+                stats = global_sampler.get_weight_statistics()
+                logger.info(f"Global sampler weight statistics: {stats}")
                 print(f"[DEBUG] Dataset sampling info:")
                 print(f"[DEBUG] - Total dataset samples: {stats['total_samples']}")
                 print(f"[DEBUG] - Samples with non-zero weights: {stats['num_nonzero']}")
                 print(f"[DEBUG] - Percentage with non-zero weights: {stats['num_nonzero']/stats['total_samples']*100:.2f}%")
                 print(f"[DEBUG] - Sampling mode: {stats['sampling_mode']}")
-                
-                # Use custom sampler (shuffle must not be specified when using a custom sampler)
-                train_dataloader_kwargs['sampler'] = train_sampler
-                
+
+                # Derive per-split weights
+                full_weights = torch.as_tensor(global_sampler.weights)
+
+                # Helper to create a sampler for a subset, preserving local order
+                def build_subset_sampler(subset_dataset):
+                    if isinstance(subset_dataset, Subset):
+                        idx = torch.as_tensor(subset_dataset.indices, dtype=torch.long)
+                    else:
+                        idx = torch.arange(len(subset_dataset), dtype=torch.long)
+                    subset_weights = full_weights[idx]
+                    num_samples = getattr(cfg.experiment, 'num_samples', None)
+                    if num_samples is None:
+                        num_samples = len(subset_dataset)
+                    return WeightedRandomSampler(
+                        weights=subset_weights,
+                        num_samples=num_samples,
+                        replacement=getattr(sampling_config, 'replacement', False),
+                    )
+
+                # Use custom samplers for both train and validation
+                train_dataloader_kwargs['sampler'] = build_subset_sampler(train_dataset)
+
+                # Prepare validation kwargs below where val_dataset is available
+                derived_val_sampler_builder = build_subset_sampler
+
             except Exception as e:
                 logger.error(f"Failed to create custom sampler: {e}")
                 logger.info("Falling back to default sampling (shuffle=True)")
@@ -222,7 +241,16 @@ def main(cfg: DictConfig):
         if val_dataset is not None:
             val_dataloader_kwargs = base_dataloader_kwargs.copy()
             val_dataloader_kwargs['dataset'] = val_dataset
-            val_dataloader_kwargs['shuffle'] = False  # Don't shuffle validation data
+            # If we derived a global sampler successfully, use a per-split sampler for validation too
+            if sampling_config is not None and 'sampler' in train_dataloader_kwargs and 'shuffle' not in train_dataloader_kwargs:
+                try:
+                    # Reuse builder captured above
+                    val_dataloader_kwargs['sampler'] = derived_val_sampler_builder(val_dataset)
+                except Exception as e:
+                    logger.error(f"Failed to create validation sampler from global weights: {e}")
+                    val_dataloader_kwargs['shuffle'] = False
+            else:
+                val_dataloader_kwargs['shuffle'] = False  # Deterministic fallback
             val_dataloader = DataLoader(**val_dataloader_kwargs)
             logger.info(f"Created validation dataloader with {len(val_dataset)} samples")
         

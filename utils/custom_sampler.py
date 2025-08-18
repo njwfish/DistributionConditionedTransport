@@ -58,9 +58,7 @@ class CustomWeightedSampler(WeightedRandomSampler):
             npz = np.load(self.time_index_path)
             self._time_indices = np.array(npz['time_indices'], dtype=np.int64)
             # Determine base dataset object and base element count n
-            self._base_n = len(dataset)
-            if self._base_n != len(self._time_indices):
-                raise ValueError(f"Mismatch between base dataset element count (n={self._base_n}) and time_indices length ({len(self._time_indices)}). ")
+            self._base_n = len(self._time_indices)
 
         
         # Compute weights based on sampling mode

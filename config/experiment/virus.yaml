@@ -21,7 +21,7 @@ predictor_loss_weight: 0
 
 # Time scaling for dt computed from month indices
 # TODO: change time_scale.
-time_index_path: data/spikeprot0430/virus_month_index.npz
+time_index_path: /orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430/virus_month_index.npz
 num_samples: 50
 sampling_exponential_weight_scale: 1.0
 num_time_points: 64

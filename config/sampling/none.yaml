@@ -6,4 +6,3 @@ num_samples: null
 replacement: false
 const_weight: 1.0 
 time_index_path: ${experiment.time_index_path}
-time_scale: ${experiment.time_scale}

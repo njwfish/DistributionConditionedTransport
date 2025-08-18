@@ -6,4 +6,3 @@ num_samples: ${experiment.num_samples}
 replacement: true
 const_weight: 1.0  # Weight for samples with dt == 1
 time_index_path: ${experiment.time_index_path}
-time_scale: ${experiment.time_scale}

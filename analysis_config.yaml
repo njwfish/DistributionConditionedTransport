@@ -1,0 +1,27 @@
+experiment_name: sde_LV_exp
+
+match_criteria:
+  dataset:
+    dataset_name: LV
+  sampling:
+    mode: unidirectional
+  loss:
+    predictor_loss_weight: 0
+  predictor:
+    _target_: predictor.dt_conditioned_predictor.DTConditionedRidgePredictor
+    conditioning_mode: sinusoidal
+  experiment:
+    use_predicted_latent: true
+
+# Optional, controls how we name the figures subfolder beyond experiment_name
+naming_parameters:
+  - dataset.dataset_name
+  - sampling.mode
+  - loss.predictor_loss_weight
+  - predictor._target_
+  - predictor.conditioning_mode
+
+output_folder: figures
+default_seed_for_plots: 0
+
+

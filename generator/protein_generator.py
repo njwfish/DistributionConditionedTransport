@@ -211,89 +211,29 @@ class ConditionedProgen2(nn.Module):
         condition = self.condition_proj(combined_latent)
         
         if self.condition_method == "prefix":
-            # Use the condition as a prefix hidden state
-            # Create a prefix token
-            
-            # Handle attention mask dimension properly - check shape and process individually for memory efficiency
+
             if len(attention_mask.shape) == 3:  # [batch_size, set_size, seq_len]
-                # MEMORY OPTIMIZATION: Process sequences with mini-batching to balance memory and speed
                 set_size, seq_len = attention_mask.shape[1:]
-                debug_logger.debug(f"Sequential processing: {set_size} sequences of length {seq_len}")
-                sequential_start = time.time()
-                
-                # Process sequences in small groups (mini-batches) to balance memory vs speed
-                mini_batch_size = min(2, set_size)  # Process 2 sequences at a time max
-                all_logits = []
-                
-                for start_idx in range(0, set_size, mini_batch_size):
-                    end_idx = min(start_idx + mini_batch_size, set_size)
-                    mini_batch_start = time.time()
-                    
-                    # Extract mini-batch of sequences
-                    mini_input_ids = input_ids[:, start_idx:end_idx, :].contiguous()  # [batch_size, mini_batch_size, seq_len]
-                    mini_attention_mask = attention_mask[:, start_idx:end_idx, :].contiguous()  # [batch_size, mini_batch_size, seq_len]
-                    
-                    # Reshape to process mini-batch
-                    mini_batch_actual_size = end_idx - start_idx
-                    reshaped_input_ids = mini_input_ids.view(batch_size * mini_batch_actual_size, seq_len)
-                    reshaped_attention_mask = mini_attention_mask.view(batch_size * mini_batch_actual_size, seq_len)
-                    
-                    # Expand condition for mini-batch
-                    expanded_condition = condition.unsqueeze(1).repeat(1, mini_batch_actual_size, 1).view(batch_size * mini_batch_actual_size, -1)
-                    
-                    # Process mini-batch
-                    mini_logits = self._forward_single_sequence(
-                        reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="prefix"
-                    )
-                    all_logits.append(mini_logits)
-                    
-                    if start_idx == 0:
-                        debug_logger.debug(f"First mini-batch ({mini_batch_actual_size} seqs) took {time.time() - mini_batch_start:.3f}s")
-                
-                # Concatenate results back to [batch_size * set_size, seq_len, vocab_size]
-                logits = torch.cat(all_logits, dim=0)
-                debug_logger.debug(f"Optimized sequential processing completed in {time.time() - sequential_start:.3f}s")
-                
+                # Flatten set dimension
+                reshaped_input_ids = input_ids.view(batch_size * set_size, seq_len)
+                reshaped_attention_mask = attention_mask.view(batch_size * set_size, seq_len)
+                expanded_condition = condition.unsqueeze(1).repeat(1, set_size, 1).view(batch_size * set_size, -1)
+                logits = self._forward_single_sequence(
+                    reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="prefix"
+                )
             else:
-                # Standard processing for single sequences
                 logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="prefix")
             
         elif self.condition_method == "additive":
-            # Handle attention mask dimension properly - process with mini-batching for memory efficiency
             if len(attention_mask.shape) == 3:  # [batch_size, set_size, seq_len]
-                # MEMORY OPTIMIZATION: Process sequences with mini-batching to balance memory and speed
                 set_size, seq_len = attention_mask.shape[1:]
-                
-                # Process sequences in small groups (mini-batches) to balance memory vs speed
-                mini_batch_size = min(2, set_size)  # Process 2 sequences at a time max
-                all_logits = []
-                
-                for start_idx in range(0, set_size, mini_batch_size):
-                    end_idx = min(start_idx + mini_batch_size, set_size)
-                    
-                    # Extract mini-batch of sequences
-                    mini_input_ids = input_ids[:, start_idx:end_idx, :].contiguous()  # [batch_size, mini_batch_size, seq_len]
-                    mini_attention_mask = attention_mask[:, start_idx:end_idx, :].contiguous()  # [batch_size, mini_batch_size, seq_len]
-                    
-                    # Reshape to process mini-batch
-                    mini_batch_actual_size = end_idx - start_idx
-                    reshaped_input_ids = mini_input_ids.view(batch_size * mini_batch_actual_size, seq_len)
-                    reshaped_attention_mask = mini_attention_mask.view(batch_size * mini_batch_actual_size, seq_len)
-                    
-                    # Expand condition for mini-batch
-                    expanded_condition = condition.unsqueeze(1).repeat(1, mini_batch_actual_size, 1).view(batch_size * mini_batch_actual_size, -1)
-                    
-                    # Process mini-batch
-                    mini_logits = self._forward_single_sequence(
-                        reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="additive"
-                    )
-                    all_logits.append(mini_logits)
-                
-                # Concatenate results back to [batch_size * set_size, seq_len, vocab_size]
-                logits = torch.cat(all_logits, dim=0)
-                
+                reshaped_input_ids = input_ids.view(batch_size * set_size, seq_len)
+                reshaped_attention_mask = attention_mask.view(batch_size * set_size, seq_len)
+                expanded_condition = condition.unsqueeze(1).repeat(1, set_size, 1).view(batch_size * set_size, -1)
+                logits = self._forward_single_sequence(
+                    reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="additive"
+                )
             else:
-                # Standard processing for single sequences
                 logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="additive")
         
         debug_logger.debug(f"Generator forward completed in {time.time() - forward_start:.3f}s")

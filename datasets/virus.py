@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 class ViralDataset(Dataset):
     def __init__(self,
                  data_dir: str = 'data/spikeprot0430',
+                 data_file: str = 'virus_tokenized_data_for_tde.pt',
                  set_size: int = 10,
                  esm_name: str = 'facebook/esm2_t6_8M_UR50D',
                  progen_name: str = 'hugohrban/progen2-medium',
@@ -34,6 +35,7 @@ class ViralDataset(Dataset):
             torch.manual_seed(seed)
 
         self.data_dir = data_dir
+        self.data_file = data_file
         self.set_size = set_size
         self.max_length = max_length
         self.max_sets_per_fam = max_sets_per_fam
@@ -47,7 +49,7 @@ class ViralDataset(Dataset):
         self.progen_tokenizer.bos_token = '<|bos|>'
         self.progen_tokenizer.eos_token = '<|eos|>'
 
-        self.tokenized_data_file = f'{self.data_dir}/virus_tokenized_data_for_tde.pt'
+        self.tokenized_data_file = f'{self.data_dir}/{self.data_file}' #virus_tokenized_data_for_tde.pt'
 
         self.data = torch.load(self.tokenized_data_file)
         with open("auxillary_log.log", "a") as f:

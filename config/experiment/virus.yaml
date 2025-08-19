@@ -31,7 +31,7 @@ latent_dim: 128 # TODO: make sure that this is really the correct latent_dim for
 hidden_dim: 256 # TODO: is this really the correct hidden_dim for the ESM2 model??
 # Training/data sizing (kept small to avoid OOM)
 batch_size: 1
-set_size: 4
+set_size: 16
 lr: 2e-5
 
 # ESM model settings

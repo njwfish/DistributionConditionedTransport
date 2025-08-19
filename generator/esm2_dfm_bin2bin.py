@@ -275,131 +275,57 @@ class ESM2_DFM_Generator:
         print(f"AA_range: {self.aa_ids} and {self.bos_id} and {self.eos_id} and {self.bos} and {self.eos}")
     
 
-    def loss(self, x, latent):
-        if self.seq2seq_mode:
-            return self._loss_seq2seq(x, latent)
-        else:
-            return self._loss_original(x, latent)
-
-    def _loss_seq2seq(self, x, latent):
-        """New seq2seq approach: mask positions where sequences differ"""
-        # Prepare inputs and labels
-        # x now contains both samples_high and samples_low
-        input_ids_high = x["esm_input_ids"]  # samples_high sequences
-        input_ids_low = x["esm_input_ids_low"]  # samples_low sequences
-        attention_mask = x["esm_attention_mask"]
-        
-        # Determine conditioning
-        if self.condition_method == "no_use":
-            condition = None
-        elif self.condition_method in ("additive", "prefix"):
-            condition = self.model.condition_proj(latent)
-        else:
-            raise ValueError(f"Condition Method {self.condition_method} not implemented")
-
-        # Handle batch dimensions - expand input_ids_low to match input_ids_high
-        if input_ids_high.ndim == 3:
-            B1, B2, L = input_ids_high.shape
-            
-            # input_ids_low should have shape (B1, 1, L) - expand it to (B1, B2, L)
-            if input_ids_low.shape == (B1, 1, L):
-                # TODO: make sure the expanding is behaving correctly.
-                # Expand the single sequence to match all B2 sequences
-                input_ids_low = input_ids_low.expand(B1, B2, L)
-            elif input_ids_low.shape != (B1, B2, L):
-                raise ValueError(f"input_ids_low shape {input_ids_low.shape} cannot be expanded to match input_ids_high shape {(B1, B2, L)}")
-            
-            # Reshape both to 2D
-            input_ids_high = input_ids_high.view(B1 * B2, L)
-            input_ids_low = input_ids_low.view(B1 * B2, L)
-            attention_mask = attention_mask.view(B1 * B2, L)
-            
-            if condition is not None:
-                condition = (
-                    condition.unsqueeze(1)
-                            .repeat(1, B2, 1)
-                            .view(B1 * B2, -1)
-                )
-        elif input_ids_high.ndim == 2:
-            # For 2D case, both should have matching shapes
-            if input_ids_low.shape != input_ids_high.shape:
-                raise ValueError(f"input_ids_low shape {input_ids_low.shape} must match input_ids_high shape {input_ids_high.shape}")
-
-        # Create masked input by masking positions where sequences differ
-        B, D = input_ids_high.shape
-        xt = input_ids_low.clone()  # Start with samples_low sequence
-        
-        # Mask positions where sequences differ (excluding special tokens)
-        diff_mask = (input_ids_high != input_ids_low)
-        diff_mask[:, 0] = False  # Don't mask BOS token
-        diff_mask[:, -1] = False  # Don't mask EOS token
-        
-        xt[diff_mask] = self.mask_token_id
-        
-        # Check if any tokens are masked
-        total_masked = diff_mask.sum().item()
-        if total_masked == 0:
-            # No differences - return zero loss
-            return torch.tensor(0.0, device=xt.device, requires_grad=True)
-
-        # Forward pass with t=1 (no time dependency)
-        t = torch.ones((B,), device=xt.device)
-        outputs = self.model(
-            input_ids=xt,
-            attention_mask=attention_mask,
-            t=t,
-            condition=condition
-        )
-        logits = outputs["logits"]
-
-        # Verify that model output has expected batch dimension
-        assert logits.size(0) == B, f"Model output batch size {logits.size(0)} doesn't match input batch size {B}"
-        device = logits.device
-
-        # Compute loss only on masked positions
-        labels = input_ids_high.clone()
-        labels[~diff_mask] = -1  # ignore positions that weren't masked
-        
-        loss = F.cross_entropy(
-            logits.transpose(1, 2),
-            labels,
-            ignore_index=-1
-        )
-        
-        return loss
-
-    def _loss_original(self, x, latent):
+    def loss(self, x_source, x_target, latent_source, latent_target):
         """Original approach: random masking with time-based flow matching"""
         # Prepare inputs and labels
-        input_ids = x["esm_input_ids"]
-        attention_mask = x["esm_attention_mask"]
-        labels = input_ids.clone()
+        input_ids_source = x_source["esm_input_ids"]
+        attention_mask_source = x_source["esm_attention_mask"]
+        labels_source = input_ids_source.clone()
+
+        input_ids_target = x_target["esm_input_ids"]
+        attention_mask_target = x_target["esm_attention_mask"]
+        labels_target = input_ids_target.clone()
 
         # Determine conditioning
         if self.condition_method == "no_use":
-            condition = None
+            condition_source = None
+            condition_target = None
         elif self.condition_method in ("additive", "prefix"):
-            condition = self.model.condition_proj(latent)
+            condition_source = self.model.condition_proj(latent_source)
+            condition_target = self.model.condition_proj(latent_target)
         else:
             raise ValueError(f"Condition Method {self.condition_method} not implemented")
 
         # Flatten batch if necessary
-        if input_ids.ndim == 3:
-            B1, B2, L = input_ids.shape
-            input_ids = input_ids.view(B1 * B2, L)
-            attention_mask = attention_mask.view(B1 * B2, L)
-            labels = labels.view(B1 * B2, L)
-            if condition is not None:
-                condition = (
-                    condition.unsqueeze(1)
+        if input_ids_source.ndim == 3:
+            B1, B2, L = input_ids_source.shape
+            input_ids_source = input_ids_source.view(B1 * B2, L)
+            attention_mask_source = attention_mask_source.view(B1 * B2, L)
+            labels_source = labels_source.view(B1 * B2, L)
+            if condition_source is not None:
+                condition_source = (
+                    condition_source.unsqueeze(1)
                             .repeat(1, B2, 1)
                             .view(B1 * B2, -1)
                 )
+        # Flatten batch if necessary
+        if input_ids_target.ndim == 3:
+            B1, B2, L = input_ids_target.shape
+            input_ids_target = input_ids_target.view(B1 * B2, L)
+            attention_mask_target = attention_mask_target.view(B1 * B2, L)
+            labels_target = labels_target.view(B1 * B2, L)
+            if condition_target is not None:
+                condition_target = (
+                    condition_target.unsqueeze(1)
+                            .repeat(1, B2, 1)
+                            .view(B1 * B2, -1)
+                )
+        
 
         # Sample timesteps and apply mask
-        B, D = labels.shape
+        B, D = labels_source.shape
         t = torch.rand((B,))
-        xt = labels.clone()
+        xt = labels_target.clone()
         mask = torch.rand((B,D)) < (1 - t[:, None])
         mask[:, 0] = False
         mask[:, -1] = False  # keep special tokens
@@ -415,9 +341,10 @@ class ESM2_DFM_Generator:
         # Forward pass
         outputs = self.model(
             input_ids=xt,
-            attention_mask=attention_mask,
+            attention_mask=attention_mask_target,
             t=t,
-            condition=condition
+            condition_source=condition_source,
+            condition_target=condition_target
         )
         logits = outputs["logits"]
 
@@ -426,161 +353,24 @@ class ESM2_DFM_Generator:
         device = logits.device
 
         # Compute loss
-        labels_before = labels.clone()  # Keep original for debugging
-        labels[xt != self.mask_token_id] = -1  # ignore unmasked positions
+        labels_before = labels_target.clone()  # Keep original for debugging
+        labels_target[xt != self.mask_token_id] = -1  # ignore unmasked positions
         
         # Try to compute loss and catch any issues
         
         loss = F.cross_entropy(
             logits.transpose(1, 2),
-            labels,
+            labels_target,
             ignore_index=-1
         )
         
         return loss
 
-    # MAJOR TODO: the number of positions to mask is not the same as the glob_edit_limit. It should be delta_x.
 
-    def _sample_batch(self, latent_i, samples_low_seq=None, seq2seq_edit_limit=None, wt_seq=None, glob_edit_limit=None):
-        """Conditional sampling based on seq2seq_mode"""
-        if self.seq2seq_mode:
-            return self._sample_batch_seq2seq(latent_i, samples_low_seq, seq2seq_edit_limit, wt_seq, glob_edit_limit)
-        else:
-            return self._sample_batch_original(latent_i)
-
-    def _sample_batch_seq2seq(self, latent_i, samples_low_seq, seq2seq_edit_limit, wt_seq=None, glob_edit_limit=None):
-        """
-        New sampling approach: start with samples_low sequence, mask positions based on 
-        differences from wt_seq, and unmask all at once.
-        
-        Args:
-            latent_i: Latent conditioning vector
-            samples_low_seq: Input sequence (samples_low) as token IDs with BOS/EOS
-            seq2seq_edit_limit: Maximum number of positions to mask
-            wt_seq: Wild-type sequence (string format) to compare against
-            glob_edit_limit: Maximum number of allowed maskable positions
-        """
-        # TODO: This method appears to handle general batch sizes but should be tested
-        # thoroughly for B>1 case to ensure proper tensor shapes and sampling behavior
-        device = latent_i.device
-        B = latent_i.size(0)
-
-        # TODO: This method currently only works correctly for B=1. For B>1, the return shape
-        # and sampling logic need to be updated to handle multiple batch elements properly.
-        if B != 1:
-            raise NotImplementedError("_sample_batch_seq2seq currently only supports batch_size=1")
-        
-        
-        # Start with the samples_low sequence (including BOS and EOS)
-        xt = samples_low_seq.clone()  # Shape: (B, D) where D includes BOS and EOS
-        D = xt.size(1)
-        
-        attention_mask = torch.ones_like(xt)
-        condition = self.model.condition_proj(latent_i)
-        
-        # Sample number of tokens to mask uniformly between 1 and seq2seq_edit_limit
-        num_to_mask = torch.randint(1, seq2seq_edit_limit + 1, (B,))
-        
-        # For each sequence in the batch, determine maskable positions
-        for b in range(B):
-            # Decode the input sequence without BOS/EOS to compare with wt_seq
-            input_seq_tokens = xt[b, 1:-1]  # Remove BOS and EOS
-            input_seq_str = self.tokenizer.decode(input_seq_tokens.tolist(), skip_special_tokens=True).replace(" ", "")
-            
-            # Find positions where input sequence differs from wt_seq
-            diff_positions = []
-            if wt_seq is not None:
-                assert len(input_seq_str) == len(wt_seq), "Input sequence and wild-type sequence must have same length"
-                for pos in range(len(wt_seq)):
-                    if input_seq_str[pos] != wt_seq[pos]:
-                        diff_positions.append(pos + 1)  # +1 to account for BOS token
-            
-            # Convert to tensor
-            diff_positions = torch.tensor(diff_positions, device=device, dtype=torch.long)
-            
-            # Determine all possible maskable positions (excluding BOS and EOS)
-            all_maskable = torch.arange(1, D-1, device=device, dtype=torch.long)
-            
-            # If we have fewer differences than glob_edit_limit, add more positions
-            if len(diff_positions) < glob_edit_limit and glob_edit_limit is not None:
-                # Find positions that are not already in diff_positions
-                remaining_positions = all_maskable[~torch.isin(all_maskable, diff_positions)]
-                
-                # Calculate how many more positions we need
-                num_additional = glob_edit_limit - len(diff_positions)
-                
-                if len(remaining_positions) >= num_additional:
-                    # Randomly select additional positions
-                    perm = torch.randperm(len(remaining_positions))
-                    additional_positions = remaining_positions[perm[:num_additional]]
-                    # Combine with difference positions
-                    allowed_maskable = torch.cat([diff_positions, additional_positions])
-                else:
-                    # Use all remaining positions
-                    allowed_maskable = torch.cat([diff_positions, remaining_positions])
-            else:
-                # Use only the difference positions (or all if wt_seq is None)
-                if len(diff_positions) > 0:
-                    allowed_maskable = diff_positions
-                else:
-                    # Fallback: use all maskable positions if no differences found
-                    allowed_maskable = all_maskable
-            
-            # Ensure we don't try to mask more positions than available
-            actual_num_to_mask = min(num_to_mask[b].item(), len(allowed_maskable))
-            
-            if actual_num_to_mask > 0:
-                # Randomly select positions to mask from allowed positions
-                perm = torch.randperm(len(allowed_maskable))
-                positions_to_mask = allowed_maskable[perm[:actual_num_to_mask]]
-                
-                # Apply masking
-                xt[b, positions_to_mask] = self.mask_token_id
-        
-        # Single forward pass to unmask all positions at once
-        t = torch.ones((B,), device=device)  # Always use t=1
-        outputs = self.model(
-            input_ids=xt,
-            attention_mask=attention_mask,
-            t=t,
-            condition=condition
-        )
-        
-        logits = outputs["logits"]  # shape (B, D, V)
-        B, D, V = logits.size()
-        
-        # Verify that model output has expected batch dimension
-        assert logits.size(0) == B, f"Model output batch size {logits.size(0)} doesn't match input batch size {B}"
-        device = logits.device
-        
-        # Apply vocabulary constraints
-        mask = torch.full((B, D, V), -float('inf'), device=device)
-        
-        # Allow only AAs at middle positions
-        mask[:, 1:-1, self.aa_ids] = 0.0
-        
-        # Allow BOS at pos 0, EOS at pos -1
-        mask[:, 0, self.bos_id] = 0.0
-        mask[:, -1, self.eos_id] = 0.0
-        
-        # Apply constraints
-        logits = logits + mask
-        
-        # Sample from the constrained distribution
-        probs = F.softmax(logits, dim=-1)
-        x1 = Categorical(probs).sample()
-        
-        # Replace only the masked positions
-        masked_positions = (xt == self.mask_token_id)
-        xt[masked_positions] = x1[masked_positions]
-        
-        # Return without BOS and EOS tokens
-        return xt[:, 1:-1]  # Shape: (B, D-2)
-
-    def _sample_batch_original(self, latent_i):
+    def _sample_batch(self, latent_source, latent_target):
         """Original sampling approach: iterative demasking from fully masked sequence"""
-        device = latent_i.device
-        B = latent_i.size(0)
+        device = latent_target.device
+        B = latent_target.size(0)
         
         # TODO: This method currently only works correctly for B=1. For B>1, the return shape
         # and sampling logic need to be updated to handle multiple batch elements properly.
@@ -592,7 +382,8 @@ class ESM2_DFM_Generator:
         xt[:, 0] = self.bos_id
         xt[:, -1] = self.eos_id
         attention_mask = torch.ones_like(xt)
-        condition = self.model.condition_proj(latent_i)
+        condition_source = self.model.condition_proj(latent_source)
+        condition_target = self.model.condition_proj(latent_target)
 
         t = 0.0
         dt = 0.001
@@ -601,7 +392,8 @@ class ESM2_DFM_Generator:
                 input_ids=xt,
                 attention_mask=attention_mask,
                 t=torch.full((B,), t, device=device),
-                condition=condition
+                condition_source=condition_source,
+                condition_target=condition_target
             )
 
             logits = outputs["logits"]  # shape (B, D, V)
@@ -652,7 +444,8 @@ class ESM2_DFM_Generator:
                 input_ids=xt,
                 attention_mask=attention_mask,
                 t=t1,
-                condition=condition
+                condition_source=condition_source,
+                condition_target=condition_target
             )
             logits = outputs["logits"]
 
@@ -686,30 +479,21 @@ class ESM2_DFM_Generator:
         # Shape: (B, D-2)
         return xt[:, 1:-1]
 
-    def sample(self, latent, wt_seq=None, glob_edit_limit=None, num_samples=1, return_texts=False, exclude_sequences=None, max_rejection_attempts=5, samples_low_seq=None, seq2seq_edit_limit=None):
+    def sample(self,x_source, latent_source, latent_target, num_samples=1, return_texts=False):
         """
         Sampling method that supports both approaches based on seq2seq_mode.
         
         Args:
-            latent: Latent vectors for conditioning
-            wt_seq: Wild-type sequence for validation
-            glob_edit_limit: Maximum allowed edit distance from wt_seq
+            x_source: Source sequence
+            latent_source: Source latent vector
+            latent_target: Target latent vector
             num_samples: Number of samples to generate
             return_texts: Whether to return text sequences in addition to token IDs
-            exclude_sequences: Optional list of sequences (strings) to avoid generating
-            max_rejection_attempts: Maximum number of rejection attempts before giving up
-            samples_low_seq: Input sequence (samples_low) as token IDs with BOS/EOS (required for seq2seq_mode)
-            seq2seq_edit_limit: Maximum number of positions to mask during sampling (used in seq2seq_mode)
         """
-        if self.seq2seq_mode:
-            if samples_low_seq is None:
-                raise ValueError("samples_low_seq is required for seq2seq_mode")
 
-        # Set model to evaluation mode for consistent sampling behavior
-        was_training = self.model.training
         self.model.eval()
 
-        B = latent.size(0)
+        B = latent_target.size(0)
         
         # TODO: Currently this method is designed for B=1. For B>1, the logic needs to be updated
         # to handle multiple batch elements properly, including rejection sampling per batch element
@@ -721,21 +505,13 @@ class ESM2_DFM_Generator:
         all_texts = []
         # TODO: note how below you implement rejection sampling for sequences already contained in exclude_sequences, but you don't check whether among the newly generated sequences there are any duplicates.
         # Convert exclude_sequences to a set for faster lookup
-        excluded_set = set(exclude_sequences) if exclude_sequences is not None else set()
 
-        print("!!!! LATENT SHAPE", latent.shape)
+        print("!!!! LATENT SHAPE", latent_target.shape)
         
         for i in range(num_samples):
-            latent_i = latent[:]
 
-            # Rejection sampling loop
-            attempts = 0
-            while attempts < max_rejection_attempts:
-                # Generate sequence using appropriate approach
-                if self.seq2seq_mode:
-                    seq_ids = self._sample_batch(latent_i, samples_low_seq, seq2seq_edit_limit, wt_seq, glob_edit_limit)
-                else:
-                    seq_ids = self._sample_batch(latent_i)
+            
+                seq_ids = self._sample_batch(latent_i)
                 
                 # TODO: This is a bit clunky. Clunky code 001. Be consistent in how you handle the batch dimension and don't forget that at some point in the future you might want to do batch sizes larger than 1.
                 # seq_ids has shape (B, D-2), we need to handle the batch dimension
@@ -774,9 +550,6 @@ class ESM2_DFM_Generator:
             
 
             return all_ids, all_texts_formatted
-        
-        # Restore original training mode
-        if was_training:
-            self.model.train()
+
 
         return all_ids

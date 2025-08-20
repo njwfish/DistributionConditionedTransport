@@ -1,7 +1,7 @@
 import torch
 import math
 from torch.utils.data import WeightedRandomSampler
-from typing import Optional, Union
+from typing import Optional, Union, List, Tuple
 import logging
 
 logger = logging.getLogger(__name__)
@@ -11,21 +11,22 @@ class CustomWeightedSampler(WeightedRandomSampler):
     """
     Custom weighted sampler that supports different sampling modes based on 'dt' values in dataset items.
     
-    Sampling modes:
-    - "bidirectional": Equal weights for all samples (ignores dt values)
-    - "unidirectional": Positive weight only for samples with dt > 0, zero weight otherwise
-    - "exponential": Weight = exp(|dt|) / ln(2) for each sample
-    - "dt_equals_one": Weight = 1 for samples where dt == 1, zero weight otherwise
+    Supported weight modes:
+    - "uniform": Equal weights for all samples
+    - "exponential": Weight = exp(-|dt| / exponential_weight_scale)
+    
+    The 'unidirectional' flag can be used in conjunction with any weight mode to zero out samples with dt < 0.
     """
     # TODO: do we really want to have replacement=True?
     def __init__(
         self, 
-        dataset,
+        dataset=None,
         weight_mode: str = "uniform",
         num_samples: Optional[int] = None,
         replacement: bool = True,
         const_weight: float = 1.0,
         unidirectional: bool = False,
+        specific_pairing: Optional[List[Tuple[int, int]]] = None,
         exponential_weight_scale: Optional[float] = 1.0,
     ):
         """
@@ -43,9 +44,10 @@ class CustomWeightedSampler(WeightedRandomSampler):
         self.weight_mode = weight_mode
         self.const_weight = const_weight
         self.unidirectional = unidirectional
+        self.specific_pairing = specific_pairing
         self.exponential_weight_scale = exponential_weight_scale
         
-        # Compute weights based on sampling mode
+        # Compute weights
         weights = self._compute_weights()
         
         # Set default num_samples if not provided
@@ -59,7 +61,10 @@ class CustomWeightedSampler(WeightedRandomSampler):
             replacement=replacement
         )
         
-        logger.info(f"CustomWeightedSampler initialized with mode='{sampling_mode}', "
+        logger.info(f"CustomWeightedSampler initialized with weight_mode='{weight_mode}', "
+                   f"unidirectional={unidirectional}, "
+                   f"specific_pairing={specific_pairing}, "
+                   f"exponential_weight_scale={exponential_weight_scale}, "
                    f"num_samples={num_samples}, replacement={replacement}")
         logger.info(f"Weight statistics - Min: {weights.min():.6f}, Max: {weights.max():.6f}, "
                    f"Mean: {weights.mean():.6f}, Non-zero: {(weights > 0).sum()}/{len(weights)}")
@@ -79,7 +84,7 @@ class CustomWeightedSampler(WeightedRandomSampler):
                 weights[idx] = math.exp(-abs(d) / self.exponential_weight_scale)
 
         else:
-            raise NotImplementedError(f"Weight mode '{self.weight_mode}' is not implemented. ")
+            raise NotImplementedError(f"Weight mode '{self.weight_mode}' is not implemented.")
                                       
                                       
         if self.unidirectional:

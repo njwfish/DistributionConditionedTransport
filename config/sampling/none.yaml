@@ -1,7 +1,0 @@
-# @package _global_.sampling
-
-# No custom sampling - use default PyTorch DataLoader shuffling
-mode: null  # This will cause the sampler not to be used
-num_samples: null
-replacement: false
-const_weight: 1.0 

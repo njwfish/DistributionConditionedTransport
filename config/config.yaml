@@ -14,7 +14,7 @@ defaults:
   - collate: none  # Default collate function
   - wandb: default  # Default W&B config
   - loss: default  # Default loss config
-  - sampling: none  # Default sampling config
+  - sampling: default  # Default sampling config
   - experiment: mvn  # Experiment-specific configurations (MUST come after components it overrides)
   - override hydra/launcher: slurm
   - _self_

@@ -294,10 +294,10 @@ class MultivariateNormalDistributionDataset(Dataset):
         source_samples = torch.tensor(self.data[source_idx], dtype=torch.float)
         target_samples = torch.tensor(self.data[target_idx], dtype=torch.float)
         
-        #subset_indices = np.random.choice(source_samples.shape[0], size=self.set_size, replace=False)
-        #
-        #source_samples = source_samples[subset_indices]
-        #target_samples = target_samples[subset_indices]
+        subset_indices = np.random.choice(source_samples.shape[0], size=self.set_size, replace=False)
+        
+        source_samples = source_samples[subset_indices]
+        target_samples = target_samples[subset_indices]
         
         # Compute Wasserstein distance between the two distributions using their parameters
         source_mu = self.mu[source_idx]
@@ -314,7 +314,9 @@ class MultivariateNormalDistributionDataset(Dataset):
         return {
             'source_samples': source_samples,
             'target_samples': target_samples,
-            'dt': distance,
+            'source_idx': source_idx,
+            'target_idx': target_idx,
+            'd': distance,
         }
     
 class LowRankMultivariateNormalDistributionDataset(Dataset):

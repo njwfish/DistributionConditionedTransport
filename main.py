@@ -9,8 +9,6 @@ import numpy as np
 import time
 
 import torch.nn as nn
-
-from utils.custom_sampler import CustomWeightedSampler
 # Import our resolver for sum operations
 import utils.hash_utils as hash_utils
 
@@ -76,23 +74,18 @@ def main(cfg: DictConfig):
         
         sampling_config = cfg.sampling
 
-        logger.info(f"Using custom sampling with mode: {sampling_config.mode}")
+        sampler = None
 
-        # TODO: specific pairing should be a list of tuples of indices if one wants to sample specific pairs.
-        sampler = CustomWeightedSampler(
-            dataset=dataset,
-            weight_mode=sampling_config.weight_mode,
-            num_samples=getattr(sampling_config, 'num_samples', None),
-            replacement=getattr(sampling_config, 'replacement', False),
-            const_weight=getattr(sampling_config, 'const_weight', 1.0),
-            unidirectional=getattr(sampling_config, 'unidirectional', False),
-            exponential_weight_scale=getattr(sampling_config, 'exponential_weight_scale', 1.0),
-            specific_pairing=getattr(sampling_config, 'specific_pairing', None),
+        logger.info("Instantiating sampler from Hydra config")
+        sampler = hydra.utils.instantiate(sampling_config, dataset=dataset)
+
+        dataloader = DataLoader(
+            dataset,
+            **base_dataloader_kwargs,
+            sampler=sampler,
+            shuffle=False if sampler is not None else True,
         )
-
-        dataloader = DataLoader(dataset, **base_dataloader_kwargs, sampler=sampler)
         
-
         # Create encoder
         encoder = hydra.utils.instantiate(cfg.encoder)
 

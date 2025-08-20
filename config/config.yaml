@@ -25,10 +25,6 @@ dataset_name: GoM  # Default to GoM, can be: GoM, LV, PBMC, Repressilator
 seed: 42
 device: cuda
 
-# Validation split parameters
-validation_split: 0.1  # 20% for validation, 80% for training
-shuffle_before_split: true  # Whether to shuffle data before splitting
-
 # Hydra-related settings
 hydra:
   run:

@@ -154,38 +154,23 @@ class Trainer:
         self,
         encoder,
         generator,
-        train_dataloader,
+        dataloader,
         optimizer,
         loss_manager,
-        val_dataloader=None,
         scheduler=None,
         device=None,
         output_dir='./outputs',
         config=None,
     ):
         """Train the model with W&B logging."""
-        # Set up debug logging
-        debug_logger = logging.getLogger('debug_performance')
-        debug_logger.info("=== TRAINING FUNCTION STARTED ===")
         training_start = time.time()
         
         if device is None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        debug_logger.info(f"Moving models to device: {device}")
-        gpu_transfer_start = time.time()
         encoder.to(device)
         generator.to(device)
-        debug_logger.info(f"GPU transfer completed (took {time.time() - gpu_transfer_start:.2f}s)")
         
-        # Use train_dataloader for training and val_dataloader for evaluation
-        # If no val_dataloader provided, use train_dataloader for evaluation (legacy behavior)
-        eval_dataloader = val_dataloader if val_dataloader is not None else train_dataloader
-        
-        if val_dataloader is not None:
-            self.logger.info(f"Using separate validation set for evaluation ({len(val_dataloader.dataset)} samples)")
-        else:
-            self.logger.info("No validation set provided. Using training set for evaluation (not recommended)")
         
         stats = {
             'train_losses': [],
@@ -274,19 +259,17 @@ class Trainer:
             if 'step' in checkpoint:
                 step = checkpoint['step'] + 1
             else:
-                step = (start_epoch - 1) * len(train_dataloader) + 1
+                step = (start_epoch - 1) * len(dataloader) + 1
             # Log resuming to W&B
             if wandb.run is not None:
                 wandb.run.summary["resumed_from_epoch"] = start_epoch
         
         start_time = time.time()
         self.logger.info(f"Starting training on {device}...")
-        debug_logger.info("About to enter main training loop...")
         
         # Main training loop
         for epoch in range(start_epoch, self.num_epochs):
             epoch_start = time.time()
-            debug_logger.info(f"=== EPOCH {epoch+1} STARTED ===")
             
             encoder.train()
             generator.train()
@@ -295,24 +278,16 @@ class Trainer:
             
             # Create progress bar if requested
             if self.use_tqdm:
-                pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{self.num_epochs}")
+                pbar = tqdm(dataloader, desc=f"Epoch {epoch+1}/{self.num_epochs}")
             else:
-                pbar = train_dataloader
+                pbar = dataloader
             
             
-            debug_logger.info(f"Starting batch processing for epoch {epoch+1} (total batches: {len(train_dataloader)})")
             for batch_idx, batch in enumerate(pbar):
-                if batch_idx == 0:
-                    debug_logger.info("Processing first batch...")
-                    first_batch_start = time.time()
-                
                 # Handle samples which can be either a tensor or a dictionary
                 batch_loss_start = time.time()
                 optimizer.zero_grad()
                 loss, losses = loss_manager.loss(encoder, generator, batch, device)
-                
-                if batch_idx == 0:
-                    debug_logger.info(f"First batch loss computation (took {time.time() - batch_loss_start:.2f}s)")
                 
                 # Standard backward and optimizer step per batch
                 loss.backward()
@@ -324,7 +299,7 @@ class Trainer:
                 
                 # Log every log_interval batches
                 if batch_idx % self.log_interval == 0:
-                    self.logger.info(f"Epoch {epoch+1}, Batch {batch_idx}/{len(train_dataloader)}, Loss: {current_loss:.6f}")
+                    self.logger.info(f"Epoch {epoch+1}, Batch {batch_idx}/{len(dataloader)}, Loss: {current_loss:.6f}")
                     if self.use_tqdm:
                         pbar.set_postfix(loss=f"{current_loss:.6f}")
                     
@@ -407,7 +382,7 @@ class Trainer:
             
             # Evaluation and early stopping logic
             if ((epoch + 1) % self.eval_interval == 0 or (epoch + 1) == self.num_epochs):
-                eval_loss = self._evaluate(encoder, generator, eval_dataloader, device, loss_manager)
+                eval_loss = self._evaluate(encoder, generator, dataloader, device, loss_manager)
                 stats['eval_losses'].append(eval_loss)
                 
                 self.logger.info(f"Evaluation Loss: {eval_loss:.6f}")

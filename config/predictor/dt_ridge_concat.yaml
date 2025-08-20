@@ -1,8 +1,0 @@
-# @package _global_.predictor
-_target_: predictor.dt_conditioned_predictor.DTConditionedRidgePredictor
-latent_dim: ${experiment.latent_dim}
-ridge_alpha: 1e-3
-conditioning_mode: "concat"
-dt_embed_dim: 16  # Not used in concat mode but kept for consistency
-normalize_dt: true
-film_hidden_dim: 64  # Not used in concat mode but kept for consistency 

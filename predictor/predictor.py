@@ -1,7 +1,29 @@
 import torch
 import torch.nn as nn
 import math
-from layers import MLP
+
+
+class SimpleMLP(nn.Module):
+    """Lightweight MLP defined locally to avoid external dependencies."""
+
+    def __init__(self, in_dims, hidden_dim, out_dim, layers):
+        super().__init__()
+        layers_list = []
+
+        current_dim = in_dims
+        if layers <= 1:
+            layers_list.append(nn.Linear(current_dim, out_dim))
+        else:
+            for _ in range(layers - 1):
+                layers_list.append(nn.Linear(current_dim, hidden_dim))
+                layers_list.append(nn.ReLU())
+                current_dim = hidden_dim
+            layers_list.append(nn.Linear(current_dim, out_dim))
+
+        self.network = nn.Sequential(*layers_list)
+
+    def forward(self, x):
+        return self.network(x)
 
 
 class SinusoidalPositionalEncoding(nn.Module):
@@ -51,7 +73,7 @@ class SinusoidalPositionalEncoding(nn.Module):
         return enc.view(batch_size, num_scalars * feat_dim)
 
 
-class ConditionedPredictor(nn.Module):
+class Predictor(nn.Module):
     """Unified predictor supporting optional conditioning with MLP or Ridge."""
 
     def __init__(
@@ -62,28 +84,31 @@ class ConditionedPredictor(nn.Module):
             hidden_dim=128,
             num_layers=2,
         ),
-        conditioning_mode="sinusoidal",  # "sinusoidal", "concat", "none"
+        conditioning_mode="sinusoidal",  # "sinusoidal", "concat", None
         d_embed_dim=16,
+        num_condition_scalars=2,
     ):
         super().__init__()
         self.latent_dim = latent_dim
         self.model_type = model_type
         self.conditioning_mode = conditioning_mode
-        self.ridge_alpha = ridge_alpha
-        self.requires_dt = conditioning_mode != "none"
+        self.num_condition_scalars = num_condition_scalars
+        self.requires_condition = conditioning_mode is not None
 
         if self.conditioning_mode == "sinusoidal":
             self.d_encoder = SinusoidalPositionalEncoding(d_embed_dim)
             input_dim = latent_dim + d_embed_dim * self.num_condition_scalars
         elif self.conditioning_mode == "concat":
             input_dim = latent_dim + self.num_condition_scalars
-        elif self.conditioning_mode == "none":
+        elif self.conditioning_mode is None:
             input_dim = latent_dim
         else:
             raise ValueError(f"Unknown conditioning_mode: {self.conditioning_mode}")
 
         if self.model_type == "mlp":
-            self.model = MLP(
+            hidden_dim = model_args.get("hidden_dim", 128)
+            num_layers = model_args.get("num_layers", 2)
+            self.model = SimpleMLP(
                 in_dims=input_dim,
                 hidden_dim=hidden_dim,
                 out_dim=latent_dim,
@@ -91,16 +116,11 @@ class ConditionedPredictor(nn.Module):
             )
         elif self.model_type == "ridge":
             self.model = nn.Linear(input_dim, latent_dim)
-        else:
-            raise ValueError(f"Unknown model_type: {self.model_type}")
+
         
         self.latent_act = nn.SELU()
         self.similarity = nn.CosineSimilarity()
         
-        # Backwards-compatible simple aliases
-        # Non-dt variants can be expressed via conditioning_mode="none"
-        # Provided here as simple factory helpers for external code convenience.
-    
 
     def forward(self, x, condition_scalars=None):
         # condition_scalars should be a tuple of scalars
@@ -118,7 +138,7 @@ class ConditionedPredictor(nn.Module):
             d_tensor = torch.cat([d1, d2], dim=-1)
             
 
-        if self.conditioning_mode == "none":
+        if self.conditioning_mode is None:
             x_conditioned = x
             
         elif self.conditioning_mode == "sinusoidal":
@@ -138,6 +158,6 @@ class ConditionedPredictor(nn.Module):
     def loss(self, source_latent, target_latent, condition_scalars=None):
         pred_target_latent = self.forward(source_latent, condition_scalars=condition_scalars)
         loss = (1 - self.similarity(pred_target_latent, target_latent)).mean()
-        if self.model_type == "ridge" and self.ridge_alpha > 0:
-            loss += self.ridge_alpha * torch.sum(self.model.weight ** 2)
+        if self.model_type == "ridge":
+            loss += self.model_args.get("ridge_alpha", 0) * torch.sum(self.model.weight ** 2)
         return loss, pred_target_latent

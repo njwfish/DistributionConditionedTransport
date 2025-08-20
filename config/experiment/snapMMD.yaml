@@ -11,14 +11,25 @@ defaults:
   - /model: diffusion_mlp
   - /generator: flow_matching  # Use flow matching for coupled embeddings
   - /training: default5000
-  - /collate: shift_pairing  # Use random pairing for source/target
   - /loss: predictor
-  - /predictor: dt_mlp_sinusoidal  # Use dt-conditioned MLP with sinusoidal encoding
+  - /predictor: default  # use unified predictor
   - /sampling: bidirectional
 
 # Experiment-specific parameters
 use_predicted_latent: true
 predictor_loss_weight: 0
+
+predictor_model_type: "mlp"
+predictor_conditioning_mode: "sinusoidal"
+predictor_model_args:
+  hidden_dim: 128
+  num_layers: 2
+
+#predictor_model_type: "ridge"
+#predictor_conditioning_mode: "sinusoidal"
+#predictor_model_args:
+#  ridge_alpha: 1e-3
+
 
 num_samples: null
 

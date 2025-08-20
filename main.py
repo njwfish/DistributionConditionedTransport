@@ -90,7 +90,6 @@ def main(cfg: DictConfig):
         encoder = hydra.utils.instantiate(cfg.encoder)
 
         # TODO: it would probably be good to re-implement the option to train the predictor after having trained everything else.
-        predictor_start = time.time()
         if hasattr(cfg, "predictor"):
             predictor = hydra.utils.instantiate(cfg.predictor)
             if hasattr(encoder, "latent_act"):

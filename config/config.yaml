@@ -10,7 +10,6 @@ defaults:
   - optimizer: adam  # Default optimizer
   - scheduler: none  # Default scheduler
   - training: default  # Default training config
-  - predictor: none  # Default predictor
   - collate: none  # Default collate function
   - wandb: default  # Default W&B config
   - loss: default  # Default loss config

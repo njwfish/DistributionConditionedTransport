@@ -7,24 +7,15 @@ description: "Multivariate normal distribution experiment with coupled distribut
 # Override defaults from config.yaml
 defaults:
   - /dataset: mvn
+  - /encoder: gnn
+  - /model: diffusion_mlp
+  - /generator: flow_matching
   - /training: default5000
-  - /loss: predictor
-  - /predictor: default  # use unified predictor
   - /sampling: default
-
-
-
-# predictor parameters
-use_predicted_latent: false
-predictor_loss_weight: 0
-
-predictor_model_type: null
-predictor_conditioning_mode: null
-predictor_model_args: null
 
 # sampling parameters
 weight_mode: "uniform"
-num_samples: null
+num_samples: 50   # number of pairs drawn from dataset each epoch
 unidirectional: false
 exponential_weight_scale: 1.0
 

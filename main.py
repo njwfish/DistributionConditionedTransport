@@ -13,8 +13,6 @@ import torch.nn as nn
 from utils.custom_sampler import CustomWeightedSampler
 # Import our resolver for sum operations
 import utils.hash_utils as hash_utils
-from latent_mapping_training import LatentMappingTrainer
-
 
 
 

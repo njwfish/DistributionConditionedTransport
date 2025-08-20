@@ -84,7 +84,6 @@ def main(cfg: DictConfig):
             num_samples=getattr(sampling_config, 'num_samples', None),
             replacement=getattr(sampling_config, 'replacement', False),
             const_weight=getattr(sampling_config, 'const_weight', 1.0),
-            cfg=cfg,
         )
 
         dataloader = DataLoader(dataset, **base_dataloader_kwargs, sampler=sampler)

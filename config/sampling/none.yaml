@@ -5,4 +5,3 @@ mode: null  # This will cause the sampler not to be used
 num_samples: null
 replacement: false
 const_weight: 1.0 
-time_index_path: ${experiment.time_index_path}

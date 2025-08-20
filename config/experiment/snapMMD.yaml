@@ -2,7 +2,7 @@
 
 # Experiment name and description
 name: snapMMD_${dataset_name}
-description: "SnapMMD ${dataset_name} experiment with unified dataset class
+description: "SnapMMD ${dataset_name} experiment with unified dataset class"
 
 # Override defaults from config.yaml
 defaults:

@@ -21,28 +21,29 @@ class CustomWeightedSampler(WeightedRandomSampler):
     def __init__(
         self, 
         dataset,
-        sampling_mode: str = "bidirectional",
+        weight_mode: str = "uniform",
         num_samples: Optional[int] = None,
         replacement: bool = True,
-        const_weight: float = 1.0
+        const_weight: float = 1.0,
+        unidirectional: bool = False,
+        exponential_weight_scale: Optional[float] = 1.0,
     ):
         """
         Initialize the custom weighted sampler.
         
         Args:
             dataset: The dataset to sample from
-            sampling_mode: One of ["bidirectional", "unidirectional", "exponential", "dt_equals_one"]
+            weight_mode: One of ["uniform", "exponential"]
             num_samples: Number of samples to draw. If None, uses len(dataset)
             replacement: Whether to sample with replacement
-            const_weight: Constant weight for unidirectional/dt_equals_one modes
+            const_weight: Constant weight
         """
-        if sampling_mode not in ["bidirectional", "unidirectional", "exponential", "dt_equals_one"]:
-            raise NotImplementedError(f"Sampling mode '{sampling_mode}' is not implemented. "
-                                    f"Must be one of: ['bidirectional', 'unidirectional', 'exponential', 'dt_equals_one']")
-        
+
         self.dataset = dataset
-        self.sampling_mode = sampling_mode
+        self.weight_mode = weight_mode
         self.const_weight = const_weight
+        self.unidirectional = unidirectional
+        self.exponential_weight_scale = exponential_weight_scale
         
         # Compute weights based on sampling mode
         weights = self._compute_weights()
@@ -67,71 +68,38 @@ class CustomWeightedSampler(WeightedRandomSampler):
         """Compute weights for each sample based on the sampling mode."""
         weights = torch.zeros(len(self.dataset), dtype=torch.float)
         
-        if self.sampling_mode == "bidirectional":
+        if self.weight_mode == "uniform":
             # All samples get equal weight
             weights.fill_(self.const_weight)
-            
-        elif self.sampling_mode == "unidirectional":
-            # Only samples with dt > 0 get positive weight
-            for idx in range(len(self.dataset)):
-                try:
-                    item = self.dataset[idx]
-                    if isinstance(item, dict) and 'dt' in item:
-                        dt = item['dt']
-                        if dt > 0:
-                            weights[idx] = self.const_weight
-                        else:
-                            weights[idx] = 0.0
-                    else:
-                        logger.warning(f"Item at index {idx} is not a dict or doesn't contain 'dt' key. "
-                                     f"Setting weight to 0.")
-                        weights[idx] = 0.0
-                except Exception as e:
-                    logger.warning(f"Error accessing item at index {idx}: {e}. Setting weight to 0.")
-                    weights[idx] = 0.0
-                    
-        elif self.sampling_mode == "exponential":
-            # Weight = exp(|dt|) / ln(2)
-            ln_2 = math.log(2)
-            for idx in range(len(self.dataset)):
-                try:
-                    item = self.dataset[idx]
-                    if isinstance(item, dict) and 'dt' in item:
-                        dt = item['dt']
-                        weights[idx] = math.exp(-abs(dt)) / ln_2
-                    else:
-                        logger.warning(f"Item at index {idx} is not a dict or doesn't contain 'dt' key. "
-                                     f"Setting weight to 1/ln(2).")
-                        weights[idx] = 0
-                except Exception as e:
-                    logger.warning(f"Error accessing item at index {idx}: {e}. Setting weight to 1/ln(2).")
-                    weights[idx] = 0
-                    
-        elif self.sampling_mode == "dt_equals_one":
-            # Only samples with dt == 1 get positive weight
-            for idx in range(len(self.dataset)):
-                try:
-                    item = self.dataset[idx]
-                    if isinstance(item, dict) and 'dt' in item:
-                        dt = item['dt']
-                        if dt == 1:
-                            weights[idx] = self.const_weight
-                        else:
-                            weights[idx] = 0.0
-                    else:
-                        logger.warning(f"Item at index {idx} is not a dict or doesn't contain 'dt' key. "
-                                     f"Setting weight to 0.")
-                        weights[idx] = 0.0
-                except Exception as e:
-                    logger.warning(f"Error accessing item at index {idx}: {e}. Setting weight to 0.")
-                    weights[idx] = 0.0
         
-        # Ensure we have at least some positive weights
-        if weights.sum() == 0:
-            logger.error(f"All weights are zero for sampling mode '{self.sampling_mode}'. "
-                        f"This will cause sampling to fail.")
-            raise ValueError(f"All weights are zero for sampling mode '{self.sampling_mode}'")
-        
+        elif self.weight_mode == "exponential":
+            for idx in range(len(self.dataset)):
+                item = self.dataset[idx]
+                d = item['d']
+                weights[idx] = math.exp(-abs(d) / self.exponential_weight_scale)
+
+        else:
+            raise NotImplementedError(f"Weight mode '{self.weight_mode}' is not implemented. ")
+                                      
+                                      
+        if self.unidirectional:
+            # set all weights with d < 0 to 0
+            for idx in range(len(self.dataset)):
+                item = self.dataset[idx]
+                d = item['d']
+                if d < 0:
+                    weights[idx] = 0.0
+                           
+
+        if self.specific_pairing:
+            # set everything outside a specific list of pairs to 0
+            for idx in range(len(self.dataset)):
+                item = self.dataset[idx]
+                source_idx = item['source_idx']
+                target_idx = item['target_idx']
+                if (source_idx, target_idx) not in self.specific_pairing:
+                    weights[idx] = 0.0  
+                            
         return weights
     
     def get_weight_statistics(self) -> dict:
@@ -144,5 +112,9 @@ class CustomWeightedSampler(WeightedRandomSampler):
             'std_weight': weights.std().item(),
             'num_nonzero': (weights > 0).sum().item(),
             'total_samples': len(weights),
-            'sampling_mode': self.sampling_mode
+            'weight_mode': self.weight_mode,
+            'unidirectional': self.unidirectional,
+            'specific_pairing': self.specific_pairing,
+            'exponential_weight_scale': self.exponential_weight_scale,
+            'const_weight': self.const_weight,
         }

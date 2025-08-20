@@ -125,13 +125,12 @@ class SnapMMDUnified(Dataset):
             source_samples = source_samples[subset_indices]
             target_samples = target_samples[subset_indices]
             
-            # TODO: can I just remove idx?
-            # TODO: at some point revamp the way you are doing dt to be more generalizable beyond just time/ forecasting tasks (more of a nomenclature issue).
             return {
                 'source_samples': source_samples,
                 'target_samples': target_samples,
-                'dt': target_idx - source_idx,
-                'idx': idx
+                'source_idx': source_idx,
+                'target_idx': target_idx,                
+                'd': target_idx - source_idx,
             }
         # TODO: implement interpolation as an alternative task to forecasting.
         else:

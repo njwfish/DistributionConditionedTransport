@@ -1,7 +1,0 @@
-# @package _global_.sampling
-
-# dt_equals_one sampling - only samples with dt == 1 get positive weight
-mode: "dt_equals_one"
-num_samples: ${experiment.num_samples}
-replacement: true
-const_weight: 1.0  # Weight for samples with dt == 1

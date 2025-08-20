@@ -1,7 +1,0 @@
-# @package _global_.sampling
-
-# Bidirectional sampling - equal weights for all samples (ignores dt values)
-mode: "bidirectional"
-num_samples: ${experiment.num_samples}
-replacement: true
-const_weight: 1.0 

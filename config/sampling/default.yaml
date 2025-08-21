@@ -1,0 +1,8 @@
+# @package _global_.sampling
+_target_: utils.custom_sampler.CustomWeightedSampler
+weight_mode: ${experiment.weight_mode}
+num_samples: ${experiment.num_samples}
+replacement: true
+const_weight: 1.0 
+unidirectional: ${experiment.unidirectional}
+exponential_weight_scale: ${experiment.exponential_weight_scale}

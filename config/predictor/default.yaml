@@ -1,0 +1,7 @@
+# @package _global_.predictor
+_target_: predictor.predictor.Predictor
+latent_dim: ${experiment.latent_dim}
+model_type: ${experiment.predictor_model_type}
+model_args: ${experiment.predictor_model_args}
+conditioning_mode: ${experiment.predictor_conditioning_mode}
+d_embed_dim: 16

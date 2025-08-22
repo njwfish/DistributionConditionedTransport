@@ -9,3 +9,4 @@ temperature: ${experiment.temperature}
 max_length: ${experiment.max_length}
 use_gradient_checkpointing: ${experiment.use_gradient_checkpointing}
 precision: ${experiment.precision}
+forward_microbatch_size: ${experiment.forward_microbatch_size}

@@ -33,6 +33,7 @@ class ConditionedProgen2(nn.Module):
         condition_method="prefix",
         use_gradient_checkpointing: bool = False,
         precision: Optional[str] = None,
+        forward_microbatch_size: Optional[int] = None,
     ):
         """
         Initialize a conditioned Progen2 model.
@@ -149,6 +150,8 @@ class ConditionedProgen2(nn.Module):
         
         debug_logger.info(f"Hidden dimension: {self.hidden_dim}")
         self.condition_method = condition_method
+        # Microbatch size controls how many sequences we process at a time during forward
+        self.forward_microbatch_size = int(forward_microbatch_size) if (forward_microbatch_size is not None and int(forward_microbatch_size) > 0) else None
         
         # Project latent to correct dimension (same approach as in GPT-2)
         # Note: input dimension is doubled since we concatenate source and target latents
@@ -218,11 +221,37 @@ class ConditionedProgen2(nn.Module):
                 reshaped_input_ids = input_ids.view(batch_size * set_size, seq_len)
                 reshaped_attention_mask = attention_mask.view(batch_size * set_size, seq_len)
                 expanded_condition = condition.unsqueeze(1).repeat(1, set_size, 1).view(batch_size * set_size, -1)
-                logits = self._forward_single_sequence(
-                    reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="prefix"
-                )
+
+                # Microbatch across the flattened batch if requested to control memory
+                if self.forward_microbatch_size is not None and self.forward_microbatch_size < reshaped_input_ids.shape[0]:
+                    outputs_list = []
+                    for start in range(0, reshaped_input_ids.shape[0], self.forward_microbatch_size):
+                        end = min(start + self.forward_microbatch_size, reshaped_input_ids.shape[0])
+                        out_chunk = self._forward_single_sequence(
+                            reshaped_input_ids[start:end],
+                            reshaped_attention_mask[start:end],
+                            expanded_condition[start:end],
+                            method="prefix",
+                        )
+                        outputs_list.append(out_chunk)
+                    logits = torch.cat(outputs_list, dim=0)
+                else:
+                    logits = self._forward_single_sequence(
+                        reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="prefix"
+                    )
             else:
-                logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="prefix")
+                # Microbatch across batch dimension if needed
+                if self.forward_microbatch_size is not None and self.forward_microbatch_size < input_ids.shape[0]:
+                    outputs_list = []
+                    for start in range(0, input_ids.shape[0], self.forward_microbatch_size):
+                        end = min(start + self.forward_microbatch_size, input_ids.shape[0])
+                        out_chunk = self._forward_single_sequence(
+                            input_ids[start:end], attention_mask[start:end], condition[start:end], method="prefix"
+                        )
+                        outputs_list.append(out_chunk)
+                    logits = torch.cat(outputs_list, dim=0)
+                else:
+                    logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="prefix")
             
         elif self.condition_method == "additive":
             if len(attention_mask.shape) == 3:  # [batch_size, set_size, seq_len]
@@ -230,11 +259,35 @@ class ConditionedProgen2(nn.Module):
                 reshaped_input_ids = input_ids.view(batch_size * set_size, seq_len)
                 reshaped_attention_mask = attention_mask.view(batch_size * set_size, seq_len)
                 expanded_condition = condition.unsqueeze(1).repeat(1, set_size, 1).view(batch_size * set_size, -1)
-                logits = self._forward_single_sequence(
-                    reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="additive"
-                )
+
+                if self.forward_microbatch_size is not None and self.forward_microbatch_size < reshaped_input_ids.shape[0]:
+                    outputs_list = []
+                    for start in range(0, reshaped_input_ids.shape[0], self.forward_microbatch_size):
+                        end = min(start + self.forward_microbatch_size, reshaped_input_ids.shape[0])
+                        out_chunk = self._forward_single_sequence(
+                            reshaped_input_ids[start:end],
+                            reshaped_attention_mask[start:end],
+                            expanded_condition[start:end],
+                            method="additive",
+                        )
+                        outputs_list.append(out_chunk)
+                    logits = torch.cat(outputs_list, dim=0)
+                else:
+                    logits = self._forward_single_sequence(
+                        reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="additive"
+                    )
             else:
-                logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="additive")
+                if self.forward_microbatch_size is not None and self.forward_microbatch_size < input_ids.shape[0]:
+                    outputs_list = []
+                    for start in range(0, input_ids.shape[0], self.forward_microbatch_size):
+                        end = min(start + self.forward_microbatch_size, input_ids.shape[0])
+                        out_chunk = self._forward_single_sequence(
+                            input_ids[start:end], attention_mask[start:end], condition[start:end], method="additive"
+                        )
+                        outputs_list.append(out_chunk)
+                    logits = torch.cat(outputs_list, dim=0)
+                else:
+                    logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="additive")
         
         debug_logger.debug(f"Generator forward completed in {time.time() - forward_start:.3f}s")
         return logits
@@ -319,6 +372,7 @@ class Progen2Generator(nn.Module):
         max_length=512,
         use_gradient_checkpointing: bool = False,
         precision: Optional[str] = None,
+        forward_microbatch_size: Optional[int] = None,
     ):
         """
         Initialize the Progen2 generator.
@@ -349,6 +403,7 @@ class Progen2Generator(nn.Module):
             condition_method=condition_method,
             use_gradient_checkpointing=use_gradient_checkpointing,
             precision=precision,
+            forward_microbatch_size=forward_microbatch_size,
         )
         debug_logger.info(f"ConditionedProgen2 model created (took {time.time() - conditioned_model_start:.2f}s)")
         

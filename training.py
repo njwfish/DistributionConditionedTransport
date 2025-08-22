@@ -26,6 +26,7 @@ class Trainer:
         mask_context_prob=0.0,
         sub_epoch=None,
         gradient_accumulation_steps=1,
+        use_amp=True,
     ):
         """
         Initialize the trainer.
@@ -53,6 +54,7 @@ class Trainer:
         self.use_tqdm = use_tqdm
         self.mask_context_prob = mask_context_prob
         self.gradient_accumulation_steps = gradient_accumulation_steps
+        self.use_amp = use_amp
         
         self.logger = logging.getLogger(__name__)
         self.best_loss = float('inf')
@@ -273,6 +275,23 @@ class Trainer:
         start_time = time.time()
         self.logger.info(f"Starting training on {device}...")
         
+        # AMP autocast and GradScaler setup (single, minimal OOM mitigation)
+        autocast_enabled = bool(self.use_amp and isinstance(device, torch.device) and device.type == "cuda")
+        # Determine precision from config (if provided) to set autocast dtype and scaler usage
+        amp_dtype = None
+        if autocast_enabled:
+            try:
+                precision_str = str(config.experiment.precision).lower() if (config is not None and hasattr(config, "experiment") and hasattr(config.experiment, "precision")) else ""
+            except Exception:
+                precision_str = ""
+            if precision_str in ("bf16", "bfloat16"):
+                amp_dtype = torch.bfloat16
+            elif precision_str in ("fp16", "half"):
+                amp_dtype = torch.float16
+        # GradScaler should only be enabled for FP16, not BF16
+        use_scaler = bool(autocast_enabled and amp_dtype == torch.float16)
+        scaler = torch.cuda.amp.GradScaler(enabled=use_scaler)
+
         # Main training loop
         for epoch in range(start_epoch, self.num_epochs):
             epoch_start = time.time()
@@ -293,11 +312,21 @@ class Trainer:
                 # Handle samples which can be either a tensor or a dictionary
                 batch_loss_start = time.time()
                 optimizer.zero_grad()
-                loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
+                # Forward + loss under autocast to reduce activation memory
+                _autocast_kwargs = {"enabled": autocast_enabled}
+                if amp_dtype is not None:
+                    _autocast_kwargs["dtype"] = amp_dtype
+                with torch.cuda.amp.autocast(**_autocast_kwargs):
+                    loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 
-                # Standard backward and optimizer step per batch
-                loss.backward()
-                optimizer.step()
+                # Backward + step with optional gradient scaling
+                if use_scaler:
+                    scaler.scale(loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    loss.backward()
+                    optimizer.step()
                 
                 # Record batch loss
                 current_loss = loss.item()
@@ -475,11 +504,29 @@ class Trainer:
         total_loss = 0
         num_batches = 0
         
+        # Use autocast during evaluation as well to reduce memory footprint
+        autocast_enabled = bool(self.use_amp and isinstance(device, torch.device) and device.type == "cuda")
+        # Try to infer dtype from model parameters if possible (handles BF16/FP16 cases)
+        amp_dtype = None
+        if autocast_enabled:
+            try:
+                sample_param = next(generator.parameters(), None)
+                if sample_param is not None:
+                    if sample_param.dtype == torch.bfloat16:
+                        amp_dtype = torch.bfloat16
+                    elif sample_param.dtype == torch.float16:
+                        amp_dtype = torch.float16
+            except Exception:
+                amp_dtype = None
         with torch.no_grad():
             for batch in dataloader:
                 # TODO: legacy code was not using loss manager here, is there any specific reason for this?
                 # Use loss manager for consistent loss computation
-                loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
+                _autocast_kwargs = {"enabled": autocast_enabled}
+                if amp_dtype is not None:
+                    _autocast_kwargs["dtype"] = amp_dtype
+                with torch.cuda.amp.autocast(**_autocast_kwargs):
+                    loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 total_loss += loss.item()
                 num_batches += 1
         

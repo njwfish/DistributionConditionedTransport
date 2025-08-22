@@ -28,7 +28,7 @@ class CustomWeightedSampler(WeightedRandomSampler):
         unidirectional: bool = False,
         specific_pairing: Optional[List[Tuple[int, int]]] = None,
         exponential_weight_scale: Optional[float] = 1.0,
-        precomputed_d_values: Optional[Union[List, torch.Tensor]] = None,
+        precomputed_d_values: Optional[List[float]] = None,
     ):
         """
         Initialize the custom weighted sampler.

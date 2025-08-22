@@ -1,27 +1,37 @@
-experiment_name: sde_LV_exp
+experiment_name: snapMMD_${dataset_name}
 
 match_criteria:
   dataset:
-    dataset_name: LV
+    dataset_name: ${dataset_name}
   sampling:
-    mode: unidirectional
+    weight_mode: ${experiment.weight_mode}
+    unidirectional: ${experiment.unidirectional}
+    num_samples: ${experiment.num_samples}
+    exponential_weight_scale: ${experiment.exponential_weight_scale}
   loss:
-    predictor_loss_weight: 0
+    _target_: loss.predictor.PredictorLossManager
+    predictor_loss_weight: ${experiment.predictor_loss_weight}
   predictor:
-    _target_: predictor.dt_conditioned_predictor.DTConditionedRidgePredictor
-    conditioning_mode: sinusoidal
+    _target_: predictor.predictor.Predictor
+    model_type: ${experiment.predictor_model_type}
+    conditioning_mode: ${experiment.predictor_conditioning_mode}
   experiment:
-    use_predicted_latent: true
+    use_predicted_latent: ${experiment.use_predicted_latent}
+    train_predictor_posthoc: ${experiment.train_predictor_posthoc}
 
 # Optional, controls how we name the figures subfolder beyond experiment_name
 naming_parameters:
   - dataset.dataset_name
-  - sampling.mode
+  - sampling.weight_mode
+  - experiment.unidirectional
   - loss.predictor_loss_weight
   - predictor._target_
+  - predictor.model_type
   - predictor.conditioning_mode
+  - experiment.train_predictor_posthoc
 
 output_folder: figures
+dataset_name: LV
 default_seed_for_plots: 0
 
 

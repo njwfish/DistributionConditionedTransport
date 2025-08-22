@@ -91,6 +91,7 @@ class Predictor(nn.Module):
         super().__init__()
         self.latent_dim = latent_dim
         self.model_type = model_type
+        self.model_args = model_args
         self.conditioning_mode = conditioning_mode
         self.num_condition_scalars = num_condition_scalars
         self.requires_condition = conditioning_mode is not None
@@ -106,8 +107,8 @@ class Predictor(nn.Module):
             raise ValueError(f"Unknown conditioning_mode: {self.conditioning_mode}")
 
         if self.model_type == "mlp":
-            hidden_dim = model_args.get("hidden_dim", 128)
-            num_layers = model_args.get("num_layers", 2)
+            hidden_dim = self.model_args.get("hidden_dim", 128)
+            num_layers = self.model_args.get("num_layers", 2)
             self.model = SimpleMLP(
                 in_dims=input_dim,
                 hidden_dim=hidden_dim,

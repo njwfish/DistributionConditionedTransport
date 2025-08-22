@@ -35,7 +35,7 @@ esm_model_name: 'facebook/esm2_t6_8M_UR50D'
 freeze_esm2: false
 
 # ProGen2 settings
-progen2_model_name: 'hugohrban/progen2-small'
+progen2_model_name: 'hugohrban/progen2-base'
 max_length: 1000
 tokenize: false 
 condition_dim: 32

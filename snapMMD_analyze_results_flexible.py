@@ -129,8 +129,9 @@ def extract_dataset_name(cfg: Dict[str, Any]) -> str:
 DATASET_CONFIGS: Dict[str, Dict[str, Any]] = {
     'LV': {
         # TODO: avoid hard-coding the data path.
+        'data_path': 'data/classic/LV_data.npz',
         #'data_path': 'data/classic/LV_simulated_dataset_1000_31_seed0.npz',
-        'data_path': 'data/classic/LV_simulated_dataset_1000_11_seed0.npz',
+        #'data_path': 'data/classic/LV_simulated_dataset_1000_11_seed0.npz',
         'dimensionality': 2,
         'axes_labels': ['Prey', 'Predator'],
         'title': 'Lotka-Volterra',
@@ -173,36 +174,57 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device):
     enc = hydra.utils.instantiate(cfg['encoder'])
     gen = hydra.utils.instantiate(cfg['generator'])
 
-    # Attach predictor if present
+    # Resolve config for simple key access
+    cfg_resolved = OmegaConf.to_container(cfg, resolve=True)
+    experiment_cfg = cfg_resolved.get('experiment', {}) if isinstance(cfg_resolved, dict) else {}
+    train_predictor_posthoc = bool(experiment_cfg.get('train_predictor_posthoc', False))
+
+    # Instantiate predictor independently if config has one
     predictor = None
-    if 'predictor' in cfg:
+    if 'predictor' in cfg and cfg['predictor'] is not None:
         predictor = hydra.utils.instantiate(cfg['predictor'])
-        # Match latent activation if encoder defines it
         if hasattr(enc, 'latent_act'):
-            try:
-                predictor.latent_act = enc.latent_act
-            except Exception:
-                pass
-        enc.predictor = predictor
+            predictor.latent_act = enc.latent_act
 
+    # Load encoder/generator from best model
     state = load_best_model(info['dir'])
-
     enc.load_state_dict(state['encoder_state_dict'])
-    # Newer configs may store generator_state_dict under 'generator_state_dict'
     if 'generator_state_dict' in state:
         gen.load_state_dict(state['generator_state_dict'])
     else:
-        # Backward compatibility
         gen.model.load_state_dict(state['generator_state_dict'])
+
+    # Load predictor weights based on training mode
+    if predictor is not None:
+        if train_predictor_posthoc:
+            pred_best_path = os.path.join(info['dir'], 'predictor_best_model.pt')
+            if os.path.exists(pred_best_path):
+                pred_ckpt = torch.load(pred_best_path, map_location=device, weights_only=False)
+                if 'predictor_state_dict' in pred_ckpt:
+                    predictor.load_state_dict(pred_ckpt['predictor_state_dict'])
+            elif 'predictor_state_dict' in state:
+                predictor.load_state_dict(state['predictor_state_dict'])
+        else:
+            if 'predictor_state_dict' in state:
+                predictor.load_state_dict(state['predictor_state_dict'])
+            else:
+                pred_best_path = os.path.join(info['dir'], 'predictor_best_model.pt')
+                if os.path.exists(pred_best_path):
+                    pred_ckpt = torch.load(pred_best_path, map_location=device, weights_only=False)
+                    if 'predictor_state_dict' in pred_ckpt:
+                        predictor.load_state_dict(pred_ckpt['predictor_state_dict'])
 
     enc.eval(); gen.eval()
     enc.to(device); gen.to(device)
-    return cfg, enc, gen
+    if predictor is not None:
+        predictor.eval(); predictor.to(device)
+
+    return cfg, enc, gen, predictor, train_predictor_posthoc
 
 
 def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any]):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    cfg, enc, gen = load_models_from_experiment(experiment_dir, device)
+    cfg, enc, gen, predictor, train_predictor_posthoc = load_models_from_experiment(experiment_dir, device)
 
     Xs_training = training_data['Xs']
     samples_s = torch.tensor(Xs_training[-1]).unsqueeze(0).to(device).float()
@@ -211,18 +233,13 @@ def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any]):
     with torch.no_grad():
         enc_s = enc(samples_s)
         # Determine enc_t
-        enc_t = None
-        if hasattr(enc, 'predictor') and enc.predictor is not None:
-            predictor = enc.predictor
-            if hasattr(predictor, 'requires_dt') and predictor.requires_dt:
-                # Use actual dt as the difference between the last two entries of 'dts'
-                dts = training_data.get('dts', None)
-                dt_value = float(dts[-1] - dts[-2])
-
-                dt = torch.full((enc_s.shape[0],), dt_value, device=device, dtype=enc_s.dtype)
-                enc_t = predictor(enc_s, dt)
-            else:
-                enc_t = predictor(enc_s)
+        # TODO: make sure that this is how we always want to do things here.
+        if predictor is not None:
+            # Condition on (source_idx, target_idx) = (N-2, N-1)
+            n_steps = int(training_data['N_steps'])
+            source_idx = torch.tensor([n_steps - 2], device=device, dtype=torch.float32)
+            target_idx = torch.tensor([n_steps - 1], device=device, dtype=torch.float32)
+            enc_t = predictor(enc_s, condition_scalars=(source_idx, target_idx))
         else:
             # Fallback: encode target directly
             enc_t = enc(samples_t)

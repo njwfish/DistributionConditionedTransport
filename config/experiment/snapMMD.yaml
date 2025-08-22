@@ -42,3 +42,6 @@ hidden_dim: 64
 set_size: 32
 batch_size: 4
 lr: 2e-4
+
+# When true, skip predictor during encoder+generator training and train it posthoc
+train_predictor_posthoc: false

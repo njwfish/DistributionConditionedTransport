@@ -1,6 +1,7 @@
 # @package _global_.dataset
 _target_: datasets.virus.ViralDataset
 data_dir: "/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430"
+data_file: ${experiment.data_file}
 set_size: ${experiment.set_size}
 max_length: ${experiment.max_length}
 esm_name: ${experiment.esm_model_name}

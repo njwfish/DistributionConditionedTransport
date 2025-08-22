@@ -247,7 +247,7 @@ class MultivariateNormalDistributionDataset(Dataset):
         
         self.data = self.sample(self.mu, self.cov, n_sets, set_size, data_shape)
         
-        self.index_pairs = np.array([(i, j) for i in range(self.data.shape[0]) for j in range(self.data.shape[0]) if i != j])
+        #self.index_pairs = np.array([(i, j) for i in range(self.data.shape[0]) for j in range(self.data.shape[0]) if i != j])
 
         
     def sample(self, mu, cov, n_sets, set_size, data_shape):
@@ -289,7 +289,14 @@ class MultivariateNormalDistributionDataset(Dataset):
         return n**2 - n
     
     def __getitem__(self, idx):
-        source_idx, target_idx = self.index_pairs[idx]
+        #source_idx, target_idx = self.index_pairs[idx]
+        n = self.data.shape[0]
+        i = idx // (n - 1)
+        j = idx % (n - 1)
+        if j >= i:
+            j += 1
+        source_idx, target_idx = i, j
+        
         source_samples = torch.tensor(self.data[source_idx], dtype=torch.float)
         target_samples = torch.tensor(self.data[target_idx], dtype=torch.float)
         

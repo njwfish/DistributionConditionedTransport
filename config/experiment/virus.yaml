@@ -11,18 +11,29 @@ defaults:
   - /generator: progen2
   - /scheduler: cosine
   - /loss: predictor
-  - /predictor: dt_mlp_sinusoidal  # Use dt-conditioned MLP with sinusoidal encoding
-  - /sampling: unidirectional
+  - /predictor: default  
+  - /sampling: default
   - /training: default_virus
 
 # Experiment-specific parameters
 use_predicted_latent: true
 predictor_loss_weight: 0
 
+predictor_model_type: "mlp"
+predictor_conditioning_mode: "sinusoidal"
+predictor_model_args:
+  hidden_dim: 128
+  num_layers: 2
+
+# sampling parameters
+weight_mode: "uniform"
+num_samples: 50
+unidirectional: false
+exponential_weight_scale: 1.0
+
 # Time scaling for dt computed from month indices
 # TODO: change time_scale.
 time_index_path: /orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430/virus_month_index.npz
-num_samples: 50
 sampling_exponential_weight_scale: 1.0
 num_time_points: 64
 

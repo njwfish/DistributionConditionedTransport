@@ -370,6 +370,13 @@ class Progen2Generator(nn.Module):
         if self.tokenizer.eos_token is None:
             self.tokenizer.eos_token = '<|eos|>'
         debug_logger.info("Special tokens configured")
+        # Resolve separator token id ('<|endoftext|>') and pad token id
+        self.sep_token = '<|endoftext|>'
+        self.sep_token_id = self.tokenizer.convert_tokens_to_ids(self.sep_token)
+        # TODO: is this correct?
+        self.pad_token_id = self.tokenizer.pad_token_id if (hasattr(self.tokenizer, 'pad_token_id') and self.tokenizer.pad_token_id is not None) else 0
+        
+        debug_logger.info(f"Separator token id: {self.sep_token_id}; Pad token id: {self.pad_token_id}")
         debug_logger.info("=== Progen2Generator.__init__ COMPLETED ===")        
     
     def loss(self, x_source, x_target, latent_source, latent_target):
@@ -387,26 +394,39 @@ class Progen2Generator(nn.Module):
         source_attention_mask = x_source['progen_attention_mask']
         
         target_ids = x_target['progen_input_ids']
-        # TODO: is it correct that we have no use for the target attention mask?
         target_attention_mask = x_target['progen_attention_mask']
         
-        # TODO: Figure out whether you want to do seq to seq or mask to seq.
-        # Shift for causal language modeling: predict each token using previous tokens
-        #logits = self.model(source_ids, source_attention_mask, latent_source, latent_target)
-        logits = self.model(target_ids, target_attention_mask, latent_source, latent_target)
+        # Concatenate source + <|endoftext|> + target for conditioning on source content
+        sep_shape = list(source_ids.shape[:-1]) + [1]
+        sep_ids = torch.full(sep_shape, fill_value=self.sep_token_id, dtype=source_ids.dtype, device=source_ids.device)
+        sep_mask = torch.ones_like(sep_ids, dtype=source_attention_mask.dtype)
+        
+        concat_ids = torch.cat([source_ids, sep_ids, target_ids], dim=-1)
+        concat_attention_mask = torch.cat([source_attention_mask, sep_mask, target_attention_mask], dim=-1)
+        
+        # Forward pass on concatenated input
+        logits = self.model(concat_ids, concat_attention_mask, latent_source, latent_target)
         shift_logits = logits[:, :-1, :]
         
-        # Reshape input_ids if needed to match logits
-        if len(target_ids.shape) == 3 and len(shift_logits.shape) == 3:
-            if target_ids.shape[0] * target_ids.shape[1] == shift_logits.shape[0]:
-                # Reshape input_ids to match the reshaped logits
-                target_ids = target_ids.view(-1, target_ids.shape[-1])
+        # Prepare labels: only compute loss on the target portion
+        shift_labels_pre = concat_ids[..., 1:]
+        source_len = source_ids.shape[-1]
+        target_len = target_ids.shape[-1]
         
-        shift_labels = target_ids[:, 1:]
+        # Build a mask that selects only the target tokens in the shifted labels
+        labels_mask = torch.zeros_like(shift_labels_pre, dtype=target_attention_mask.dtype)
+        labels_mask[..., source_len:] = target_attention_mask
+        
+        # Apply mask using ignore_index=-100
+        shift_labels = shift_labels_pre.masked_fill(labels_mask == 0, -100)
+        
+        # If model flattened set dimension, align labels accordingly
+        if shift_labels.dim() == 3 and shift_logits.dim() == 3:
+            if shift_labels.shape[0] * shift_labels.shape[1] == shift_logits.shape[0]:
+                shift_labels = shift_labels.view(-1, shift_labels.shape[-1])
         
         # Calculate loss
         loss_fct = nn.CrossEntropyLoss(reduction='mean')
-        # If model is in reduced precision, temporarily compute loss in fp32 for stability
         logits_dtype = shift_logits.dtype
         if logits_dtype in (torch.float16, torch.bfloat16):
             loss = loss_fct(
@@ -444,13 +464,11 @@ class Progen2Generator(nn.Module):
             # Default to 1 if no BOS token is defined
             bos_token_id = 1
         
-        # Initialize with the starting tokens
-        start_ids = torch.tensor([[bos_token_id]] * batch_size, device=device)
-        start_mask = torch.ones_like(start_ids)
-        
         # Generate samples
         all_samples = []
-        for _ in range(num_samples):
+        src_ids_all = x_source['progen_input_ids']
+        src_mask_all = x_source['progen_attention_mask']
+        for sample_idx in range(num_samples):
             # Add noise for diversity if generating multiple samples
             if num_samples > 1:
                 noise_scale = 0.1
@@ -459,6 +477,31 @@ class Progen2Generator(nn.Module):
             else:
                 noisy_latent_source = latent_source
                 noisy_latent_target = latent_target
+            
+            # Build prompt for this sample: choose different source sequences if available
+            if src_ids_all.dim() == 3:
+                set_size = src_ids_all.shape[1]
+                set_idx = sample_idx % set_size
+                src_ids = src_ids_all[:, set_idx, :]
+                src_mask = src_mask_all[:, set_idx, :]
+            else:
+                src_ids = src_ids_all
+                src_mask = src_mask_all
+            
+            src_lengths = src_mask.sum(dim=-1).to(torch.long)
+            max_src_len = int(src_lengths.max().item() if src_lengths.numel() > 0 else 0)
+            max_prompt_len = max_src_len + 1  # +1 for separator
+            
+            # TODO: make sure we really want to fill with pad token here.
+            start_ids = torch.full((batch_size, max_prompt_len), fill_value=self.pad_token_id, dtype=src_ids.dtype, device=device)
+            start_mask = torch.zeros((batch_size, max_prompt_len), dtype=src_mask.dtype, device=device)
+            
+            for i in range(batch_size):
+                L = int(src_lengths[i].item())
+                if L > 0:
+                    start_ids[i, :L] = src_ids[i, :L]
+                start_ids[i, L] = self.sep_token_id
+                start_mask[i, : L + 1] = 1
                 
             with torch.no_grad():
                 out = self._generate_text(

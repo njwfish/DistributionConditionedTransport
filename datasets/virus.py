@@ -116,12 +116,13 @@ class ViralDataset(Dataset):
     def __getitem__(self, idx):
         # TODO: need to change this if you ever want to sample pairs from identical time-points.
         # TODO: make sure this is correct.
-        n = len(self.data)
-        i = idx // (n - 1)
-        j = idx % (n - 1)
-        if j >= i:
-            j += 1
-        source_idx, target_idx = i, j
+        #n = len(self.data)
+        #i = idx // (n - 1)
+        #j = idx % (n - 1)
+        #if j >= i:
+        #    j += 1
+        #source_idx, target_idx = i, j
+        source_idx, target_idx = self.index_pairs[idx]
         
         item_source = self.data[source_idx]
         item_target = self.data[target_idx]
@@ -137,6 +138,7 @@ class ViralDataset(Dataset):
         progen_input_ids_target = item_target['samples']['progen_input_ids']
         progen_attention_mask_target = item_target['samples']['progen_attention_mask']
 
+        # TODO: implement optimal pairing here.
         subset_indices_source = np.random.choice(esm_input_ids_source.shape[0], size=self.set_size, replace=False)
 
         esm_input_ids_source = esm_input_ids_source[subset_indices_source]
@@ -170,7 +172,7 @@ class ViralDataset(Dataset):
                 'progen_input_ids': progen_input_ids_target,
                 'progen_attention_mask': progen_attention_mask_target,
             },
-            'source_time': item_source['time'],
-            'target_time': item_target['time'],
-            'dt': month_difference, 
+            'source_idx': source_idx,
+            'target_idx': target_idx,
+            'd': month_difference, 
             }

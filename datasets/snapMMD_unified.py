@@ -119,7 +119,8 @@ class SnapMMDUnified(Dataset):
             source_samples = torch.tensor(self.data[source_idx], dtype=torch.float)
             target_samples = torch.tensor(self.data[target_idx], dtype=torch.float)
             
-            # TODO: is it fine to sample randomly here? And does it make a difference for the theory if we do replace=True? Might be more accurate in terms of probability distributions.
+            # NOTE: this was already conserving trajectories across time-points.
+            # TODO: implement and switch to OT pairing when this is the PBMC dataset.
             subset_indices = np.random.choice(source_samples.shape[0], size=self.set_size, replace=False)
             
             source_samples = source_samples[subset_indices]

@@ -9,13 +9,13 @@ logger = logging.getLogger(__name__)
 
 class CustomWeightedSampler(WeightedRandomSampler):
     """
-    Custom weighted sampler that supports different sampling modes based on 'dt' values in dataset items.
+    Custom weighted sampler that supports different sampling modes based on 'd' values in dataset items.
     
     Supported weight modes:
     - "uniform": Equal weights for all samples
-    - "exponential": Weight = exp(-|dt| / exponential_weight_scale)
+    - "exponential": Weight = exp(-|d| / exponential_weight_scale)
     
-    The 'unidirectional' flag can be used in conjunction with any weight mode to zero out samples with dt < 0.
+    The 'unidirectional' flag can be used in conjunction with any weight mode to zero out samples with d < 0.
     """
     # TODO: do we really want to have replacement=True?
     def __init__(
@@ -28,6 +28,7 @@ class CustomWeightedSampler(WeightedRandomSampler):
         unidirectional: bool = False,
         specific_pairing: Optional[List[Tuple[int, int]]] = None,
         exponential_weight_scale: Optional[float] = 1.0,
+        precomputed_d_values: Optional[Union[List, torch.Tensor]] = None,
     ):
         """
         Initialize the custom weighted sampler.
@@ -38,6 +39,10 @@ class CustomWeightedSampler(WeightedRandomSampler):
             num_samples: Number of samples to draw. If None, uses len(dataset)
             replacement: Whether to sample with replacement
             const_weight: Constant weight
+            unidirectional: Whether to zero out samples with d < 0
+            specific_pairing: List of (source_idx, target_idx) tuples to restrict sampling to
+            exponential_weight_scale: Scale parameter for exponential weighting
+            precomputed_d_values: Optional precomputed 'd' values indexed same as dataset
         """
 
         self.dataset = dataset
@@ -46,6 +51,7 @@ class CustomWeightedSampler(WeightedRandomSampler):
         self.unidirectional = unidirectional
         self.specific_pairing = specific_pairing
         self.exponential_weight_scale = exponential_weight_scale
+        self.precomputed_d_values = precomputed_d_values
         
         # Compute weights
         weights = self._compute_weights()
@@ -65,9 +71,17 @@ class CustomWeightedSampler(WeightedRandomSampler):
                    f"unidirectional={unidirectional}, "
                    f"specific_pairing={specific_pairing}, "
                    f"exponential_weight_scale={exponential_weight_scale}, "
+                   f"precomputed_d_values={'provided' if precomputed_d_values is not None else 'None'}, "
                    f"num_samples={num_samples}, replacement={replacement}")
         logger.info(f"Weight statistics - Min: {weights.min():.6f}, Max: {weights.max():.6f}, "
                    f"Mean: {weights.mean():.6f}, Non-zero: {(weights > 0).sum()}/{len(weights)}")
+    
+    def _get_d_value(self, idx: int) -> float:
+        """Get the 'd' value for a given index, using precomputed values if available."""
+        if self.precomputed_d_values is not None:
+            return self.precomputed_d_values[idx]
+        else:
+            return self.dataset[idx]['d']
     
     def _compute_weights(self) -> torch.Tensor:
         """Compute weights for each sample based on the sampling mode."""
@@ -79,8 +93,7 @@ class CustomWeightedSampler(WeightedRandomSampler):
         
         elif self.weight_mode == "exponential":
             for idx in range(len(self.dataset)):
-                item = self.dataset[idx]
-                d = item['d']
+                d = self._get_d_value(idx)
                 weights[idx] = math.exp(-abs(d) / self.exponential_weight_scale)
 
         else:
@@ -90,8 +103,7 @@ class CustomWeightedSampler(WeightedRandomSampler):
         if self.unidirectional:
             # set all weights with d < 0 to 0
             for idx in range(len(self.dataset)):
-                item = self.dataset[idx]
-                d = item['d']
+                d = self._get_d_value(idx)
                 if d < 0:
                     weights[idx] = 0.0
                            
@@ -122,4 +134,5 @@ class CustomWeightedSampler(WeightedRandomSampler):
             'specific_pairing': self.specific_pairing,
             'exponential_weight_scale': self.exponential_weight_scale,
             'const_weight': self.const_weight,
+            'precomputed_d_values': self.precomputed_d_values is not None,
         }

@@ -227,13 +227,20 @@ class ConditionedProgen2(nn.Module):
                     outputs_list = []
                     for start in range(0, reshaped_input_ids.shape[0], self.forward_microbatch_size):
                         end = min(start + self.forward_microbatch_size, reshaped_input_ids.shape[0])
+                        # Lazily move only the micro-batch to the model device to reduce peak memory
+                        device = next(self.progen2.parameters()).device
+                        ids_mb = reshaped_input_ids[start:end].to(device, non_blocking=True)
+                        mask_mb = reshaped_attention_mask[start:end].to(device, non_blocking=True)
+                        cond_mb = expanded_condition[start:end].to(device, non_blocking=True)
                         out_chunk = self._forward_single_sequence(
-                            reshaped_input_ids[start:end],
-                            reshaped_attention_mask[start:end],
-                            expanded_condition[start:end],
+                            ids_mb,
+                            mask_mb,
+                            cond_mb,
                             method="prefix",
                         )
                         outputs_list.append(out_chunk)
+                        # free refs promptly
+                        del ids_mb, mask_mb, cond_mb
                     logits = torch.cat(outputs_list, dim=0)
                 else:
                     logits = self._forward_single_sequence(
@@ -245,10 +252,15 @@ class ConditionedProgen2(nn.Module):
                     outputs_list = []
                     for start in range(0, input_ids.shape[0], self.forward_microbatch_size):
                         end = min(start + self.forward_microbatch_size, input_ids.shape[0])
+                        device = next(self.progen2.parameters()).device
+                        ids_mb = input_ids[start:end].to(device, non_blocking=True)
+                        mask_mb = attention_mask[start:end].to(device, non_blocking=True)
+                        cond_mb = condition[start:end].to(device, non_blocking=True)
                         out_chunk = self._forward_single_sequence(
-                            input_ids[start:end], attention_mask[start:end], condition[start:end], method="prefix"
+                            ids_mb, mask_mb, cond_mb, method="prefix"
                         )
                         outputs_list.append(out_chunk)
+                        del ids_mb, mask_mb, cond_mb
                     logits = torch.cat(outputs_list, dim=0)
                 else:
                     logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="prefix")
@@ -264,13 +276,18 @@ class ConditionedProgen2(nn.Module):
                     outputs_list = []
                     for start in range(0, reshaped_input_ids.shape[0], self.forward_microbatch_size):
                         end = min(start + self.forward_microbatch_size, reshaped_input_ids.shape[0])
+                        device = next(self.progen2.parameters()).device
+                        ids_mb = reshaped_input_ids[start:end].to(device, non_blocking=True)
+                        mask_mb = reshaped_attention_mask[start:end].to(device, non_blocking=True)
+                        cond_mb = expanded_condition[start:end].to(device, non_blocking=True)
                         out_chunk = self._forward_single_sequence(
-                            reshaped_input_ids[start:end],
-                            reshaped_attention_mask[start:end],
-                            expanded_condition[start:end],
+                            ids_mb,
+                            mask_mb,
+                            cond_mb,
                             method="additive",
                         )
                         outputs_list.append(out_chunk)
+                        del ids_mb, mask_mb, cond_mb
                     logits = torch.cat(outputs_list, dim=0)
                 else:
                     logits = self._forward_single_sequence(
@@ -281,10 +298,15 @@ class ConditionedProgen2(nn.Module):
                     outputs_list = []
                     for start in range(0, input_ids.shape[0], self.forward_microbatch_size):
                         end = min(start + self.forward_microbatch_size, input_ids.shape[0])
+                        device = next(self.progen2.parameters()).device
+                        ids_mb = input_ids[start:end].to(device, non_blocking=True)
+                        mask_mb = attention_mask[start:end].to(device, non_blocking=True)
+                        cond_mb = condition[start:end].to(device, non_blocking=True)
                         out_chunk = self._forward_single_sequence(
-                            input_ids[start:end], attention_mask[start:end], condition[start:end], method="additive"
+                            ids_mb, mask_mb, cond_mb, method="additive"
                         )
                         outputs_list.append(out_chunk)
+                        del ids_mb, mask_mb, cond_mb
                     logits = torch.cat(outputs_list, dim=0)
                 else:
                     logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="additive")

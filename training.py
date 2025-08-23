@@ -317,6 +317,11 @@ class Trainer:
                 if amp_dtype is not None:
                     _autocast_kwargs["dtype"] = amp_dtype
                 with torch.cuda.amp.autocast(**_autocast_kwargs):
+                    # Hint to use SDPA memory-efficient kernels if available
+                    try:
+                        torch.backends.cuda.sdp_kernel(enable_flash=True, enable_mem_efficient=True, enable_math=False)
+                    except Exception:
+                        pass
                     loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 
                 # Backward + step with optional gradient scaling

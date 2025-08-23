@@ -168,22 +168,15 @@ class ESM2_DFM_Generator(nn.Module):
         input_ids_target = x_target["esm_input_ids"]  # (B, L)
         attention_mask_target = x_target["esm_attention_mask"]  # (B, L)
 
-        # Flatten set dimension if present (B, S, L) -> (B*S, L)
-        def flatten_if_set(ids: torch.Tensor, mask: torch.Tensor, lat_src: torch.Tensor, lat_tgt: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-            if ids.ndim == 3:
-                B, S, L = ids.shape
-                ids = ids.view(B * S, L)
-                mask = mask.view(B * S, L)
-                lat_src = lat_src.unsqueeze(1).repeat(1, S, 1).view(B * S, -1)
-                lat_tgt = lat_tgt.unsqueeze(1).repeat(1, S, 1).view(B * S, -1)
-            return ids, mask, lat_src, lat_tgt
-
-        input_ids_source, attention_mask_source, latent_source, latent_target = flatten_if_set(
-            input_ids_source, attention_mask_source, latent_source, latent_target
-        )
-        input_ids_target, attention_mask_target, latent_source, latent_target = flatten_if_set(
-            input_ids_target, attention_mask_target, latent_source, latent_target
-        )
+        # Flatten set dimension consistently ONCE across source/target and expand latents once
+        if input_ids_source.ndim == 3:
+            B, S, L = input_ids_source.shape
+            input_ids_source = input_ids_source.view(B * S, L)
+            attention_mask_source = attention_mask_source.view(B * S, L)
+            input_ids_target = input_ids_target.view(B * S, L)
+            attention_mask_target = attention_mask_target.view(B * S, L)
+            latent_source = latent_source.unsqueeze(1).repeat(1, S, 1).view(B * S, -1)
+            latent_target = latent_target.unsqueeze(1).repeat(1, S, 1).view(B * S, -1)
 
         device = input_ids_target.device
         B, L = input_ids_target.shape
@@ -217,12 +210,11 @@ class ESM2_DFM_Generator(nn.Module):
             latent_target=latent_target,
         )  # (B, L, V)
 
-        # Cross-entropy to target tokens x1
-        loss = F.cross_entropy(
-            logits.transpose(1, 2),
-            input_ids_target,
-            reduction='mean'
-        )
+        # Cross-entropy to target tokens x1; ignore padded target positions
+        labels = input_ids_target.clone()
+        if attention_mask_target is not None:
+            labels[attention_mask_target == 0] = -100
+        loss = F.cross_entropy(logits.transpose(1, 2), labels, ignore_index=-100, reduction='mean')
         return loss
 
     @torch.no_grad()

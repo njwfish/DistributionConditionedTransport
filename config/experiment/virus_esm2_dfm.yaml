@@ -1,14 +1,14 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: virus
-description: "full dataset of virus evolution"
+name: evolvepro_bin2bin
+description: "bin-to-bin optimization of protein fitness now with actual bin jumping"
 
 # Override defaults from config.yaml
 defaults:
   - /dataset: virus
   - /encoder: esm
-  - /generator: progen2
+  - /generator: esm2_dfm
   - /scheduler: cosine
   - /loss: predictor
   - /predictor: default  
@@ -16,7 +16,7 @@ defaults:
   - /training: default_virus
 
 # TODO: change to the full data file once you are done with debugging
-data_file: virus_tokenized_data_for_tde.pt
+data_file: virus_tokenized_data_for_tde_reduced_96.pt
 
 # Experiment-specific parameters
 use_predicted_latent: true
@@ -56,8 +56,7 @@ freeze_progen2: false
 use_gradient_checkpointing: true
 precision: bf16
 gradient_accumulation_steps: 4  # Accumulate gradients to reduce memory per step
-forward_microbatch_size: 1
-set_microbatch_size: 1 # microbatch size over set dimension in trainer (only value of 1 is working right now, larger gives OOM)
+set_microbatch_size: 2  # microbatch size over set dimension in trainer (>=1)
 debug_memory_logging: false  # enable/disable GPU debug memory logger
 condition_method: prefix
 temperature: 1.0

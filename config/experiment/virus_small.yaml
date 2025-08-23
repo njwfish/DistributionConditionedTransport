@@ -1,8 +1,8 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: virus
-description: "full dataset of virus evolution"
+name: virus_small
+description: "small dataset of virus evolution"
 
 # Override defaults from config.yaml
 defaults:
@@ -16,7 +16,8 @@ defaults:
   - /training: default_virus
 
 # TODO: change to the full data file once you are done with debugging
-data_file: virus_tokenized_data_for_tde.pt
+data_file: virus_tokenized_data_for_tde_reduced_96.pt
+# data_file: virus_tokenized_data_for_tde.pt
 
 # Experiment-specific parameters
 use_predicted_latent: true

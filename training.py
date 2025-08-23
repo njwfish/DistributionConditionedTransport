@@ -167,8 +167,14 @@ class Trainer:
         config=None,
     ):
         """Train the model with W&B logging."""
-        debug_logger = get_debug_logger()
-        debug_logger.log_memory("TRAIN_START", "Training started")
+        debug_logger = None
+        try:
+            if config is not None and hasattr(config, "experiment") and hasattr(config.experiment, "debug_memory_logging") and bool(config.experiment.debug_memory_logging):
+                debug_logger = get_debug_logger()
+        except Exception:
+            debug_logger = None
+        if debug_logger is not None:
+            debug_logger.log_memory("TRAIN_START", "Training started")
         
         training_start = time.time()
         
@@ -180,7 +186,8 @@ class Trainer:
         if predictor is not None:
             predictor.to(device)
         
-        debug_logger.log_memory("TRAIN_MODELS_GPU", "All models moved to GPU for training")
+        if debug_logger is not None:
+            debug_logger.log_memory("TRAIN_MODELS_GPU", "All models moved to GPU for training")
         
         
         stats = {
@@ -301,7 +308,8 @@ class Trainer:
         # Main training loop
         for epoch in range(start_epoch, self.num_epochs):
             epoch_start = time.time()
-            debug_logger.log_memory("EPOCH_START", f"Starting epoch {epoch+1}/{self.num_epochs}")
+            if debug_logger is not None:
+                debug_logger.log_memory("EPOCH_START", f"Starting epoch {epoch+1}/{self.num_epochs}")
             
             encoder.train()
             generator.train()
@@ -321,8 +329,9 @@ class Trainer:
                 
                 # Log batch info every 10 batches or if it's the first batch
                 if batch_idx % 10 == 0 or batch_idx == 0:
-                    debug_logger.log_memory("BATCH_START", f"Epoch {epoch+1} batch {batch_idx}")
-                    debug_logger.log_batch_info("BATCH_LOADED", batch)
+                    if debug_logger is not None:
+                        debug_logger.log_memory("BATCH_START", f"Epoch {epoch+1} batch {batch_idx}")
+                        debug_logger.log_batch_info("BATCH_LOADED", batch)
                 
                 optimizer.zero_grad(set_to_none=True)
                 # Memory-safe microbatching across set dimension for ProGen2 forward
@@ -342,8 +351,14 @@ class Trainer:
                             set_size = src_ids.shape[1]
                         else:
                             set_size = 1
-                        # Encode latents once for the whole set to avoid recomputation per slice
-                        # Mirror LossManager device move behavior for dict tensors
+                        # Determine microbatch size from config (default 1)
+                        mb_size = 1
+                        if config is not None and hasattr(config, "experiment") and hasattr(config.experiment, "set_microbatch_size"):
+                            try:
+                                mb_size = max(1, int(config.experiment.set_microbatch_size))
+                            except Exception:
+                                mb_size = 1
+                        # Encode latents once
                         source_samples_dev = {k: (v.to(device) if isinstance(v, torch.Tensor) else v) for k, v in src.items()}
                         target_samples_dev = {k: (v.to(device) if isinstance(v, torch.Tensor) else v) for k, v in tgt.items()}
                         _autocast_kwargs = {"enabled": autocast_enabled}
@@ -353,45 +368,47 @@ class Trainer:
                             if use_scaler:
                                 # Fallback to default path when using FP16 GradScaler to avoid scale mismatch
                                 raise RuntimeError("Skip microbatch path under GradScaler")
-                            if batch_idx % 10 == 0 or batch_idx == 0:
-                                debug_logger.log_memory("FORWARD_START", f"Starting forward pass batch {batch_idx} (microbatched over set_size={set_size})")
+                            if debug_logger is not None and (batch_idx % 10 == 0 or batch_idx == 0):
+                                debug_logger.log_memory("FORWARD_START", f"Starting forward pass batch {batch_idx} (set microbatch size={mb_size}, set_size={set_size})")
                             source_latent = encoder(source_samples_dev)
                             target_latent = encoder(target_samples_dev)
-                        # Detach interface to accumulate generator grads over set, then backprop once into encoder
+                        # Detach interface for accumulation
                         source_latent_detached = source_latent.detach().requires_grad_(True)
                         target_latent_detached = target_latent.detach().requires_grad_(True)
-                        # Loop over set elements, backprop per slice to free activations immediately
+                        # Iterate in chunks of mb_size over S
                         total_loss_value = 0.0
-                        for s in range(set_size):
+                        for start_s in range(0, set_size, mb_size):
+                            end_s = min(start_s + mb_size, set_size)
+                            # Build microbatch by stacking slice range
                             x_source_mb = {
-                                'progen_input_ids': src_ids[:, s, :] if src_ids.ndim == 3 else src_ids,
-                                'progen_attention_mask': src_mask[:, s, :] if src_mask.ndim == 3 else src_mask,
+                                'progen_input_ids': (src_ids[:, start_s:end_s, :].reshape(src_ids.shape[0] * (end_s - start_s), src_ids.shape[-1]) if src_ids.ndim == 3 else src_ids),
+                                'progen_attention_mask': (src_mask[:, start_s:end_s, :].reshape(src_mask.shape[0] * (end_s - start_s), src_mask.shape[-1]) if src_mask.ndim == 3 else src_mask),
                             }
                             x_target_mb = {
-                                'progen_input_ids': tgt_ids[:, s, :] if tgt_ids.ndim == 3 else tgt_ids,
-                                'progen_attention_mask': tgt_mask[:, s, :] if tgt_mask.ndim == 3 else tgt_mask,
+                                'progen_input_ids': (tgt_ids[:, start_s:end_s, :].reshape(tgt_ids.shape[0] * (end_s - start_s), tgt_ids.shape[-1]) if tgt_ids.ndim == 3 else tgt_ids),
+                                'progen_attention_mask': (tgt_mask[:, start_s:end_s, :].reshape(tgt_mask.shape[0] * (end_s - start_s), tgt_mask.shape[-1]) if tgt_mask.ndim == 3 else tgt_mask),
                             }
                             with torch.cuda.amp.autocast(**_autocast_kwargs):
                                 loss_mb = generator.loss(x_source_mb, x_target_mb, source_latent_detached, target_latent_detached)
-                            # Average across set elements to keep scale comparable
-                            loss_mb_scaled = loss_mb / max(set_size, 1)
+                            # Normalize by total set_size to keep loss scale consistent
+                            loss_mb_scaled = loss_mb * ((end_s - start_s) / max(set_size, 1))
                             loss_mb_scaled.backward()
-                            total_loss_value += float(loss_mb.detach().item())
-                            # Proactively free references and cached blocks between slices
+                            total_loss_value += float(loss_mb.detach().item()) * ((end_s - start_s) / max(set_size, 1))
+                            # Cleanup
                             del x_source_mb, x_target_mb, loss_mb, loss_mb_scaled
                             torch.cuda.empty_cache()
-                        # Backprop into encoder once using accumulated latent grads
+                        # Backprop latent grads to encoder once
                         torch.autograd.backward(
                             [source_latent, target_latent],
                             [source_latent_detached.grad, target_latent_detached.grad]
                         )
                         optimizer.step()
-                        # Emulate LossManager output for logging
-                        loss = torch.tensor(total_loss_value / max(set_size, 1), device=device)
+                        # Emulate LossManager-style logging values
+                        loss = torch.tensor(total_loss_value, device=device)
                         losses = {'reconstruction_loss': loss.detach().item()}
                         microbatch_done = True
-                        if batch_idx % 10 == 0 or batch_idx == 0:
-                            debug_logger.log_memory("FORWARD_DONE", f"Forward/backward complete (microbatched) batch {batch_idx}")
+                        if debug_logger is not None and (batch_idx % 10 == 0 or batch_idx == 0):
+                            debug_logger.log_memory("FORWARD_DONE", f"Forward/backward complete (set microbatched) batch {batch_idx}")
                     
                 except Exception:
                     microbatch_done = False
@@ -408,14 +425,17 @@ class Trainer:
                         except Exception:
                             pass
                         if batch_idx % 10 == 0 or batch_idx == 0:
-                            debug_logger.log_memory("FORWARD_START", f"Starting forward pass batch {batch_idx}")
+                            if debug_logger is not None:
+                                debug_logger.log_memory("FORWARD_START", f"Starting forward pass batch {batch_idx}")
                         loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                         if batch_idx % 10 == 0 or batch_idx == 0:
-                            debug_logger.log_memory("FORWARD_DONE", f"Forward pass complete batch {batch_idx}")
+                            if debug_logger is not None:
+                                debug_logger.log_memory("FORWARD_DONE", f"Forward pass complete batch {batch_idx}")
                     
                     # Backward + step with optional gradient scaling
                     if batch_idx % 10 == 0 or batch_idx == 0:
-                        debug_logger.log_memory("BACKWARD_START", f"Starting backward pass batch {batch_idx}")
+                        if debug_logger is not None:
+                            debug_logger.log_memory("BACKWARD_START", f"Starting backward pass batch {batch_idx}")
                     
                     if use_scaler:
                         scaler.scale(loss).backward()
@@ -426,7 +446,8 @@ class Trainer:
                         optimizer.step()
                     
                 if batch_idx % 10 == 0 or batch_idx == 0:
-                    debug_logger.log_memory("BACKWARD_DONE", f"Backward pass complete batch {batch_idx}")
+                    if debug_logger is not None:
+                        debug_logger.log_memory("BACKWARD_DONE", f"Backward pass complete batch {batch_idx}")
                 
                 # Record batch loss
                 current_loss = loss.item()
@@ -596,8 +617,14 @@ class Trainer:
     
     def _evaluate(self, encoder, generator, predictor, dataloader, device, loss_manager):
         """Run evaluation and return average loss."""
-        debug_logger = get_debug_logger()
-        debug_logger.log_memory("EVAL_START", "Starting evaluation")
+        debug_logger = None
+        try:
+            if config is not None and hasattr(config, "experiment") and hasattr(config.experiment, "debug_memory_logging") and bool(config.experiment.debug_memory_logging):
+                debug_logger = get_debug_logger()
+        except Exception:
+            debug_logger = None
+        if debug_logger is not None:
+            debug_logger.log_memory("EVAL_START", "Starting evaluation")
         
         encoder.eval()
         generator.eval()
@@ -634,7 +661,8 @@ class Trainer:
                 num_batches += 1
         
         eval_loss = total_loss / num_batches
-        debug_logger.log_memory("EVAL_DONE", f"Evaluation complete, loss: {eval_loss:.6f}")
+        if debug_logger is not None:
+            debug_logger.log_memory("EVAL_DONE", f"Evaluation complete, loss: {eval_loss:.6f}")
         return eval_loss
     
     def generate_samples(self, encoder, generator, dataloader, num_samples=None, device=None):

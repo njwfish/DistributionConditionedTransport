@@ -49,20 +49,11 @@ class ConditionedProgen2(nn.Module):
         import logging
         import time
         import os
-        debug_logger = logging.getLogger('debug_performance')
-        debug_logger.info(f"=== ConditionedProgen2.__init__ STARTED ===")
-        debug_logger.info(f"Model name: {progen2_name}")
-        
-        # Check environment for potential issues
-        debug_logger.info(f"HF_HOME: {os.environ.get('HF_HOME', 'not set')}")
-        debug_logger.info(f"TRANSFORMERS_CACHE: {os.environ.get('TRANSFORMERS_CACHE', 'not set')}")
-        debug_logger.info(f"HF_HUB_OFFLINE: {os.environ.get('HF_HUB_OFFLINE', 'not set')}")
         
         super().__init__()
         
         # Initialize Progen2 model
         # Determine requested dtype early to load weights in that dtype
-        debug_logger.info("Determining precision settings...")
         requested_dtype = None
         if precision:
             p = precision.lower()
@@ -72,22 +63,8 @@ class ConditionedProgen2(nn.Module):
                 requested_dtype = torch.bfloat16
             elif p in ("fp32", "float32"):
                 requested_dtype = torch.float32
-        debug_logger.info(f"Requested dtype: {requested_dtype}")
-
-        # Check if model might be cached locally
-        from transformers import AutoConfig
-        try:
-            debug_logger.info("Checking if model config is available locally...")
-            config_check_start = time.time()
-            config = AutoConfig.from_pretrained(resolve_local_or_repo(progen2_name), trust_remote_code=True, local_files_only=True)
-            debug_logger.info(f"Model config found locally (took {time.time() - config_check_start:.2f}s)")
-        except Exception:
-            debug_logger.info("Model not found locally - will need to download")
         
-        debug_logger.info(f"Starting AutoModelForCausalLM.from_pretrained for {progen2_name}...")
-        model_load_start = time.time()
-        
-        # Add more explicit loading parameters that might help with speed
+        # Load the ProGen2 model
         try:
             self.progen2 = AutoModelForCausalLM.from_pretrained(
                 resolve_local_or_repo(progen2_name),
@@ -97,52 +74,34 @@ class ConditionedProgen2(nn.Module):
                 local_files_only=False,  # Allow downloading if needed
                 resume_download=True,  # Resume interrupted downloads
             )
-            debug_logger.info(f"ProGen2 model loaded successfully (took {time.time() - model_load_start:.2f}s)")
-        except Exception as e:
-            debug_logger.error(f"Failed to load ProGen2 model: {e}")
-            debug_logger.info("Trying fallback loading strategy...")
+        except Exception:
             # Fallback with minimal parameters
             self.progen2 = AutoModelForCausalLM.from_pretrained(
                 resolve_local_or_repo(progen2_name),
                 trust_remote_code=True,
             )
-            debug_logger.info(f"ProGen2 model loaded with fallback (took {time.time() - model_load_start:.2f}s)")
 
-        # TODO: not sure whether this actually helps/works...
-        # Memory optimizations
-        debug_logger.info("Applying memory optimizations...")
-        # Always disable KV cache in training graphs to avoid large retained states
-        try:
-            if hasattr(self.progen2, 'config') and hasattr(self.progen2.config, 'use_cache'):
-                self.progen2.config.use_cache = False
-                debug_logger.info("Disabled use_cache on ProGen2 config")
-        except Exception as e:
-            debug_logger.warning(f"Failed to set use_cache=False: {e}")
+        # Minimal memory optimizations
+        # Keep only the essentials: disable use_cache (safe given our training path)
+        if hasattr(self.progen2, 'config') and hasattr(self.progen2.config, 'use_cache'):
+            self.progen2.config.use_cache = False
         if use_gradient_checkpointing and hasattr(self.progen2, 'gradient_checkpointing_enable'):
             try:
                 self.progen2.gradient_checkpointing_enable()
-                # disable cache to allow gradient checkpointing
-                if hasattr(self.progen2.config, 'use_cache'):
-                    self.progen2.config.use_cache = False
-                debug_logger.info("Gradient checkpointing enabled")
-            except Exception as e:
-                debug_logger.warning(f"Failed to enable gradient checkpointing: {e}")
+            except Exception:
+                pass
 
         # Set model dtype if requested
         if requested_dtype is not None:
-            debug_logger.info(f"Converting model to dtype: {requested_dtype}")
             self.progen2.to(dtype=requested_dtype)
         
         # Freeze Progen2 if specified
         if freeze_progen2:
-            debug_logger.info("Freezing ProGen2 parameters...")
             for param in self.progen2.parameters():
                 param.requires_grad = False
-            debug_logger.info("ProGen2 parameters frozen")
         
         # Get the embedding dimension from the model config
         # Different models might use different attribute names
-        debug_logger.info("Determining hidden dimension from model config...")
         if hasattr(self.progen2.config, 'hidden_size'):
             self.hidden_dim = self.progen2.config.hidden_size
         elif hasattr(self.progen2.config, 'n_embd'):
@@ -154,17 +113,14 @@ class ConditionedProgen2(nn.Module):
         else:
             # Default value if none of the above attributes exist
             self.hidden_dim = 768
-            debug_logger.warning(f"Could not determine hidden dimension from model config. Using default: {self.hidden_dim}")
         
-        debug_logger.info(f"Hidden dimension: {self.hidden_dim}")
         self.condition_method = condition_method
-        # Microbatch size controls how many sequences we process at a time during forward
-        self.forward_microbatch_size = int(forward_microbatch_size) if (forward_microbatch_size is not None and int(forward_microbatch_size) > 0) else None
+        # Remove internal model microbatching; trainer now handles set microbatching
+        self.forward_microbatch_size = None
         
         # Project latent to correct dimension (same approach as in GPT-2)
         # Note: input dimension is doubled since we concatenate source and target latents
         combined_latent_dim = latent_dim * 2
-        debug_logger.info(f"Creating conditioning projection network (input_dim={combined_latent_dim}, condition_dim={condition_dim}, hidden_dim={self.hidden_dim})...")
         
         if self.condition_method == "prefix":
             # For prefix conditioning, project to hidden states
@@ -185,10 +141,7 @@ class ConditionedProgen2(nn.Module):
 
         # Align dtype of conditioning projection with model
         if requested_dtype is not None:
-            debug_logger.info(f"Setting conditioning projection dtype to: {requested_dtype}")
-            self.condition_proj.to(dtype=requested_dtype)
-        
-        debug_logger.info("=== ConditionedProgen2.__init__ COMPLETED ===")        
+            self.condition_proj.to(dtype=requested_dtype)        
 
     def forward(self, input_ids, attention_mask, latent_source, latent_target):
         """
@@ -204,21 +157,7 @@ class ConditionedProgen2(nn.Module):
         Returns:
             Logits for next token prediction
         """
-        # Debug logging at forward entry
-        debug_logger = get_debug_logger()
-        debug_logger.log_memory("GEN_FORWARD_ENTRY", "Generator forward() method entry")
-        debug_logger.log_tensor_info("GEN_INPUT_IDS", "input_ids", input_ids)
-        debug_logger.log_tensor_info("GEN_ATTN_MASK", "attention_mask", attention_mask)
-        debug_logger.log_tensor_info("GEN_LATENT_SRC", "latent_source", latent_source)
-        debug_logger.log_tensor_info("GEN_LATENT_TGT", "latent_target", latent_target)
-        
-        import logging
-        import time
-        debug_logger = logging.getLogger('debug_performance')
-        forward_start = time.time()
-        
         batch_size = input_ids.shape[0]
-        debug_logger.debug(f"Generator forward: input shape {input_ids.shape}, batch_size {batch_size}")
         
         # Combine the two latents - concatenate them to create a richer conditioning signal
         combined_latent = torch.cat([latent_source, latent_target], dim=-1)
@@ -238,58 +177,11 @@ class ConditionedProgen2(nn.Module):
                 reshaped_attention_mask = attention_mask.view(batch_size * set_size, seq_len)
                 expanded_condition = condition.unsqueeze(1).repeat(1, set_size, 1).view(batch_size * set_size, -1)
 
-                # Microbatch across the flattened batch if requested to control memory
-                if self.forward_microbatch_size is not None and self.forward_microbatch_size < reshaped_input_ids.shape[0]:
-                    outputs_list = []
-                    for start in range(0, reshaped_input_ids.shape[0], self.forward_microbatch_size):
-                        end = min(start + self.forward_microbatch_size, reshaped_input_ids.shape[0])
-                        # Lazily move only the micro-batch to the model device to reduce peak memory
-                        device = next(self.progen2.parameters()).device
-                        ids_mb = reshaped_input_ids[start:end].to(device, non_blocking=True)
-                        mask_mb = reshaped_attention_mask[start:end].to(device, non_blocking=True)
-                        cond_mb = expanded_condition[start:end].to(device, non_blocking=True)
-                        out_chunk = self._forward_single_sequence(
-                            ids_mb,
-                            mask_mb,
-                            cond_mb,
-                            method="prefix",
-                        )
-                        # Move output to CPU immediately to free GPU memory
-                        outputs_list.append(out_chunk.cpu())
-                        # free refs promptly
-                        del ids_mb, mask_mb, cond_mb, out_chunk
-                        # Force memory cleanup
-                        torch.cuda.empty_cache()
-                    # Concatenate on CPU then move back to GPU  
-                    device = next(self.progen2.parameters()).device
-                    logits = torch.cat(outputs_list, dim=0).to(device)
-                else:
-                    logits = self._forward_single_sequence(
-                        reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="prefix"
-                    )
+                logits = self._forward_single_sequence(
+                    reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="prefix"
+                )
             else:
-                # Microbatch across batch dimension if needed
-                if self.forward_microbatch_size is not None and self.forward_microbatch_size < input_ids.shape[0]:
-                    outputs_list = []
-                    for start in range(0, input_ids.shape[0], self.forward_microbatch_size):
-                        end = min(start + self.forward_microbatch_size, input_ids.shape[0])
-                        device = next(self.progen2.parameters()).device
-                        ids_mb = input_ids[start:end].to(device, non_blocking=True)
-                        mask_mb = attention_mask[start:end].to(device, non_blocking=True)
-                        cond_mb = condition[start:end].to(device, non_blocking=True)
-                        out_chunk = self._forward_single_sequence(
-                            ids_mb, mask_mb, cond_mb, method="prefix"
-                        )
-                        # Move output to CPU immediately to free GPU memory
-                        outputs_list.append(out_chunk.cpu())
-                        del ids_mb, mask_mb, cond_mb, out_chunk
-                        # Force memory cleanup
-                        torch.cuda.empty_cache()
-                    # Concatenate on CPU then move back to GPU
-                    device = next(self.progen2.parameters()).device
-                    logits = torch.cat(outputs_list, dim=0).to(device)
-                else:
-                    logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="prefix")
+                logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="prefix")
             
         elif self.condition_method == "additive":
             if len(attention_mask.shape) == 3:  # [batch_size, set_size, seq_len]
@@ -298,56 +190,12 @@ class ConditionedProgen2(nn.Module):
                 reshaped_attention_mask = attention_mask.view(batch_size * set_size, seq_len)
                 expanded_condition = condition.unsqueeze(1).repeat(1, set_size, 1).view(batch_size * set_size, -1)
 
-                if self.forward_microbatch_size is not None and self.forward_microbatch_size < reshaped_input_ids.shape[0]:
-                    outputs_list = []
-                    for start in range(0, reshaped_input_ids.shape[0], self.forward_microbatch_size):
-                        end = min(start + self.forward_microbatch_size, reshaped_input_ids.shape[0])
-                        device = next(self.progen2.parameters()).device
-                        ids_mb = reshaped_input_ids[start:end].to(device, non_blocking=True)
-                        mask_mb = reshaped_attention_mask[start:end].to(device, non_blocking=True)
-                        cond_mb = expanded_condition[start:end].to(device, non_blocking=True)
-                        out_chunk = self._forward_single_sequence(
-                            ids_mb,
-                            mask_mb,
-                            cond_mb,
-                            method="additive",
-                        )
-                        # Move output to CPU immediately to free GPU memory
-                        outputs_list.append(out_chunk.cpu())
-                        del ids_mb, mask_mb, cond_mb, out_chunk
-                        # Force memory cleanup
-                        torch.cuda.empty_cache()
-                    # Concatenate on CPU then move back to GPU
-                    device = next(self.progen2.parameters()).device
-                    logits = torch.cat(outputs_list, dim=0).to(device)
-                else:
-                    logits = self._forward_single_sequence(
-                        reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="additive"
-                    )
+                logits = self._forward_single_sequence(
+                    reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="additive"
+                )
             else:
-                if self.forward_microbatch_size is not None and self.forward_microbatch_size < input_ids.shape[0]:
-                    outputs_list = []
-                    for start in range(0, input_ids.shape[0], self.forward_microbatch_size):
-                        end = min(start + self.forward_microbatch_size, input_ids.shape[0])
-                        device = next(self.progen2.parameters()).device
-                        ids_mb = input_ids[start:end].to(device, non_blocking=True)
-                        mask_mb = attention_mask[start:end].to(device, non_blocking=True)
-                        cond_mb = condition[start:end].to(device, non_blocking=True)
-                        out_chunk = self._forward_single_sequence(
-                            ids_mb, mask_mb, cond_mb, method="additive"
-                        )
-                        # Move output to CPU immediately to free GPU memory
-                        outputs_list.append(out_chunk.cpu())
-                        del ids_mb, mask_mb, cond_mb, out_chunk
-                        # Force memory cleanup
-                        torch.cuda.empty_cache()
-                    # Concatenate on CPU then move back to GPU
-                    device = next(self.progen2.parameters()).device
-                    logits = torch.cat(outputs_list, dim=0).to(device)
-                else:
-                    logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="additive")
+                logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="additive")
         
-        debug_logger.debug(f"Generator forward completed in {time.time() - forward_start:.3f}s")
         return logits
 
     def _forward_single_sequence(self, input_ids, attention_mask, condition, method="prefix"):
@@ -383,15 +231,8 @@ class ConditionedProgen2(nn.Module):
             # Concatenate prefix embedding with input embeddings
             combined_embeds = torch.cat([prefix_embeds, token_embeds], dim=1)
             
-            # Debug logging before ProGen2 call
-            debug_logger = get_debug_logger()
-            debug_logger.log_memory("PROGEN_PRE", "Before ProGen2 model call")
-            debug_logger.log_tensor_info("PROGEN_EMBEDS", "combined_embeds", combined_embeds)
-            debug_logger.log_tensor_info("PROGEN_MASK", "extended_attention_mask", extended_attention_mask)
-            
             # Run through Progen2 with custom embeddings - CRITICAL MEMORY POINT
             # Enforce no cache and avoid returning hidden states to reduce memory
-            debug_logger.log_memory("PROGEN_START", "Calling ProGen2 model")
             outputs = self.progen2(
                 inputs_embeds=combined_embeds,
                 attention_mask=extended_attention_mask,
@@ -399,7 +240,6 @@ class ConditionedProgen2(nn.Module):
                 output_hidden_states=False,
                 return_dict=True
             )
-            debug_logger.log_memory("PROGEN_DONE", "ProGen2 model call complete")
             
             # Get logits and remove the prefix logit
             logits = outputs.logits[:, 1:, :]
@@ -456,15 +296,8 @@ class Progen2Generator(nn.Module):
             temperature: Sampling temperature
             max_length: Maximum length for generation
         """
-        import logging
-        import time
-        debug_logger = logging.getLogger('debug_performance')
-        debug_logger.info("=== Progen2Generator.__init__ STARTED ===")
-        
         super().__init__()
 
-        debug_logger.info("Creating ConditionedProgen2 model...")
-        conditioned_model_start = time.time()
         self.model = ConditionedProgen2(
             progen2_name=progen2_name,
             latent_dim=latent_dim,
@@ -475,34 +308,26 @@ class Progen2Generator(nn.Module):
             precision=precision,
             forward_microbatch_size=forward_microbatch_size,
         )
-        debug_logger.info(f"ConditionedProgen2 model created (took {time.time() - conditioned_model_start:.2f}s)")
         
         self.temperature = temperature
         self.max_length = max_length
         
         # Initialize tokenizer (for generation)
-        debug_logger.info(f"Loading tokenizer for {progen2_name}...")
-        tokenizer_start = time.time()
         self.tokenizer = AutoTokenizer.from_pretrained(resolve_local_or_repo(progen2_name), trust_remote_code=True)
-        debug_logger.info(f"Tokenizer loaded (took {time.time() - tokenizer_start:.2f}s)")
         
         # Add special tokens if they don't exist
-        debug_logger.info("Setting up special tokens...")
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = '<|pad|>'
         if self.tokenizer.bos_token is None:
             self.tokenizer.bos_token = '<|bos|>'
         if self.tokenizer.eos_token is None:
             self.tokenizer.eos_token = '<|eos|>'
-        debug_logger.info("Special tokens configured")
+        
         # Resolve separator token id ('<|endoftext|>') and pad token id
         self.sep_token = '<|endoftext|>'
         self.sep_token_id = self.tokenizer.convert_tokens_to_ids(self.sep_token)
         # TODO: is this correct?
-        self.pad_token_id = self.tokenizer.pad_token_id if (hasattr(self.tokenizer, 'pad_token_id') and self.tokenizer.pad_token_id is not None) else 0
-        
-        debug_logger.info(f"Separator token id: {self.sep_token_id}; Pad token id: {self.pad_token_id}")
-        debug_logger.info("=== Progen2Generator.__init__ COMPLETED ===")        
+        self.pad_token_id = self.tokenizer.pad_token_id if (hasattr(self.tokenizer, 'pad_token_id') and self.tokenizer.pad_token_id is not None) else 0        
     
     def loss(self, x_source, x_target, latent_source, latent_target):
         """
@@ -529,17 +354,8 @@ class Progen2Generator(nn.Module):
         concat_ids = torch.cat([source_ids, sep_ids, target_ids], dim=-1)
         concat_attention_mask = torch.cat([source_attention_mask, sep_mask, target_attention_mask], dim=-1)
         
-        # Debug logging before forward pass
-        debug_logger = get_debug_logger()
-        debug_logger.log_memory("GEN_CONCAT_DONE", f"Sequences concatenated")
-        debug_logger.log_tensor_info("GEN_CONCAT_IDS", "concat_ids", concat_ids)
-        debug_logger.log_tensor_info("GEN_LATENT_SRC", "latent_source", latent_source)
-        debug_logger.log_tensor_info("GEN_LATENT_TGT", "latent_target", latent_target)
-        
-        # Forward pass on concatenated input - THIS IS WHERE OOM HAPPENS
-        debug_logger.log_memory("GEN_FORWARD_START", "Starting generator forward pass")
+        # Forward pass on concatenated input
         logits = self.model(concat_ids, concat_attention_mask, latent_source, latent_target)
-        debug_logger.log_memory("GEN_FORWARD_DONE", "Generator forward pass complete")
         shift_logits = logits[:, :-1, :]
         
         # Prepare labels: only compute loss on the target portion

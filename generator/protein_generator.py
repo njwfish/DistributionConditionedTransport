@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from utils.hf_local import resolve_local_or_repo
+from utils.debug_memory_logger import get_debug_logger
 import torch.nn.functional as F
 from typing import Optional
 
@@ -110,6 +111,13 @@ class ConditionedProgen2(nn.Module):
         # TODO: not sure whether this actually helps/works...
         # Memory optimizations
         debug_logger.info("Applying memory optimizations...")
+        # Always disable KV cache in training graphs to avoid large retained states
+        try:
+            if hasattr(self.progen2, 'config') and hasattr(self.progen2.config, 'use_cache'):
+                self.progen2.config.use_cache = False
+                debug_logger.info("Disabled use_cache on ProGen2 config")
+        except Exception as e:
+            debug_logger.warning(f"Failed to set use_cache=False: {e}")
         if use_gradient_checkpointing and hasattr(self.progen2, 'gradient_checkpointing_enable'):
             try:
                 self.progen2.gradient_checkpointing_enable()
@@ -196,6 +204,14 @@ class ConditionedProgen2(nn.Module):
         Returns:
             Logits for next token prediction
         """
+        # Debug logging at forward entry
+        debug_logger = get_debug_logger()
+        debug_logger.log_memory("GEN_FORWARD_ENTRY", "Generator forward() method entry")
+        debug_logger.log_tensor_info("GEN_INPUT_IDS", "input_ids", input_ids)
+        debug_logger.log_tensor_info("GEN_ATTN_MASK", "attention_mask", attention_mask)
+        debug_logger.log_tensor_info("GEN_LATENT_SRC", "latent_source", latent_source)
+        debug_logger.log_tensor_info("GEN_LATENT_TGT", "latent_target", latent_target)
+        
         import logging
         import time
         debug_logger = logging.getLogger('debug_performance')
@@ -238,10 +254,15 @@ class ConditionedProgen2(nn.Module):
                             cond_mb,
                             method="prefix",
                         )
-                        outputs_list.append(out_chunk)
+                        # Move output to CPU immediately to free GPU memory
+                        outputs_list.append(out_chunk.cpu())
                         # free refs promptly
-                        del ids_mb, mask_mb, cond_mb
-                    logits = torch.cat(outputs_list, dim=0)
+                        del ids_mb, mask_mb, cond_mb, out_chunk
+                        # Force memory cleanup
+                        torch.cuda.empty_cache()
+                    # Concatenate on CPU then move back to GPU  
+                    device = next(self.progen2.parameters()).device
+                    logits = torch.cat(outputs_list, dim=0).to(device)
                 else:
                     logits = self._forward_single_sequence(
                         reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="prefix"
@@ -259,9 +280,14 @@ class ConditionedProgen2(nn.Module):
                         out_chunk = self._forward_single_sequence(
                             ids_mb, mask_mb, cond_mb, method="prefix"
                         )
-                        outputs_list.append(out_chunk)
-                        del ids_mb, mask_mb, cond_mb
-                    logits = torch.cat(outputs_list, dim=0)
+                        # Move output to CPU immediately to free GPU memory
+                        outputs_list.append(out_chunk.cpu())
+                        del ids_mb, mask_mb, cond_mb, out_chunk
+                        # Force memory cleanup
+                        torch.cuda.empty_cache()
+                    # Concatenate on CPU then move back to GPU
+                    device = next(self.progen2.parameters()).device
+                    logits = torch.cat(outputs_list, dim=0).to(device)
                 else:
                     logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="prefix")
             
@@ -286,9 +312,14 @@ class ConditionedProgen2(nn.Module):
                             cond_mb,
                             method="additive",
                         )
-                        outputs_list.append(out_chunk)
-                        del ids_mb, mask_mb, cond_mb
-                    logits = torch.cat(outputs_list, dim=0)
+                        # Move output to CPU immediately to free GPU memory
+                        outputs_list.append(out_chunk.cpu())
+                        del ids_mb, mask_mb, cond_mb, out_chunk
+                        # Force memory cleanup
+                        torch.cuda.empty_cache()
+                    # Concatenate on CPU then move back to GPU
+                    device = next(self.progen2.parameters()).device
+                    logits = torch.cat(outputs_list, dim=0).to(device)
                 else:
                     logits = self._forward_single_sequence(
                         reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="additive"
@@ -305,9 +336,14 @@ class ConditionedProgen2(nn.Module):
                         out_chunk = self._forward_single_sequence(
                             ids_mb, mask_mb, cond_mb, method="additive"
                         )
-                        outputs_list.append(out_chunk)
-                        del ids_mb, mask_mb, cond_mb
-                    logits = torch.cat(outputs_list, dim=0)
+                        # Move output to CPU immediately to free GPU memory
+                        outputs_list.append(out_chunk.cpu())
+                        del ids_mb, mask_mb, cond_mb, out_chunk
+                        # Force memory cleanup
+                        torch.cuda.empty_cache()
+                    # Concatenate on CPU then move back to GPU
+                    device = next(self.progen2.parameters()).device
+                    logits = torch.cat(outputs_list, dim=0).to(device)
                 else:
                     logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="additive")
         
@@ -347,12 +383,23 @@ class ConditionedProgen2(nn.Module):
             # Concatenate prefix embedding with input embeddings
             combined_embeds = torch.cat([prefix_embeds, token_embeds], dim=1)
             
-            # Run through Progen2 with custom embeddings
+            # Debug logging before ProGen2 call
+            debug_logger = get_debug_logger()
+            debug_logger.log_memory("PROGEN_PRE", "Before ProGen2 model call")
+            debug_logger.log_tensor_info("PROGEN_EMBEDS", "combined_embeds", combined_embeds)
+            debug_logger.log_tensor_info("PROGEN_MASK", "extended_attention_mask", extended_attention_mask)
+            
+            # Run through Progen2 with custom embeddings - CRITICAL MEMORY POINT
+            # Enforce no cache and avoid returning hidden states to reduce memory
+            debug_logger.log_memory("PROGEN_START", "Calling ProGen2 model")
             outputs = self.progen2(
                 inputs_embeds=combined_embeds,
                 attention_mask=extended_attention_mask,
+                use_cache=False,
+                output_hidden_states=False,
                 return_dict=True
             )
+            debug_logger.log_memory("PROGEN_DONE", "ProGen2 model call complete")
             
             # Get logits and remove the prefix logit
             logits = outputs.logits[:, 1:, :]
@@ -362,6 +409,7 @@ class ConditionedProgen2(nn.Module):
             outputs = self.progen2(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
+                use_cache=False,
                 return_dict=True,
                 output_hidden_states=True
             )
@@ -481,8 +529,17 @@ class Progen2Generator(nn.Module):
         concat_ids = torch.cat([source_ids, sep_ids, target_ids], dim=-1)
         concat_attention_mask = torch.cat([source_attention_mask, sep_mask, target_attention_mask], dim=-1)
         
-        # Forward pass on concatenated input
+        # Debug logging before forward pass
+        debug_logger = get_debug_logger()
+        debug_logger.log_memory("GEN_CONCAT_DONE", f"Sequences concatenated")
+        debug_logger.log_tensor_info("GEN_CONCAT_IDS", "concat_ids", concat_ids)
+        debug_logger.log_tensor_info("GEN_LATENT_SRC", "latent_source", latent_source)
+        debug_logger.log_tensor_info("GEN_LATENT_TGT", "latent_target", latent_target)
+        
+        # Forward pass on concatenated input - THIS IS WHERE OOM HAPPENS
+        debug_logger.log_memory("GEN_FORWARD_START", "Starting generator forward pass")
         logits = self.model(concat_ids, concat_attention_mask, latent_source, latent_target)
+        debug_logger.log_memory("GEN_FORWARD_DONE", "Generator forward pass complete")
         shift_logits = logits[:, :-1, :]
         
         # Prepare labels: only compute loss on the target portion

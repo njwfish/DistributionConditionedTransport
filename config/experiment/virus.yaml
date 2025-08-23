@@ -56,7 +56,7 @@ freeze_progen2: false
 use_gradient_checkpointing: true
 precision: bf16
 gradient_accumulation_steps: 4  # Accumulate gradients to reduce memory per step
-forward_microbatch_size: 2
+forward_microbatch_size: 1
 condition_method: prefix
 temperature: 1.0
 

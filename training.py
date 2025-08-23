@@ -12,206 +12,6 @@ from utils.hash_utils import get_output_dir, find_matching_output_dir
 from utils.visualization import visualize_text_data, visualize_coupled_data
 from omegaconf import OmegaConf, DictConfig
 from utils.debug_memory_logger import get_debug_logger
-import threading
-import tempfile
-import queue
-import shutil as _shutil
-from typing import Optional
-
-
-class _AsyncCheckpointSaver:
-    """
-    Background saver that writes checkpoints without blocking the training loop.
-    - Moves tensors to CPU before saving to reduce GPU<->CPU contention
-    - Writes to a node-local temporary file first, then atomically moves to the final path
-    - Serializes saves via a single worker thread to avoid hammering the filesystem
-    """
-
-    def __init__(self, logger: Optional[logging.Logger] = None):
-        self._logger = logger or logging.getLogger(__name__)
-        self._queue: queue.Queue = queue.Queue()
-        self._worker: threading.Thread = threading.Thread(target=self._run, daemon=True)
-        self._stop_event = threading.Event()
-        self._worker.start()
-
-    def save(self, destination_path: str, obj: dict) -> bool:
-        try:
-            # Enqueue save request
-            self._queue.put_nowait((destination_path, obj))
-            return True
-        except Exception as exc:
-            if self._logger:
-                self._logger.error(f"Failed to enqueue checkpoint save to {destination_path}: {exc}")
-            return False
-
-    def wait_all(self, timeout: Optional[float] = None) -> None:
-        try:
-            self._queue.join()
-        except Exception:
-            pass
-
-    def close(self) -> None:
-        self._stop_event.set()
-        try:
-            self._queue.put_nowait(None)
-        except Exception:
-            pass
-        try:
-            self._worker.join(timeout=5.0)
-        except Exception:
-            pass
-
-    def _run(self) -> None:
-        while not self._stop_event.is_set():
-            item = None
-            try:
-                item = self._queue.get(timeout=0.2)
-            except queue.Empty:
-                continue
-
-            if item is None:
-                # Sentinel for shutdown
-                self._queue.task_done()
-                break
-
-            destination_path, obj = item
-            try:
-                safe_obj = self._move_tensors_to_cpu(obj)
-                # Ensure destination directory exists
-                os.makedirs(os.path.dirname(destination_path), exist_ok=True)
-
-                # Stage to node-local temp file
-                temp_dir = tempfile.gettempdir()
-                with tempfile.NamedTemporaryFile(delete=False, dir=temp_dir, suffix=".pt") as tmp_f:
-                    tmp_path = tmp_f.name
-
-                try:
-                    torch.save(safe_obj, tmp_path)
-                    # Move to final destination; handles cross-filesystem moves
-                    _shutil.move(tmp_path, destination_path)
-                    if self._logger:
-                        self._logger.info(f"Checkpoint written: {destination_path}")
-                finally:
-                    # Clean up temp file if something went wrong
-                    try:
-                        if os.path.exists(tmp_path):
-                            os.remove(tmp_path)
-                    except Exception:
-                        pass
-            except Exception as exc:
-                if self._logger:
-                    self._logger.error(f"Async checkpoint save failed for {destination_path}: {exc}")
-            finally:
-                try:
-                    self._queue.task_done()
-                except Exception:
-                    pass
-
-    @staticmethod
-    def _move_tensors_to_cpu(obj):
-        if isinstance(obj, torch.Tensor):
-            try:
-                return obj.detach().cpu()
-            except Exception:
-                return obj
-        if isinstance(obj, dict):
-            return {k: _AsyncCheckpointSaver._move_tensors_to_cpu(v) for k, v in obj.items()}
-        if isinstance(obj, (list, tuple)):
-            t = [_AsyncCheckpointSaver._move_tensors_to_cpu(v) for v in obj]
-            return type(obj)(t) if not isinstance(obj, list) else t
-        return obj
-
-
-class _AsyncWandbLogger:
-    """
-    Background W&B logger to prevent the training loop from blocking on network or I/O.
-    Serializes log/save requests in a single worker.
-    """
-
-    def __init__(self, logger: Optional[logging.Logger] = None, max_queue_size: int = 1000):
-        self._logger = logger or logging.getLogger(__name__)
-        self._queue: queue.Queue = queue.Queue(maxsize=max_queue_size)
-        self._stop_event = threading.Event()
-        self._worker: threading.Thread = threading.Thread(target=self._run, daemon=True)
-        self._worker.start()
-
-    def log(self, data: dict, step: Optional[int] = None) -> bool:
-        try:
-            self._queue.put_nowait(("log", data, step))
-            return True
-        except queue.Full:
-            if self._logger:
-                self._logger.warning("W&B log queue full; dropping metrics")
-            return False
-        except Exception as exc:
-            if self._logger:
-                self._logger.error(f"Failed to enqueue W&B log: {exc}")
-            return False
-
-    def save(self, path: str) -> bool:
-        try:
-            self._queue.put_nowait(("save", path, None))
-            return True
-        except queue.Full:
-            if self._logger:
-                self._logger.warning("W&B save queue full; dropping save request")
-            return False
-        except Exception as exc:
-            if self._logger:
-                self._logger.error(f"Failed to enqueue W&B save: {exc}")
-            return False
-
-    def wait_all(self) -> None:
-        try:
-            self._queue.join()
-        except Exception:
-            pass
-
-    def close(self) -> None:
-        self._stop_event.set()
-        try:
-            self._queue.put_nowait(None)
-        except Exception:
-            pass
-        try:
-            self._worker.join(timeout=5.0)
-        except Exception:
-            pass
-
-    def _run(self) -> None:
-        while not self._stop_event.is_set():
-            item = None
-            try:
-                item = self._queue.get(timeout=0.2)
-            except queue.Empty:
-                continue
-            if item is None:
-                self._queue.task_done()
-                break
-            try:
-                kind, payload, step = item
-                if kind == "log":
-                    try:
-                        if wandb.run is not None:
-                            if step is not None:
-                                wandb.log(payload, step=step)
-                            else:
-                                wandb.log(payload)
-                    except Exception as exc:
-                        if self._logger:
-                            self._logger.error(f"W&B log failed: {exc}")
-                elif kind == "save":
-                    try:
-                        if wandb.run is not None:
-                            wandb.save(payload)
-                    except Exception as exc:
-                        if self._logger:
-                            self._logger.error(f"W&B save failed for {payload}: {exc}")
-            finally:
-                try:
-                    self._queue.task_done()
-                except Exception:
-                    pass
 
 class Trainer:
     def __init__(
@@ -262,10 +62,6 @@ class Trainer:
         self.no_improve_count = 0
         # log sub_epoch_interval
         self.logger.info(f"Sub epoch interval: {self.sub_epoch_interval}, save interval: {self.save_interval}, eval interval: {self.eval_interval}")
-        
-        # Asynchronous checkpoint saver to prevent training stalls on slow filesystems
-        self._checkpoint_saver = _AsyncCheckpointSaver(logger=self.logger)
-        self._wandb_logger = _AsyncWandbLogger(logger=self.logger)
     
     def _find_similar_experiment_by_name(self, experiment_name, current_config, base_dir):
         """
@@ -664,15 +460,12 @@ class Trainer:
                         pbar.set_postfix(loss=f"{current_loss:.6f}")
                     
                     # Log batch metrics to W&B
-                    try:
-                        payload = {
+                    if wandb.run is not None:
+                        wandb.log({
                             "batch/loss": current_loss,
                             "batch/step": step,
                             "batch/epoch": epoch + 1,
-                        } | {f'batch/{k}': v for k, v in losses.items()}
-                        self._wandb_logger.log(payload, step=step)
-                    except Exception:
-                        pass
+                        } | {f'batch/{k}': v for k, v in losses.items()}, step=step)
 
                 if self.sub_epoch and (step % self.sub_epoch_interval == 0) and (step != 0):
                     sub_epoch = step // self.sub_epoch_interval
@@ -695,10 +488,8 @@ class Trainer:
                         }
                         if predictor is not None:
                             save_dict['predictor_state_dict'] = predictor.state_dict()
-                        if self._checkpoint_saver.save(checkpoint_path, save_dict):
-                            self.logger.info(f"Started async checkpoint save to {checkpoint_path}")
-                        else:
-                            self.logger.warning("Previous checkpoint save still in progress; skipping sub-epoch checkpoint.")
+                        torch.save(save_dict, checkpoint_path)
+                        self.logger.info(f"Saved checkpoint to {checkpoint_path}")      
 
                 step += 1
             
@@ -716,16 +507,16 @@ class Trainer:
             self.logger.info(f"Epoch {epoch+1} complete. Avg Loss: {avg_epoch_loss:.6f}")
             
             # Log epoch metrics to W&B
-            try:
+            if wandb.run is not None:
                 wandb_log = {
                     "epoch/train_loss": avg_epoch_loss,
                     "epoch/epoch": epoch + 1,
                 }
+                
                 if scheduler is not None:
                     wandb_log["epoch/learning_rate"] = scheduler.get_last_lr()[0]
-                self._wandb_logger.log(wandb_log, step=step)
-            except Exception:
-                pass
+                
+                wandb.log(wandb_log, step=step)
             
             # Save model checkpoint at regular intervals
             if (epoch + 1) % self.save_interval == 0:
@@ -744,17 +535,12 @@ class Trainer:
                 }
                 if predictor is not None:
                     save_dict['predictor_state_dict'] = predictor.state_dict()
-                if self._checkpoint_saver.save(checkpoint_path, save_dict):
-                    self.logger.info(f"Started async checkpoint save to {checkpoint_path}")
-                else:
-                    self.logger.warning("Previous checkpoint save still in progress; skipping epoch checkpoint.")
+                torch.save(save_dict, checkpoint_path)
+                self.logger.info(f"Saved checkpoint to {checkpoint_path}")
                 
                 # Log model checkpoint to W&B
-                try:
-                    if (epoch + 1) == self.num_epochs:
-                        self._wandb_logger.save(checkpoint_path)
-                except Exception:
-                    pass
+                if wandb.run is not None and (epoch + 1) == self.num_epochs:
+                    wandb.save(checkpoint_path)
             
             # Evaluation and early stopping logic
             if ((epoch + 1) % self.eval_interval == 0 or (epoch + 1) == self.num_epochs):
@@ -764,13 +550,11 @@ class Trainer:
                 self.logger.info(f"Evaluation Loss: {eval_loss:.6f}")
                 
                 # Log evaluation metrics to W&B
-                try:
-                    self._wandb_logger.log({
+                if wandb.run is not None:
+                    wandb.log({
                         "epoch/eval_loss": eval_loss,
                         "epoch/epoch": epoch + 1,
                     }, step=step)
-                except Exception:
-                    pass
 
                 
                 # Check if this is the best model so far
@@ -792,19 +576,14 @@ class Trainer:
                     }
                     if predictor is not None:
                         save_dict['predictor_state_dict'] = predictor.state_dict()
-                    if self._checkpoint_saver.save(best_model_path, save_dict):
-                        self.logger.info(f"Started async best-model save to {best_model_path}")
-                    else:
-                        self.logger.warning("Previous checkpoint save still in progress; skipping best-model save.")
+                    torch.save(save_dict, best_model_path)
+                    self.logger.info(f"New best model saved to {best_model_path}")
                     
                     # Log best model to W&B
-                    try:
-                        if wandb.run is not None:
-                            wandb.run.summary["best_epoch"] = epoch + 1
-                            wandb.run.summary["best_loss"] = eval_loss
-                            self._wandb_logger.save(best_model_path)
-                    except Exception:
-                        pass
+                    if wandb.run is not None:
+                        wandb.run.summary["best_epoch"] = epoch + 1
+                        wandb.run.summary["best_loss"] = eval_loss
+                        wandb.save(best_model_path)
                     
                     self.no_improve_count = 0
                 else:
@@ -816,35 +595,23 @@ class Trainer:
                     self.logger.info(f"Early stopping triggered after {epoch+1} epochs")
                     
                     # Log early stopping to W&B
-                    try:
-                        if wandb.run is not None:
-                            wandb.run.summary["stopped_early"] = True
-                            wandb.run.summary["stopped_epoch"] = epoch + 1
-                    except Exception:
-                        pass
+                    if wandb.run is not None:
+                        wandb.run.summary["stopped_early"] = True
+                        wandb.run.summary["stopped_epoch"] = epoch + 1
                     
                     break
         
         # Record total training time
         stats['total_time'] = time.time() - start_time
         self.logger.info(f"Training completed in {stats['total_time']:.2f} seconds")
-        # Ensure any pending async checkpoint saves are completed before returning
-        try:
-            self._checkpoint_saver.wait_all()
-            self._checkpoint_saver.close()
-        except Exception:
-            pass
         
         # Log final stats to W&B
-        try:
-            if wandb.run is not None:
-                wandb.run.summary["total_time"] = stats['total_time']
-                if stats['train_losses']:
-                    wandb.run.summary["final_train_loss"] = stats['train_losses'][-1]
-                if stats['eval_losses']:
-                    wandb.run.summary["final_eval_loss"] = stats['eval_losses'][-1]
-        except Exception:
-            pass
+        if wandb.run is not None:
+            wandb.run.summary["total_time"] = stats['total_time']
+            if stats['train_losses']:
+                wandb.run.summary["final_train_loss"] = stats['train_losses'][-1]
+            if stats['eval_losses']:
+                wandb.run.summary["final_eval_loss"] = stats['eval_losses'][-1]
         
         return output_dir, stats
     

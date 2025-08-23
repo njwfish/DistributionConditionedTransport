@@ -18,6 +18,8 @@ defaults:
 # TODO: change to the full data file once you are done with debugging
 data_file: virus_tokenized_data_for_tde.pt
 
+train_predictor_posthoc: true
+
 # Experiment-specific parameters
 use_predicted_latent: true
 predictor_loss_weight: 0

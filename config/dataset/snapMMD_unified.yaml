@@ -16,3 +16,4 @@ data_shape_map:
 
 # Resolve data_shape based on the current dataset_name
 data_shape: ${.data_shape_map.${dataset_name}} 
+ot_coupling: ${experiment.ot_coupling}

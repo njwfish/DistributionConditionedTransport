@@ -4,5 +4,5 @@ weight_mode: ${experiment.weight_mode}
 num_samples: ${experiment.num_samples}
 replacement: true
 const_weight: 1.0 
-unidirectional: ${experiment.unidirectional}
+selective_pairing_mode: ${experiment.selective_pairing_mode}
 exponential_weight_scale: ${experiment.exponential_weight_scale}

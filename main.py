@@ -4,6 +4,8 @@ import torch
 from torch.utils.data import DataLoader, Subset, WeightedRandomSampler
 import logging
 import wandb
+from loss.default import LossManager as DefaultLossManager
+from predictor_training import PredictorTrainer
 import os
 import numpy as np
 import time
@@ -74,10 +76,28 @@ def main(cfg: DictConfig):
         
         sampling_config = cfg.sampling
 
-        sampler = None
+        # Load optional lists for the sampler if specified in cfg.experiment
+        sampler_kwargs = {}
+        
+        # Check for specific_pairing_pth
+        if hasattr(cfg.experiment, 'specific_pairing_pth'):
+            specific_pairing_path = cfg.experiment.specific_pairing_pth
 
-        logger.info("Instantiating sampler from Hydra config")
-        sampler = hydra.utils.instantiate(sampling_config, dataset=dataset)
+            data = np.load(specific_pairing_path)
+            specific_pairing = data['specific_pairing'].tolist()
+            sampler_kwargs['specific_pairing'] = specific_pairing
+            logger.info(f"Loaded specific_pairing with {len(specific_pairing)} pairs")
+
+        # Check for precomputed_d_values_pth
+        if hasattr(cfg.experiment, 'precomputed_d_values_pth'):
+            precomputed_d_values_path = cfg.experiment.precomputed_d_values_pth
+
+            data = np.load(precomputed_d_values_path)
+            precomputed_d_values = data['precomputed_d_values']
+            sampler_kwargs['precomputed_d_values'] = precomputed_d_values
+            logger.info(f"Loaded precomputed_d_values with shape {precomputed_d_values.shape}")
+
+        sampler = hydra.utils.instantiate(sampling_config, dataset=dataset, **sampler_kwargs)
 
         dataloader = DataLoader(
             dataset,
@@ -88,27 +108,40 @@ def main(cfg: DictConfig):
         
         # Create encoder
         encoder = hydra.utils.instantiate(cfg.encoder)
+        
+        train_predictor_posthoc = False
+        if hasattr(cfg, "experiment") and hasattr(cfg.experiment, "train_predictor_posthoc"):
+            train_predictor_posthoc = bool(cfg.experiment.train_predictor_posthoc)
 
-        # TODO: it would probably be good to re-implement the option to train the predictor after having trained everything else.
-        if hasattr(cfg, "predictor"):
+        # Instantiate predictor independently (no longer part of encoder)
+        predictor = None
+        if hasattr(cfg, "predictor") and cfg.predictor is not None:
             predictor = hydra.utils.instantiate(cfg.predictor)
             if hasattr(encoder, "latent_act"):
-                # SELU by default but adding this to make sure it's the same as the encoder
                 predictor.latent_act = encoder.latent_act
             else:
                 predictor.latent_act = nn.SELU()
-            encoder.predictor = predictor
 
         generator = hydra.utils.instantiate(cfg.generator)
         
         # Get model parameters
-        model_parameters = list(encoder.parameters()) + list(generator.parameters())
+        if not train_predictor_posthoc and predictor is not None:
+            # joint training includes predictor
+            model_parameters = list(encoder.parameters()) + list(generator.parameters()) + list(predictor.parameters())
+        else:
+            # predictor separate: train only encoder+generator here
+            model_parameters = list(encoder.parameters()) + list(generator.parameters())
         
         # Create optimizer and scheduler
         optimizer = hydra.utils.instantiate(cfg.optimizer)(params=model_parameters)
         scheduler = hydra.utils.instantiate(cfg.scheduler)(optimizer=optimizer)
 
-        loss_manager = hydra.utils.instantiate(cfg.loss)
+        # TODO: make sure this is correct
+        # Use simple reconstruction loss when predictor is trained posthoc
+        if train_predictor_posthoc:
+            loss_manager = DefaultLossManager()
+        else:
+            loss_manager = hydra.utils.instantiate(cfg.loss)
 
         # Create trainer
         trainer = hydra.utils.instantiate(cfg.training)
@@ -124,6 +157,7 @@ def main(cfg: DictConfig):
         output_dir, stats = trainer.train(
             encoder=encoder,
             generator=generator,
+            predictor=predictor if not train_predictor_posthoc else None,
             dataloader=dataloader,
             optimizer=optimizer,
             scheduler=scheduler,
@@ -132,9 +166,51 @@ def main(cfg: DictConfig):
             config=cfg,
         )
         
-        logger.info(f"Training completed. Best epoch: {stats['best_epoch']}")
-        
-                    
+        logger.info(f"Training completed. Best epoch: {stats['best_epoch']}")    
+
+        # Optional posthoc predictor training
+        if train_predictor_posthoc and predictor is not None:
+            # Load best encoder weights
+            best_model_path = os.path.join(output_dir, "best_model.pt")
+            if not os.path.exists(best_model_path):
+                raise FileNotFoundError(f"Best model not found at {best_model_path}")
+
+            best_checkpoint = torch.load(best_model_path, weights_only=False, map_location=device)
+            if "encoder_state_dict" not in best_checkpoint:
+                raise KeyError("'encoder_state_dict' missing in best model checkpoint")
+            encoder.load_state_dict(best_checkpoint["encoder_state_dict"]) 
+            encoder.eval()
+            for p in encoder.parameters():
+                p.requires_grad = False
+
+            # Use the already-instantiated predictor (fresh, not trained yet)
+            predictor.to(device)
+
+            # Optimizer for predictor only
+            pred_optimizer = hydra.utils.instantiate(cfg.optimizer)(params=predictor.parameters())
+
+            # Simple predictor trainer using same dataloader
+            predictor_trainer = PredictorTrainer(
+                num_epochs=cfg.training.num_epochs,
+                log_interval=cfg.training.log_interval,
+                save_interval=cfg.training.save_interval,
+                eval_interval=cfg.training.eval_interval,
+                early_stopping=cfg.training.early_stopping,
+                patience=cfg.training.patience,
+                use_tqdm=cfg.training.use_tqdm,
+            )
+
+            pred_output_dir, pred_stats = predictor_trainer.train(
+                encoder=encoder,
+                predictor=predictor,
+                dataloader=dataloader,
+                optimizer=pred_optimizer,
+                device=device,
+                output_dir=output_dir,
+            )
+            logger.info(
+                f"Predictor training completed. Best epoch: {pred_stats.get('best_epoch', 0)}"
+            )
     
     finally:
         # Make sure to finish the W&B run

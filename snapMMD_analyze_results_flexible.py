@@ -129,8 +129,9 @@ def extract_dataset_name(cfg: Dict[str, Any]) -> str:
 DATASET_CONFIGS: Dict[str, Dict[str, Any]] = {
     'LV': {
         # TODO: avoid hard-coding the data path.
+        'data_path': 'data/classic/LV_data.npz',
         #'data_path': 'data/classic/LV_simulated_dataset_1000_31_seed0.npz',
-        'data_path': 'data/classic/LV_simulated_dataset_1000_11_seed0.npz',
+        #'data_path': 'data/classic/LV_simulated_dataset_1000_11_seed0.npz',
         'dimensionality': 2,
         'axes_labels': ['Prey', 'Predator'],
         'title': 'Lotka-Volterra',
@@ -166,43 +167,83 @@ DATASET_CONFIGS: Dict[str, Dict[str, Any]] = {
 # Model loading and forecasting (CDE only)
 # -----------------------------
 
-def load_models_from_experiment(experiment_dir: str, device: torch.device):
+def load_models_from_experiment(experiment_dir: str, device: torch.device, predictor_source: str = 'separate'):
     info = get_experiment_info(experiment_dir, load_checkpoints=False)
     cfg = info['config']
 
     enc = hydra.utils.instantiate(cfg['encoder'])
     gen = hydra.utils.instantiate(cfg['generator'])
 
-    # Attach predictor if present
+    # Resolve config for simple key access
+    cfg_resolved = OmegaConf.to_container(cfg, resolve=True)
+    experiment_cfg = cfg_resolved.get('experiment', {}) if isinstance(cfg_resolved, dict) else {}
+    train_predictor_posthoc = bool(experiment_cfg.get('train_predictor_posthoc', False))
+
+    # Instantiate predictor independently if config has one
     predictor = None
-    if 'predictor' in cfg:
+    if 'predictor' in cfg and cfg['predictor'] is not None:
         predictor = hydra.utils.instantiate(cfg['predictor'])
-        # Match latent activation if encoder defines it
         if hasattr(enc, 'latent_act'):
-            try:
-                predictor.latent_act = enc.latent_act
-            except Exception:
-                pass
-        enc.predictor = predictor
+            predictor.latent_act = enc.latent_act
 
+    # Load encoder/generator from best model
     state = load_best_model(info['dir'])
-
     enc.load_state_dict(state['encoder_state_dict'])
-    # Newer configs may store generator_state_dict under 'generator_state_dict'
     if 'generator_state_dict' in state:
         gen.load_state_dict(state['generator_state_dict'])
     else:
-        # Backward compatibility
         gen.model.load_state_dict(state['generator_state_dict'])
+
+    # Load predictor weights based on requested source
+    if predictor is not None:
+        def _try_load_predictor(ckpt_path: str) -> bool:
+            if os.path.exists(ckpt_path):
+                pred_ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
+                if 'predictor_state_dict' in pred_ckpt:
+                    predictor.load_state_dict(pred_ckpt['predictor_state_dict'])
+                    return True
+            return False
+
+        root_pred_path = os.path.join(info['dir'], 'predictor_best_model.pt')
+        subdir_pred_path = os.path.join(info['dir'], 'predictor_training', 'predictor_best_model.pt')
+
+        loaded_pred = False
+
+        if predictor_source == 'main':
+            # Load from root-level artifacts (saved by main.py posthoc or joint)
+            loaded_pred = _try_load_predictor(root_pred_path)
+            if not loaded_pred and 'predictor_state_dict' in state:
+                predictor.load_state_dict(state['predictor_state_dict'])
+                loaded_pred = True
+        elif predictor_source == 'separate':
+            # Load from dedicated predictor subdirectory (saved by main_predictor.py)
+            loaded_pred = _try_load_predictor(subdir_pred_path)
+        else:  # 'auto'
+            if train_predictor_posthoc:
+                # Prefer explicit predictor checkpoint; fall back to others
+                loaded_pred = _try_load_predictor(root_pred_path) or _try_load_predictor(subdir_pred_path)
+                if not loaded_pred and 'predictor_state_dict' in state:
+                    predictor.load_state_dict(state['predictor_state_dict'])
+                    loaded_pred = True
+            else:
+                # Prefer joint-trained weights inside best_model; fall back to files
+                if 'predictor_state_dict' in state:
+                    predictor.load_state_dict(state['predictor_state_dict'])
+                    loaded_pred = True
+                if not loaded_pred:
+                    loaded_pred = _try_load_predictor(root_pred_path) or _try_load_predictor(subdir_pred_path)
 
     enc.eval(); gen.eval()
     enc.to(device); gen.to(device)
-    return cfg, enc, gen
+    if predictor is not None:
+        predictor.eval(); predictor.to(device)
+
+    return cfg, enc, gen, predictor, train_predictor_posthoc
 
 
-def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any]):
+def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], predictor_source: str = 'separate'):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    cfg, enc, gen = load_models_from_experiment(experiment_dir, device)
+    cfg, enc, gen, predictor, train_predictor_posthoc = load_models_from_experiment(experiment_dir, device, predictor_source=predictor_source)
 
     Xs_training = training_data['Xs']
     samples_s = torch.tensor(Xs_training[-1]).unsqueeze(0).to(device).float()
@@ -211,18 +252,13 @@ def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any]):
     with torch.no_grad():
         enc_s = enc(samples_s)
         # Determine enc_t
-        enc_t = None
-        if hasattr(enc, 'predictor') and enc.predictor is not None:
-            predictor = enc.predictor
-            if hasattr(predictor, 'requires_dt') and predictor.requires_dt:
-                # Use actual dt as the difference between the last two entries of 'dts'
-                dts = training_data.get('dts', None)
-                dt_value = float(dts[-1] - dts[-2])
-
-                dt = torch.full((enc_s.shape[0],), dt_value, device=device, dtype=enc_s.dtype)
-                enc_t = predictor(enc_s, dt)
-            else:
-                enc_t = predictor(enc_s)
+        # TODO: make sure that this is how we always want to do things here.
+        if predictor is not None:
+            # Condition on (source_idx, target_idx) = (N-2, N-1)
+            n_steps = int(training_data['N_steps'])
+            source_idx = torch.tensor([n_steps - 2], device=device, dtype=torch.float32)
+            target_idx = torch.tensor([n_steps - 1], device=device, dtype=torch.float32)
+            enc_t = predictor(enc_s, condition_scalars=(source_idx, target_idx))
         else:
             # Fallback: encode target directly
             enc_t = enc(samples_t)
@@ -517,6 +553,8 @@ def main():
     parser.add_argument('--skip-plots', action='store_true', help='Skip plotting, only compute metrics')
     parser.add_argument('--disable-emd', action='store_true', help='Disable EMD computation to reduce memory usage')
     parser.add_argument('--set', dest='overrides', action='append', default=[], help='Override config values with dot-notation (e.g., match_criteria.sampling.mode=bidirectional). Can be used multiple times.')
+    parser.add_argument('--predictor-source', type=str, choices=['auto', 'main', 'separate'], default='auto',
+                        help='Where to load predictor checkpoint from: auto (default), main (root dir or joint), or main_predictor (predictor_training subdir)')
     args = parser.parse_args()
 
     # Load analysis config and apply CLI overrides
@@ -633,7 +671,7 @@ def main():
     per_seed_results: List[Tuple[int, float, Any]] = []  # (seed, mmd^2, emd)
     forecast_for_plot = None
     for seed, (exp_seed, (exp_dir, cfg)) in zip(seeds_sorted, matched_with_seed):
-        forecast = generate_cde_forecast(exp_dir, training_data)
+        forecast = generate_cde_forecast(exp_dir, training_data, predictor_source=args.predictor_source)
         mmd2, emd = compute_mmd_and_emd(dataset_name, forecast['forecast'], logger, enable_emd=not args.disable_emd)
         per_seed_results.append((seed, mmd2, emd))
         if forecast_for_plot is None and seed == default_seed_for_plots:
@@ -683,7 +721,7 @@ def main():
     if not args.skip_plots:
         if forecast_for_plot is None:
             # If not found seed==default, just take first
-            forecast_for_plot = generate_cde_forecast(matched_with_seed[0][1][0], training_data)
+            forecast_for_plot = generate_cde_forecast(matched_with_seed[0][1][0], training_data, predictor_source=args.predictor_source)
 
         # Prepare title suffix with naming parameters and metrics
         metrics_title_segment = f"MMD={mmd_mean:.4g}±{mmd_std:.2g}{emd_title_segment}"

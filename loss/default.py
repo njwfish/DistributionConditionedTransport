@@ -4,7 +4,7 @@ class LossManager:
     def __init__(self):
         pass
 
-    def loss(self, encoder, generator, batch, device):
+    def loss(self, encoder, generator, predictor, batch, device):
         losses = {}
         loss = 0
 

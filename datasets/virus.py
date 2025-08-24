@@ -51,9 +51,10 @@ class ViralDataset(Dataset):
 
         self.tokenized_data_file = f'{self.data_dir}/{self.data_file}' #virus_tokenized_data_for_tde.pt'
 
-        self.data = torch.load(self.tokenized_data_file)
-        with open("auxillary_log.log", "a") as f:
-            f.write(f"len(self.data): {len(self.data)}\n")
+        # NOTE: Important, hold out last time point for forecasting benchmarks.
+        self.data = torch.load(self.tokenized_data_file)[:-1]
+        #with open("auxillary_log.log", "a") as f:
+        #    f.write(f"len(self.data): {len(self.data)}\n")
         # Build index pairs after data is loaded
         self.index_pairs = np.array(
             [

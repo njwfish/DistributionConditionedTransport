@@ -153,6 +153,38 @@ class Trainer:
                     
         return latest_checkpoint
     
+    def _cleanup_old_checkpoints(self, directory, keep_last_n):
+        """Delete old epoch checkpoints, keeping only the latest N.
+        Does not touch best_model.pt.
+        """
+        try:
+            checkpoints = []
+            for filename in os.listdir(directory):
+                if filename.startswith("checkpoint_epoch_") and filename.endswith(".pt"):
+                    try:
+                        epoch_num = int(filename.split("_")[-1].split(".")[0])
+                        checkpoints.append((epoch_num, os.path.join(directory, filename)))
+                    except (ValueError, IndexError):
+                        continue
+            if not checkpoints:
+                return
+            checkpoints.sort(key=lambda x: x[0])  # ascending by epoch
+            n_keep = max(int(keep_last_n) if keep_last_n is not None else 0, 0)
+            if n_keep == 0:
+                return
+            excess = len(checkpoints) - n_keep
+            if excess <= 0:
+                return
+            to_delete = checkpoints[:excess]
+            for _, path in to_delete:
+                try:
+                    os.remove(path)
+                    self.logger.info(f"Deleted old checkpoint: {path}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to delete checkpoint {path}: {e}")
+        except Exception as e:
+            self.logger.warning(f"Checkpoint cleanup failed in {directory}: {e}")
+    
     def train(
         self,
         encoder,
@@ -489,7 +521,9 @@ class Trainer:
                         if predictor is not None:
                             save_dict['predictor_state_dict'] = predictor.state_dict()
                         torch.save(save_dict, checkpoint_path)
-                        self.logger.info(f"Saved checkpoint to {checkpoint_path}")      
+                        self.logger.info(f"Saved checkpoint to {checkpoint_path}")
+                        # Prune older checkpoints beyond patience
+                        self._cleanup_old_checkpoints(output_dir, keep_last_n=self.patience)
 
                 step += 1
             
@@ -537,6 +571,8 @@ class Trainer:
                     save_dict['predictor_state_dict'] = predictor.state_dict()
                 torch.save(save_dict, checkpoint_path)
                 self.logger.info(f"Saved checkpoint to {checkpoint_path}")
+                # Prune older checkpoints beyond patience
+                self._cleanup_old_checkpoints(output_dir, keep_last_n=self.patience)
                 
                 # Log model checkpoint to W&B
                 if wandb.run is not None and (epoch + 1) == self.num_epochs:

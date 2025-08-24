@@ -9,7 +9,7 @@ from utils.hf_local import resolve_local_or_repo
 
 import math
 
-
+# TODO: cite source (the original DFM paper).
 def transformer_timestep_embedding(timesteps: torch.Tensor, embedding_dim: int, max_positions: int = 10000) -> torch.Tensor:
     """Sinusoidal time embedding used for conditioning on continuous time t in [0, 1].
 
@@ -75,6 +75,7 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
             time_embed = transformer_timestep_embedding(t * 1000, self.hidden_size)[:, None, :]
         hidden_states = hidden_states + time_embed
 
+        # TODO: currently the conditioning here is only done in the additive mode. I have code for all cases, just need to add it back in.
         # Latent conditioning
         combined_latent = torch.cat([latent_source, latent_target], dim=-1)
         cond = self.condition_proj(combined_latent).to(hidden_states.dtype)  # (B, D)
@@ -131,6 +132,8 @@ class ESM2_DFM_Generator(nn.Module):
             elif p in ("fp32", "float32"):
                 self.model = self.model.to(dtype=torch.float32)
 
+        # TODO: I think this is freezing all parameters including the language model head, right? Or wrong? If right, change.
+        # TODO: in any case it would be good to have the option to only un-freeze the language model head.
         # Freezing
         if freeze_esm2:
             for param in self.model.parameters():
@@ -163,6 +166,7 @@ class ESM2_DFM_Generator(nn.Module):
         Inputs mirror Progen2Generator.loss: x_source and x_target provide tokenizer-specific
         fields for ESM (esm_input_ids, esm_attention_mask).
         """
+        # TODO: normalize latents and add errors for flattened batches.
         input_ids_source = x_source["esm_input_ids"]  # (B, L)
         attention_mask_source = x_source["esm_attention_mask"]  # (B, L)
         input_ids_target = x_target["esm_input_ids"]  # (B, L)
@@ -181,6 +185,7 @@ class ESM2_DFM_Generator(nn.Module):
         device = input_ids_target.device
         B, L = input_ids_target.shape
 
+        # TODO: it's kind of strange to have the time-conditioning here if we really have no noise at all. I mean, at that point the conditioning on t is just meaningless.
         # Sample times and build corrupted xt by uniform amino acid noise on source sequence
         t = torch.rand((B,), device=device)
         xt = input_ids_source.clone()
@@ -225,6 +230,8 @@ class ESM2_DFM_Generator(nn.Module):
         - Returns [batch_size, num_samples, seq_len] token ids for ESM vocabulary.
         - Optionally returns decoded strings.
         """
+        # TODO: normalize latents and add errors for flattened batches.
+
         self.model.eval()
         device = latent_source.device
 
@@ -258,6 +265,7 @@ class ESM2_DFM_Generator(nn.Module):
             # Discrete flow stepping from t=0 to 1
             t = 0.0
             dt = 0.01
+            # TODO: you might want to implement a check at the end of the loop to ensure that there are no t = 1 effects (although I think that is just specific for mask-based DFM).
             while t < 1.0:
                 logits = self.model(
                     input_ids=xt,

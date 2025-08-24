@@ -95,6 +95,7 @@ class ConditionedProgen2(nn.Module):
         if requested_dtype is not None:
             self.progen2.to(dtype=requested_dtype)
         
+        # TODO: make really sure that progen2 is not frozen for virus task.
         # Freeze Progen2 if specified
         if freeze_progen2:
             for param in self.progen2.parameters():
@@ -110,6 +111,7 @@ class ConditionedProgen2(nn.Module):
             self.hidden_dim = self.progen2.config.embed_dim
         elif hasattr(self.progen2.config, 'd_model'):
             self.hidden_dim = self.progen2.config.d_model
+        # TODO: remove this strange fallback.
         else:
             # Default value if none of the above attributes exist
             self.hidden_dim = 768
@@ -257,6 +259,7 @@ class ConditionedProgen2(nn.Module):
             # Get the final hidden states
             hidden_states = outputs.hidden_states[-1]
             
+            # TODO: is it correct that here we add the condition only right before the langauge head?
             # Add the condition to each position
             condition = condition.to(hidden_states.dtype)
             condition_broadcast = condition.unsqueeze(1)  # [batch_size, 1, hidden_dim]
@@ -325,6 +328,7 @@ class Progen2Generator(nn.Module):
         
         # Resolve separator token id ('<|endoftext|>') and pad token id
         self.sep_token = '<|endoftext|>'
+        # TODO: make sure that this doesn't default to some nonsensical value when the sep_token doesn't exist.
         self.sep_token_id = self.tokenizer.convert_tokens_to_ids(self.sep_token)
         # TODO: is this correct?
         self.pad_token_id = self.tokenizer.pad_token_id if (hasattr(self.tokenizer, 'pad_token_id') and self.tokenizer.pad_token_id is not None) else 0        
@@ -340,6 +344,8 @@ class Progen2Generator(nn.Module):
         Returns:
             Negative log likelihood loss
         """
+        # TODO: normalize latents and add errors for flattened batches.
+
         source_ids = x_source['progen_input_ids']
         source_attention_mask = x_source['progen_attention_mask']
         
@@ -365,8 +371,10 @@ class Progen2Generator(nn.Module):
         
         # Build a mask that selects only the target tokens in the shifted labels
         labels_mask = torch.zeros_like(shift_labels_pre, dtype=target_attention_mask.dtype)
+        # TODO: shouldn't it be source_len + 1?
         labels_mask[..., source_len:] = target_attention_mask
         
+        # TODO: are we sure that -100 is the correct ignore index?
         # Apply mask using ignore_index=-100
         shift_labels = shift_labels_pre.masked_fill(labels_mask == 0, -100)
         
@@ -391,7 +399,6 @@ class Progen2Generator(nn.Module):
         
         return loss
 
-    # TODO: currently this is not being conditioned on the source samples, but I think that's fine since the PLM doesn't need it.
     def sample(self, x_source, latent_source, latent_target, num_samples=1, return_texts=False):
         """
         Sample sequences from the conditioned model.
@@ -404,10 +411,15 @@ class Progen2Generator(nn.Module):
         Returns:
             Generated token IDs, and optionally decoded texts
         """
+        # TODO: normalize latents and add errors for flattened batches.
+
         device = latent_source.device
+        # TODO: I think there might be additional weird behavior if we flatten inputs before calling the sample method.
         batch_size = latent_source.size(0)
         
         # Get BOS token ID for start of generation
+        # TODO: do we really want to default to bos_token_id = 1here?
+
         if hasattr(self.tokenizer, 'bos_token_id') and self.tokenizer.bos_token_id is not None:
             bos_token_id = self.tokenizer.bos_token_id
         else:
@@ -428,6 +440,7 @@ class Progen2Generator(nn.Module):
                 noisy_latent_source = latent_source
                 noisy_latent_target = latent_target
             
+            # TODO: I might be wrong but I think this will lead to weird behavior if we flatten the inputs beforehand (which is done in training.py during microbatching for example).
             # Build prompt for this sample: choose different source sequences if available
             if src_ids_all.dim() == 3:
                 set_size = src_ids_all.shape[1]
@@ -438,6 +451,7 @@ class Progen2Generator(nn.Module):
                 src_ids = src_ids_all
                 src_mask = src_mask_all
             
+            # TODO: maybe overhaul everything below, I feel like it is unnecessarily convoluted.
             src_lengths = src_mask.sum(dim=-1).to(torch.long)
             max_src_len = int(src_lengths.max().item() if src_lengths.numel() > 0 else 0)
             max_prompt_len = max_src_len + 1  # +1 for separator
@@ -485,6 +499,8 @@ class Progen2Generator(nn.Module):
         
         return result
 
+    # TODO: will the generated sequences always be exactly 1000 amino acids long?
+    # TODO: in general, I need to go over this method in more detail to make sure everything is correct.
     def _generate_text(self, input_ids, attention_mask, latent_source, latent_target, max_length, temperature=1.0):
         """
         Helper method for text generation using the conditioned Progen2 model.

@@ -167,13 +167,13 @@ def main(cfg: DictConfig):
 
         # Simple predictor trainer using same training config as main training
         predictor_trainer = PredictorTrainer(
-            num_epochs=cfg.training.num_epochs,
-            log_interval=cfg.training.log_interval,
-            save_interval=cfg.training.save_interval,
-            eval_interval=cfg.training.eval_interval,
-            early_stopping=cfg.training.early_stopping,
-            patience=cfg.training.patience,
-            use_tqdm=cfg.training.use_tqdm,
+            num_epochs=cfg.predictor_training.num_epochs,
+            log_interval=cfg.predictor_training.log_interval,
+            save_interval=cfg.predictor_training.save_interval,
+            eval_interval=cfg.predictor_training.eval_interval,
+            early_stopping=cfg.predictor_training.early_stopping,
+            patience=cfg.predictor_training.patience,
+            use_tqdm=cfg.predictor_training.use_tqdm,
         )
 
         # Run predictor training

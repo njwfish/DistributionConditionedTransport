@@ -10,9 +10,11 @@ defaults:
   - /encoder: gnn
   - /model: diffusion_mlp
   - /generator: flow_matching  # Use flow matching for coupled embeddings
-  - /training: default5000
+  - /training: default50
   - /loss: predictor
   - /predictor: default  # use unified predictor
+  - /predictor_sampling: default
+  - /predictor_training: default
   - /sampling: default
 
 ot_coupling: false
@@ -24,7 +26,7 @@ predictor_loss_weight: 0
 train_predictor_posthoc: true
 
 
-predictor_model_type: "mlp"
+predictor_model_type: "ridge"
 predictor_conditioning_mode: "sinusoidal"
 predictor_model_args:
   hidden_dim: 128

@@ -122,8 +122,11 @@ class SnapMMDUnified(Dataset):
             target_samples = target_samples[subset_indices]
 
             if self.ot_coupling:
-                # compute ot coupling
-                cost = ot.dist(source_samples, target_samples, metric="sqeuclidean")
+                # NOTE: converted to numpy to avoid CUDA issues.  
+                # Compute OT coupling using POT with NumPy backend to avoid CUDA init in DataLoader workers
+                source_np = source_samples.cpu().numpy()
+                target_np = target_samples.cpu().numpy()
+                cost = ot.dist(source_np, target_np, metric="sqeuclidean")
                 G = ot.emd([], [], cost)
                 # G = ot.sinkhorn([], [], cost, 1e-1)
                 # G = ot.bregman.empirical_sinkhorn(src, tgt, 1e-1)

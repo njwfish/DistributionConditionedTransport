@@ -87,7 +87,7 @@ class Predictor(nn.Module):
         conditioning_mode="sinusoidal",  # "sinusoidal", "concat", None
         d_embed_dim=16,
         num_condition_scalars=2,
-        loss_type="MSE",  # "cosine" or "MSE"
+        loss_type="cosine",  # "cosine" or "MSE"
     ):
         super().__init__()
         self.latent_dim = latent_dim

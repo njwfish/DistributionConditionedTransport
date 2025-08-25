@@ -1,5 +1,3 @@
 # @package _global_.predictor
-_target_: predictor.predictor.MLPPredictor
-latent_dim: ${experiment.latent_dim}
-hidden_dim: 128
-num_layers: 2
+_target_: predictor.predictor.Predictor
+# TODO: add mlp predictor

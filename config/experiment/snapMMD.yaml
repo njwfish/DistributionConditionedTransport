@@ -26,7 +26,7 @@ predictor_loss_weight: 0
 train_predictor_posthoc: true
 
 
-predictor_model_type: "ridge"
+predictor_model_type: "mlp"
 predictor_conditioning_mode: "sinusoidal"
 predictor_model_args:
   hidden_dim: 128

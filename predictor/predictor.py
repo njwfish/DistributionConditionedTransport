@@ -87,6 +87,7 @@ class Predictor(nn.Module):
         conditioning_mode="sinusoidal",  # "sinusoidal", "concat", None
         d_embed_dim=16,
         num_condition_scalars=2,
+        loss_type="cosine",  # "cosine" or "MSE"
     ):
         super().__init__()
         self.latent_dim = latent_dim
@@ -94,7 +95,10 @@ class Predictor(nn.Module):
         self.conditioning_mode = conditioning_mode
         self.num_condition_scalars = num_condition_scalars
         self.requires_condition = conditioning_mode is not None
-
+        self.model_args = model_args
+        self.d_embed_dim = d_embed_dim
+        self.loss_type = loss_type
+        
         if self.conditioning_mode == "sinusoidal":
             self.d_encoder = SinusoidalPositionalEncoding(d_embed_dim)
             input_dim = latent_dim + d_embed_dim * self.num_condition_scalars
@@ -106,8 +110,8 @@ class Predictor(nn.Module):
             raise ValueError(f"Unknown conditioning_mode: {self.conditioning_mode}")
 
         if self.model_type == "mlp":
-            hidden_dim = model_args.get("hidden_dim", 128)
-            num_layers = model_args.get("num_layers", 2)
+            hidden_dim = self.model_args.get("hidden_dim", 128)
+            num_layers = self.model_args.get("num_layers", 2)
             self.model = SimpleMLP(
                 in_dims=input_dim,
                 hidden_dim=hidden_dim,
@@ -157,7 +161,13 @@ class Predictor(nn.Module):
 
     def loss(self, source_latent, target_latent, condition_scalars=None):
         pred_target_latent = self.forward(source_latent, condition_scalars=condition_scalars)
-        loss = (1 - self.similarity(pred_target_latent, target_latent)).mean()
+
+        if self.loss_type == "MSE":
+            loss = (pred_target_latent - target_latent).pow(2).mean()
+        elif self.loss_type == "cosine":
+            loss = (1 - self.similarity(pred_target_latent, target_latent)).mean()
+        else:
+            raise ValueError(f"Unknown loss_type: {self.loss_type}")
         if self.model_type == "ridge":
             loss += self.model_args.get("ridge_alpha", 0) * torch.sum(self.model.weight ** 2)
         return loss, pred_target_latent

@@ -5,3 +5,4 @@ model_type: ${experiment.predictor_model_type}
 model_args: ${experiment.predictor_model_args}
 conditioning_mode: ${experiment.predictor_conditioning_mode}
 d_embed_dim: 16
+loss_type: cosine

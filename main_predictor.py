@@ -4,7 +4,6 @@ import torch
 from torch.utils.data import DataLoader, Subset, WeightedRandomSampler
 import logging
 import wandb
-from loss.default import LossManager as DefaultLossManager
 from predictor_training import PredictorTrainer
 import os
 import numpy as np
@@ -21,9 +20,10 @@ def main(cfg: DictConfig):
     logger = logging.getLogger(__name__)
     logger.info("\n" + OmegaConf.to_yaml(cfg))
     
+
+    
     # Create file handler for debug logging in base directory
     original_cwd = hydra.utils.get_original_cwd()
-    
     
     start_time = time.time()
 
@@ -31,21 +31,13 @@ def main(cfg: DictConfig):
     config_hash = hash_utils.hash_config(cfg)
     logger.info(f"Configuration hash: {config_hash}")
     
-    # Check if we have already run this experiment
-    check_start = time.time()
-    base_output_dir = os.path.join(original_cwd, "outputs")
-    existing_dir = hash_utils.find_matching_output_dir(cfg, base_dir=base_output_dir)
-    
-    if existing_dir is not None:
-        logger.info(f"Found existing results for this configuration: {existing_dir}")
-    
     # Set random seed
     if cfg.seed is not None:
         torch.manual_seed(cfg.seed)
         
     # Initialize W&B
     run = wandb.init(
-        project=cfg.wandb.project,
+        project=cfg.wandb.project + "_predictor_only",  # Different project name to distinguish
         entity=cfg.wandb.entity,
         config=OmegaConf.to_container(cfg, resolve=True),
         mode=cfg.wandb.mode
@@ -56,9 +48,21 @@ def main(cfg: DictConfig):
         wandb.run.summary["config_hash"] = config_hash
     
     try:
+        # Resolve model path. If not explicitly provided, use hashed output dir just like main.py
+        if hasattr(cfg, "model_path") and cfg.model_path is not None:
+            model_path = cfg.model_path
+        else:
+            base_output_dir = os.path.join(original_cwd, "outputs")
+            output_dir = hash_utils.get_output_dir(cfg, base_dir=base_output_dir)
+            model_path = os.path.join(output_dir, "best_model.pt")
+
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model file not found at {model_path}")
+
+        logger.info(f"Loading trained model from: {model_path}")
+        
         # Create the dataset
         dataset = hydra.utils.instantiate(cfg.dataset)
-
 
         # Improved DataLoader with parallel workers and pinned memory
         dataloader_start = time.time()
@@ -106,14 +110,13 @@ def main(cfg: DictConfig):
             shuffle=False if sampler is not None else True,
         )
         
-        # Create encoder
+        # Create encoder (same architecture as trained model)
         encoder = hydra.utils.instantiate(cfg.encoder)
         
-        train_predictor_posthoc = False
-        if hasattr(cfg, "experiment") and hasattr(cfg.experiment, "train_predictor_posthoc"):
-            train_predictor_posthoc = bool(cfg.experiment.train_predictor_posthoc)
+        # Create generator (same architecture as trained model) 
+        generator = hydra.utils.instantiate(cfg.generator)
 
-        # Instantiate predictor independently (no longer part of encoder)
+        # Create predictor (fresh, not trained)
         predictor = None
         if hasattr(cfg, "predictor") and cfg.predictor is not None:
             predictor = hydra.utils.instantiate(cfg.predictor)
@@ -121,52 +124,81 @@ def main(cfg: DictConfig):
                 predictor.latent_act = encoder.latent_act
             else:
                 predictor.latent_act = nn.SELU()
-
-        generator = hydra.utils.instantiate(cfg.generator)
-        
-        # Get model parameters
-        if not train_predictor_posthoc and predictor is not None:
-            # joint training includes predictor
-            model_parameters = list(encoder.parameters()) + list(generator.parameters()) + list(predictor.parameters())
         else:
-            # predictor separate: train only encoder+generator here
-            model_parameters = list(encoder.parameters()) + list(generator.parameters())
-        
-        # Create optimizer and scheduler
-        optimizer = hydra.utils.instantiate(cfg.optimizer)(params=model_parameters)
-        scheduler = hydra.utils.instantiate(cfg.scheduler)(optimizer=optimizer)
-
-        # TODO: make sure this is correct
-        # Use simple reconstruction loss when predictor is trained posthoc
-        if train_predictor_posthoc:
-            loss_manager = DefaultLossManager()
-        else:
-            loss_manager = hydra.utils.instantiate(cfg.loss)
-
-        # Create trainer
-        trainer = hydra.utils.instantiate(cfg.training)
+            raise ValueError("Predictor configuration is required for predictor-only training")
         
         # GPU Transfer Check
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        gpu_start = time.time()
+        
+        # Load trained encoder and generator weights
+        logger.info(f"Loading trained weights from {model_path}")
+        best_checkpoint = torch.load(model_path, weights_only=False, map_location=device)
+        
+        if "encoder_state_dict" not in best_checkpoint:
+            raise KeyError("'encoder_state_dict' missing in model checkpoint")
+        if "generator_state_dict" not in best_checkpoint:
+            raise KeyError("'generator_state_dict' missing in model checkpoint")
+            
+        encoder.load_state_dict(best_checkpoint["encoder_state_dict"])
+        generator.load_state_dict(best_checkpoint["generator_state_dict"])
+        
+        # Move models to device
         encoder = encoder.to(device)
         generator = generator.to(device)
+        predictor = predictor.to(device)
         
-        # Run training with the hash-based output directory
+        # Set encoder and generator to eval mode and freeze their parameters
+        encoder.eval()
+        generator.eval()
+        for param in encoder.parameters():
+            param.requires_grad = False
+        for param in generator.parameters():
+            param.requires_grad = False
+            
+        logger.info("Encoder and generator loaded and frozen for predictor training")
+
+        # Create optimizer for predictor only
+        pred_optimizer = hydra.utils.instantiate(cfg.optimizer)(params=predictor.parameters())
+
+        # Set up output directory (use model path directory + predictor suffix)
+        model_dir = os.path.dirname(model_path)
+        pred_output_dir = os.path.join(model_dir, "predictor_training")
+        os.makedirs(pred_output_dir, exist_ok=True)
+
+        # Simple predictor trainer using same training config as main training
+        predictor_trainer = PredictorTrainer(
+            num_epochs=cfg.predictor_training.num_epochs,
+            log_interval=cfg.predictor_training.log_interval,
+            save_interval=cfg.predictor_training.save_interval,
+            eval_interval=cfg.predictor_training.eval_interval,
+            early_stopping=cfg.predictor_training.early_stopping,
+            patience=cfg.predictor_training.patience,
+            use_tqdm=cfg.predictor_training.use_tqdm,
+        )
+
+        # Run predictor training
         train_start = time.time()
-        output_dir, stats = trainer.train(
+        final_output_dir, pred_stats = predictor_trainer.train(
             encoder=encoder,
-            generator=generator,
-            predictor=predictor if not train_predictor_posthoc else None,
+            predictor=predictor,
             dataloader=dataloader,
-            optimizer=optimizer,
-            scheduler=scheduler,
-            loss_manager=loss_manager,
-            output_dir=base_output_dir,
-            config=cfg,
+            optimizer=pred_optimizer,
+            device=device,
+            output_dir=pred_output_dir,
         )
         
-        logger.info(f"Training completed. Best epoch: {stats['best_epoch']}")    
+        logger.info(
+            f"Predictor training completed. Best epoch: {pred_stats.get('best_epoch', 0)}"
+        )
+        logger.info(f"Predictor training took {time.time() - train_start:.2f} seconds")
+        logger.info(f"Predictor training results saved in: {final_output_dir}")
+        
+        # Log final results to W&B
+        if wandb.run is not None:
+            wandb.run.summary["predictor_best_epoch"] = pred_stats.get('best_epoch', 0)
+            wandb.run.summary["predictor_training_time"] = pred_stats.get('total_time', 0.0)
+            wandb.run.summary["loaded_model_path"] = model_path
+            wandb.run.summary["predictor_output_dir"] = final_output_dir
     
     finally:
         # Make sure to finish the W&B run
@@ -174,4 +206,4 @@ def main(cfg: DictConfig):
             wandb.finish()
 
 if __name__ == "__main__":
-    main() 
+    main()

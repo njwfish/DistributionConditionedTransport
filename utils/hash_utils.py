@@ -41,11 +41,26 @@ def hash_config(config: Union[Dict[str, Any], DictConfig], include_keys: list = 
             if key in filtered_config:
                 del filtered_config[key]
     
+    # NOTE: excluding a lot of predictor-related keys to make search for good predictor parameters easier.
     # Remove non-deterministic or irrelevant keys
-    default_exclude = ['hydra', 'device', 'wandb', 'output_dir']
+    default_exclude = ['hydra', 'device', 'wandb', 'output_dir', 'predictor_training', 
+                       'predictor', 'predictor_sampling', 'predictor_model_type', 'predictor_conditioning_mode', 
+                       'predictor_model_args']
     for key in default_exclude:
         if key in filtered_config:
             del filtered_config[key]
+
+    # Also drop predictor-related fields nested under the experiment namespace
+    if 'experiment' in filtered_config and isinstance(filtered_config['experiment'], dict):
+        experiment_exclude = [
+            'predictor_model_type',
+            'predictor_conditioning_mode',
+            'predictor_model_args',
+            'train_predictor_posthoc',
+        ]
+        for key in experiment_exclude:
+            if key in filtered_config['experiment']:
+                del filtered_config['experiment'][key]
     
     # Sort keys for deterministic ordering
     sorted_dict = json.dumps(filtered_config, sort_keys=True)

@@ -1,4 +1,4 @@
-# @package _global_.sampling
+# @package _global_.predictor_sampling
 _target_: utils.custom_sampler.CustomWeightedSampler
 weight_mode: ${experiment.weight_mode}
 num_samples: ${experiment.num_samples}

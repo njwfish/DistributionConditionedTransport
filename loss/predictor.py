@@ -6,7 +6,7 @@ class PredictorLossManager:
         self.use_predicted_latent = use_predicted_latent
         self.predictor_loss_weight = predictor_loss_weight
 
-    def loss(self, encoder, generator, batch, device):
+    def loss(self, encoder, generator, predictor, batch, device):
         losses = {}
         loss = 0
 
@@ -20,12 +20,12 @@ class PredictorLossManager:
 
             # compute predictor loss and get predicted target latent
             # Check if predictor requires dt conditioning
-            if encoder.predictor.requires_condition:
+            if predictor.requires_condition:
                 condition_scalars = (batch['source_idx'].to(device), batch['target_idx'].to(device))
-                predictor_loss, pred_target_latent = encoder.predictor.loss(source_latent, target_latent, condition_scalars)
+                predictor_loss, pred_target_latent = predictor.loss(source_latent, target_latent, condition_scalars)
             else:
                 # non-dt-conditioned predictor
-                predictor_loss, pred_target_latent = encoder.predictor.loss(source_latent, target_latent)
+                predictor_loss, pred_target_latent = predictor.loss(source_latent, target_latent)
 
             # compute generator loss
             target_latent_for_generator = target_latent if not self.use_predicted_latent else pred_target_latent
@@ -59,12 +59,12 @@ class PredictorLossManager:
             target_latent = encoder(target_samples)
 
             # Check if predictor requires conditioning
-            if encoder.predictor.requires_condition:
+            if predictor.requires_condition:
                 condition_scalars = (batch['source_idx'].to(device), batch['target_idx'].to(device))
-                predictor_loss, pred_target_latent = encoder.predictor.loss(source_latent, target_latent, condition_scalars)
+                predictor_loss, pred_target_latent = predictor.loss(source_latent, target_latent, condition_scalars)
             else:
                 # no conditioning
-                predictor_loss, pred_target_latent = encoder.predictor.loss(source_latent, target_latent)
+                predictor_loss, pred_target_latent = predictor.loss(source_latent, target_latent)
 
             target_latent_for_generator = target_latent if not self.use_predicted_latent else pred_target_latent
 

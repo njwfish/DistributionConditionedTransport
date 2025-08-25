@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from utils.hf_local import resolve_local_or_repo
+from utils.debug_memory_logger import get_debug_logger
 import torch.nn.functional as F
 from typing import Optional
 
@@ -33,6 +34,7 @@ class ConditionedProgen2(nn.Module):
         condition_method="prefix",
         use_gradient_checkpointing: bool = False,
         precision: Optional[str] = None,
+        forward_microbatch_size: Optional[int] = None,
     ):
         """
         Initialize a conditioned Progen2 model.
@@ -47,20 +49,11 @@ class ConditionedProgen2(nn.Module):
         import logging
         import time
         import os
-        debug_logger = logging.getLogger('debug_performance')
-        debug_logger.info(f"=== ConditionedProgen2.__init__ STARTED ===")
-        debug_logger.info(f"Model name: {progen2_name}")
-        
-        # Check environment for potential issues
-        debug_logger.info(f"HF_HOME: {os.environ.get('HF_HOME', 'not set')}")
-        debug_logger.info(f"TRANSFORMERS_CACHE: {os.environ.get('TRANSFORMERS_CACHE', 'not set')}")
-        debug_logger.info(f"HF_HUB_OFFLINE: {os.environ.get('HF_HUB_OFFLINE', 'not set')}")
         
         super().__init__()
         
         # Initialize Progen2 model
         # Determine requested dtype early to load weights in that dtype
-        debug_logger.info("Determining precision settings...")
         requested_dtype = None
         if precision:
             p = precision.lower()
@@ -70,22 +63,8 @@ class ConditionedProgen2(nn.Module):
                 requested_dtype = torch.bfloat16
             elif p in ("fp32", "float32"):
                 requested_dtype = torch.float32
-        debug_logger.info(f"Requested dtype: {requested_dtype}")
-
-        # Check if model might be cached locally
-        from transformers import AutoConfig
-        try:
-            debug_logger.info("Checking if model config is available locally...")
-            config_check_start = time.time()
-            config = AutoConfig.from_pretrained(resolve_local_or_repo(progen2_name), trust_remote_code=True, local_files_only=True)
-            debug_logger.info(f"Model config found locally (took {time.time() - config_check_start:.2f}s)")
-        except Exception:
-            debug_logger.info("Model not found locally - will need to download")
         
-        debug_logger.info(f"Starting AutoModelForCausalLM.from_pretrained for {progen2_name}...")
-        model_load_start = time.time()
-        
-        # Add more explicit loading parameters that might help with speed
+        # Load the ProGen2 model
         try:
             self.progen2 = AutoModelForCausalLM.from_pretrained(
                 resolve_local_or_repo(progen2_name),
@@ -95,45 +74,35 @@ class ConditionedProgen2(nn.Module):
                 local_files_only=False,  # Allow downloading if needed
                 resume_download=True,  # Resume interrupted downloads
             )
-            debug_logger.info(f"ProGen2 model loaded successfully (took {time.time() - model_load_start:.2f}s)")
-        except Exception as e:
-            debug_logger.error(f"Failed to load ProGen2 model: {e}")
-            debug_logger.info("Trying fallback loading strategy...")
+        except Exception:
             # Fallback with minimal parameters
             self.progen2 = AutoModelForCausalLM.from_pretrained(
                 resolve_local_or_repo(progen2_name),
                 trust_remote_code=True,
             )
-            debug_logger.info(f"ProGen2 model loaded with fallback (took {time.time() - model_load_start:.2f}s)")
 
-        # TODO: not sure whether this actually helps/works...
-        # Memory optimizations
-        debug_logger.info("Applying memory optimizations...")
+        # Minimal memory optimizations
+        # Keep only the essentials: disable use_cache (safe given our training path)
+        if hasattr(self.progen2, 'config') and hasattr(self.progen2.config, 'use_cache'):
+            self.progen2.config.use_cache = False
         if use_gradient_checkpointing and hasattr(self.progen2, 'gradient_checkpointing_enable'):
             try:
                 self.progen2.gradient_checkpointing_enable()
-                # disable cache to allow gradient checkpointing
-                if hasattr(self.progen2.config, 'use_cache'):
-                    self.progen2.config.use_cache = False
-                debug_logger.info("Gradient checkpointing enabled")
-            except Exception as e:
-                debug_logger.warning(f"Failed to enable gradient checkpointing: {e}")
+            except Exception:
+                pass
 
         # Set model dtype if requested
         if requested_dtype is not None:
-            debug_logger.info(f"Converting model to dtype: {requested_dtype}")
             self.progen2.to(dtype=requested_dtype)
         
+        # TODO: make really sure that progen2 is not frozen for virus task.
         # Freeze Progen2 if specified
         if freeze_progen2:
-            debug_logger.info("Freezing ProGen2 parameters...")
             for param in self.progen2.parameters():
                 param.requires_grad = False
-            debug_logger.info("ProGen2 parameters frozen")
         
         # Get the embedding dimension from the model config
         # Different models might use different attribute names
-        debug_logger.info("Determining hidden dimension from model config...")
         if hasattr(self.progen2.config, 'hidden_size'):
             self.hidden_dim = self.progen2.config.hidden_size
         elif hasattr(self.progen2.config, 'n_embd'):
@@ -142,18 +111,18 @@ class ConditionedProgen2(nn.Module):
             self.hidden_dim = self.progen2.config.embed_dim
         elif hasattr(self.progen2.config, 'd_model'):
             self.hidden_dim = self.progen2.config.d_model
+        # TODO: remove this strange fallback.
         else:
             # Default value if none of the above attributes exist
             self.hidden_dim = 768
-            debug_logger.warning(f"Could not determine hidden dimension from model config. Using default: {self.hidden_dim}")
         
-        debug_logger.info(f"Hidden dimension: {self.hidden_dim}")
         self.condition_method = condition_method
+        # Remove internal model microbatching; trainer now handles set microbatching
+        self.forward_microbatch_size = None
         
         # Project latent to correct dimension (same approach as in GPT-2)
         # Note: input dimension is doubled since we concatenate source and target latents
         combined_latent_dim = latent_dim * 2
-        debug_logger.info(f"Creating conditioning projection network (input_dim={combined_latent_dim}, condition_dim={condition_dim}, hidden_dim={self.hidden_dim})...")
         
         if self.condition_method == "prefix":
             # For prefix conditioning, project to hidden states
@@ -174,10 +143,7 @@ class ConditionedProgen2(nn.Module):
 
         # Align dtype of conditioning projection with model
         if requested_dtype is not None:
-            debug_logger.info(f"Setting conditioning projection dtype to: {requested_dtype}")
-            self.condition_proj.to(dtype=requested_dtype)
-        
-        debug_logger.info("=== ConditionedProgen2.__init__ COMPLETED ===")        
+            self.condition_proj.to(dtype=requested_dtype)        
 
     def forward(self, input_ids, attention_mask, latent_source, latent_target):
         """
@@ -193,13 +159,7 @@ class ConditionedProgen2(nn.Module):
         Returns:
             Logits for next token prediction
         """
-        import logging
-        import time
-        debug_logger = logging.getLogger('debug_performance')
-        forward_start = time.time()
-        
         batch_size = input_ids.shape[0]
-        debug_logger.debug(f"Generator forward: input shape {input_ids.shape}, batch_size {batch_size}")
         
         # Combine the two latents - concatenate them to create a richer conditioning signal
         combined_latent = torch.cat([latent_source, latent_target], dim=-1)
@@ -218,6 +178,7 @@ class ConditionedProgen2(nn.Module):
                 reshaped_input_ids = input_ids.view(batch_size * set_size, seq_len)
                 reshaped_attention_mask = attention_mask.view(batch_size * set_size, seq_len)
                 expanded_condition = condition.unsqueeze(1).repeat(1, set_size, 1).view(batch_size * set_size, -1)
+
                 logits = self._forward_single_sequence(
                     reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="prefix"
                 )
@@ -230,13 +191,13 @@ class ConditionedProgen2(nn.Module):
                 reshaped_input_ids = input_ids.view(batch_size * set_size, seq_len)
                 reshaped_attention_mask = attention_mask.view(batch_size * set_size, seq_len)
                 expanded_condition = condition.unsqueeze(1).repeat(1, set_size, 1).view(batch_size * set_size, -1)
+
                 logits = self._forward_single_sequence(
                     reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="additive"
                 )
             else:
                 logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="additive")
         
-        debug_logger.debug(f"Generator forward completed in {time.time() - forward_start:.3f}s")
         return logits
 
     def _forward_single_sequence(self, input_ids, attention_mask, condition, method="prefix"):
@@ -272,10 +233,13 @@ class ConditionedProgen2(nn.Module):
             # Concatenate prefix embedding with input embeddings
             combined_embeds = torch.cat([prefix_embeds, token_embeds], dim=1)
             
-            # Run through Progen2 with custom embeddings
+            # Run through Progen2 with custom embeddings - CRITICAL MEMORY POINT
+            # Enforce no cache and avoid returning hidden states to reduce memory
             outputs = self.progen2(
                 inputs_embeds=combined_embeds,
                 attention_mask=extended_attention_mask,
+                use_cache=False,
+                output_hidden_states=False,
                 return_dict=True
             )
             
@@ -287,6 +251,7 @@ class ConditionedProgen2(nn.Module):
             outputs = self.progen2(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
+                use_cache=False,
                 return_dict=True,
                 output_hidden_states=True
             )
@@ -294,6 +259,7 @@ class ConditionedProgen2(nn.Module):
             # Get the final hidden states
             hidden_states = outputs.hidden_states[-1]
             
+            # TODO: is it correct that here we add the condition only right before the langauge head?
             # Add the condition to each position
             condition = condition.to(hidden_states.dtype)
             condition_broadcast = condition.unsqueeze(1)  # [batch_size, 1, hidden_dim]
@@ -319,6 +285,7 @@ class Progen2Generator(nn.Module):
         max_length=512,
         use_gradient_checkpointing: bool = False,
         precision: Optional[str] = None,
+        forward_microbatch_size: Optional[int] = None,
     ):
         """
         Initialize the Progen2 generator.
@@ -332,15 +299,8 @@ class Progen2Generator(nn.Module):
             temperature: Sampling temperature
             max_length: Maximum length for generation
         """
-        import logging
-        import time
-        debug_logger = logging.getLogger('debug_performance')
-        debug_logger.info("=== Progen2Generator.__init__ STARTED ===")
-        
         super().__init__()
 
-        debug_logger.info("Creating ConditionedProgen2 model...")
-        conditioned_model_start = time.time()
         self.model = ConditionedProgen2(
             progen2_name=progen2_name,
             latent_dim=latent_dim,
@@ -349,28 +309,29 @@ class Progen2Generator(nn.Module):
             condition_method=condition_method,
             use_gradient_checkpointing=use_gradient_checkpointing,
             precision=precision,
+            forward_microbatch_size=forward_microbatch_size,
         )
-        debug_logger.info(f"ConditionedProgen2 model created (took {time.time() - conditioned_model_start:.2f}s)")
         
         self.temperature = temperature
         self.max_length = max_length
         
         # Initialize tokenizer (for generation)
-        debug_logger.info(f"Loading tokenizer for {progen2_name}...")
-        tokenizer_start = time.time()
         self.tokenizer = AutoTokenizer.from_pretrained(resolve_local_or_repo(progen2_name), trust_remote_code=True)
-        debug_logger.info(f"Tokenizer loaded (took {time.time() - tokenizer_start:.2f}s)")
         
         # Add special tokens if they don't exist
-        debug_logger.info("Setting up special tokens...")
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = '<|pad|>'
         if self.tokenizer.bos_token is None:
             self.tokenizer.bos_token = '<|bos|>'
         if self.tokenizer.eos_token is None:
             self.tokenizer.eos_token = '<|eos|>'
-        debug_logger.info("Special tokens configured")
-        debug_logger.info("=== Progen2Generator.__init__ COMPLETED ===")        
+        
+        # Resolve separator token id ('<|endoftext|>') and pad token id
+        self.sep_token = '<|endoftext|>'
+        # TODO: make sure that this doesn't default to some nonsensical value when the sep_token doesn't exist.
+        self.sep_token_id = self.tokenizer.convert_tokens_to_ids(self.sep_token)
+        # TODO: is this correct?
+        self.pad_token_id = self.tokenizer.pad_token_id if (hasattr(self.tokenizer, 'pad_token_id') and self.tokenizer.pad_token_id is not None) else 0        
     
     def loss(self, x_source, x_target, latent_source, latent_target):
         """
@@ -383,30 +344,47 @@ class Progen2Generator(nn.Module):
         Returns:
             Negative log likelihood loss
         """
+        # TODO: normalize latents and add errors for flattened batches.
+
         source_ids = x_source['progen_input_ids']
         source_attention_mask = x_source['progen_attention_mask']
         
         target_ids = x_target['progen_input_ids']
-        # TODO: is it correct that we have no use for the target attention mask?
         target_attention_mask = x_target['progen_attention_mask']
         
-        # TODO: Figure out whether you want to do seq to seq or mask to seq.
-        # Shift for causal language modeling: predict each token using previous tokens
-        #logits = self.model(source_ids, source_attention_mask, latent_source, latent_target)
-        logits = self.model(target_ids, target_attention_mask, latent_source, latent_target)
+        # Concatenate source + <|endoftext|> + target for conditioning on source content
+        sep_shape = list(source_ids.shape[:-1]) + [1]
+        sep_ids = torch.full(sep_shape, fill_value=self.sep_token_id, dtype=source_ids.dtype, device=source_ids.device)
+        sep_mask = torch.ones_like(sep_ids, dtype=source_attention_mask.dtype)
+        
+        concat_ids = torch.cat([source_ids, sep_ids, target_ids], dim=-1)
+        concat_attention_mask = torch.cat([source_attention_mask, sep_mask, target_attention_mask], dim=-1)
+        
+        # Forward pass on concatenated input
+        logits = self.model(concat_ids, concat_attention_mask, latent_source, latent_target)
         shift_logits = logits[:, :-1, :]
         
-        # Reshape input_ids if needed to match logits
-        if len(target_ids.shape) == 3 and len(shift_logits.shape) == 3:
-            if target_ids.shape[0] * target_ids.shape[1] == shift_logits.shape[0]:
-                # Reshape input_ids to match the reshaped logits
-                target_ids = target_ids.view(-1, target_ids.shape[-1])
+        # Prepare labels: only compute loss on the target portion
+        shift_labels_pre = concat_ids[..., 1:]
+        source_len = source_ids.shape[-1]
+        target_len = target_ids.shape[-1]
         
-        shift_labels = target_ids[:, 1:]
+        # Build a mask that selects only the target tokens in the shifted labels
+        labels_mask = torch.zeros_like(shift_labels_pre, dtype=target_attention_mask.dtype)
+        # TODO: shouldn't it be source_len + 1?
+        labels_mask[..., source_len:] = target_attention_mask
+        
+        # TODO: are we sure that -100 is the correct ignore index?
+        # Apply mask using ignore_index=-100
+        shift_labels = shift_labels_pre.masked_fill(labels_mask == 0, -100)
+        
+        # If model flattened set dimension, align labels accordingly
+        if shift_labels.dim() == 3 and shift_logits.dim() == 3:
+            if shift_labels.shape[0] * shift_labels.shape[1] == shift_logits.shape[0]:
+                shift_labels = shift_labels.view(-1, shift_labels.shape[-1])
         
         # Calculate loss
         loss_fct = nn.CrossEntropyLoss(reduction='mean')
-        # If model is in reduced precision, temporarily compute loss in fp32 for stability
         logits_dtype = shift_logits.dtype
         if logits_dtype in (torch.float16, torch.bfloat16):
             loss = loss_fct(
@@ -421,7 +399,6 @@ class Progen2Generator(nn.Module):
         
         return loss
 
-    # TODO: currently this is not being conditioned on the source samples, but I think that's fine since the PLM doesn't need it.
     def sample(self, x_source, latent_source, latent_target, num_samples=1, return_texts=False):
         """
         Sample sequences from the conditioned model.
@@ -434,23 +411,26 @@ class Progen2Generator(nn.Module):
         Returns:
             Generated token IDs, and optionally decoded texts
         """
+        # TODO: normalize latents and add errors for flattened batches.
+
         device = latent_source.device
+        # TODO: I think there might be additional weird behavior if we flatten inputs before calling the sample method.
         batch_size = latent_source.size(0)
         
         # Get BOS token ID for start of generation
+        # TODO: do we really want to default to bos_token_id = 1here?
+
         if hasattr(self.tokenizer, 'bos_token_id') and self.tokenizer.bos_token_id is not None:
             bos_token_id = self.tokenizer.bos_token_id
         else:
             # Default to 1 if no BOS token is defined
             bos_token_id = 1
         
-        # Initialize with the starting tokens
-        start_ids = torch.tensor([[bos_token_id]] * batch_size, device=device)
-        start_mask = torch.ones_like(start_ids)
-        
         # Generate samples
         all_samples = []
-        for _ in range(num_samples):
+        src_ids_all = x_source['progen_input_ids']
+        src_mask_all = x_source['progen_attention_mask']
+        for sample_idx in range(num_samples):
             # Add noise for diversity if generating multiple samples
             if num_samples > 1:
                 noise_scale = 0.1
@@ -459,6 +439,33 @@ class Progen2Generator(nn.Module):
             else:
                 noisy_latent_source = latent_source
                 noisy_latent_target = latent_target
+            
+            # TODO: I might be wrong but I think this will lead to weird behavior if we flatten the inputs beforehand (which is done in training.py during microbatching for example).
+            # Build prompt for this sample: choose different source sequences if available
+            if src_ids_all.dim() == 3:
+                set_size = src_ids_all.shape[1]
+                set_idx = sample_idx % set_size
+                src_ids = src_ids_all[:, set_idx, :]
+                src_mask = src_mask_all[:, set_idx, :]
+            else:
+                src_ids = src_ids_all
+                src_mask = src_mask_all
+            
+            # TODO: maybe overhaul everything below, I feel like it is unnecessarily convoluted.
+            src_lengths = src_mask.sum(dim=-1).to(torch.long)
+            max_src_len = int(src_lengths.max().item() if src_lengths.numel() > 0 else 0)
+            max_prompt_len = max_src_len + 1  # +1 for separator
+            
+            # TODO: make sure we really want to fill with pad token here.
+            start_ids = torch.full((batch_size, max_prompt_len), fill_value=self.pad_token_id, dtype=src_ids.dtype, device=device)
+            start_mask = torch.zeros((batch_size, max_prompt_len), dtype=src_mask.dtype, device=device)
+            
+            for i in range(batch_size):
+                L = int(src_lengths[i].item())
+                if L > 0:
+                    start_ids[i, :L] = src_ids[i, :L]
+                start_ids[i, L] = self.sep_token_id
+                start_mask[i, : L + 1] = 1
                 
             with torch.no_grad():
                 out = self._generate_text(
@@ -492,6 +499,8 @@ class Progen2Generator(nn.Module):
         
         return result
 
+    # TODO: will the generated sequences always be exactly 1000 amino acids long?
+    # TODO: in general, I need to go over this method in more detail to make sure everything is correct.
     def _generate_text(self, input_ids, attention_mask, latent_source, latent_target, max_length, temperature=1.0):
         """
         Helper method for text generation using the conditioned Progen2 model.

@@ -92,6 +92,7 @@ class Predictor(nn.Module):
         super().__init__()
         self.latent_dim = latent_dim
         self.model_type = model_type
+        self.model_args = model_args
         self.conditioning_mode = conditioning_mode
         self.num_condition_scalars = num_condition_scalars
         self.requires_condition = conditioning_mode is not None

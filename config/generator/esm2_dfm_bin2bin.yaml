@@ -1,5 +1,5 @@
 # @package _global_.generator
-_target_: generator.esm2_dfm_bin2bin.ESM2_DFM_Generator
+_target_: generator.esm2_dfm_uniform_seq2seq.ESM2_DFM_Generator
 model_name: 'facebook/esm2_t6_8M_UR50D'
 latent_dim: ${experiment.latent_dim}
 condition_dim: ${experiment.condition_dim}

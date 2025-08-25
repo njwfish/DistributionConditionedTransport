@@ -13,6 +13,8 @@ import torch.nn as nn
 # Import our resolver for sum operations
 import utils.hash_utils as hash_utils
 
+# Import debug memory logger
+from utils.debug_memory_logger import get_debug_logger
 
 
 @hydra.main(config_path="config", config_name="config", version_base="1.1")
@@ -21,6 +23,12 @@ def main(cfg: DictConfig):
     logger.info("\n" + OmegaConf.to_yaml(cfg))
     
 
+    # Initialize GPU memory debug logger (gated by config)
+    debug_logger = None
+    if hasattr(cfg, "experiment") and hasattr(cfg.experiment, "debug_memory_logging") and bool(cfg.experiment.debug_memory_logging):
+        debug_logger = get_debug_logger()
+        debug_logger.log_cuda_info()
+        debug_logger.log_memory("START", "Main predictor function started")
     
     # Create file handler for debug logging in base directory
     original_cwd = hydra.utils.get_original_cwd()
@@ -64,6 +72,7 @@ def main(cfg: DictConfig):
         # Create the dataset
         dataset = hydra.utils.instantiate(cfg.dataset)
 
+
         # Improved DataLoader with parallel workers and pinned memory
         dataloader_start = time.time()
         num_workers = min(2, os.cpu_count())  # Reduced from 4 to 2 to avoid DataLoader warnings and reduce memory contention
@@ -103,12 +112,17 @@ def main(cfg: DictConfig):
 
         sampler = hydra.utils.instantiate(sampling_config, dataset=dataset, **sampler_kwargs)
 
+
+        if debug_logger is not None:
+            debug_logger.log_memory("DATALOADER_START", "Creating DataLoader")
+
         dataloader = DataLoader(
             dataset,
             **base_dataloader_kwargs,
             sampler=sampler,
             shuffle=False if sampler is not None else True,
         )
+
         
         # Create encoder (same architecture as trained model)
         encoder = hydra.utils.instantiate(cfg.encoder)
@@ -119,11 +133,13 @@ def main(cfg: DictConfig):
         # Create predictor (fresh, not trained)
         predictor = None
         if hasattr(cfg, "predictor") and cfg.predictor is not None:
+
             predictor = hydra.utils.instantiate(cfg.predictor)
             if hasattr(encoder, "latent_act"):
                 predictor.latent_act = encoder.latent_act
             else:
                 predictor.latent_act = nn.SELU()
+
         else:
             raise ValueError("Predictor configuration is required for predictor-only training")
         
@@ -143,10 +159,12 @@ def main(cfg: DictConfig):
         generator.load_state_dict(best_checkpoint["generator_state_dict"])
         
         # Move models to device
+
         encoder = encoder.to(device)
         generator = generator.to(device)
         predictor = predictor.to(device)
         
+
         # Set encoder and generator to eval mode and freeze their parameters
         encoder.eval()
         generator.eval()

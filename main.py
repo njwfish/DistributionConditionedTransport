@@ -13,6 +13,8 @@ import time
 import torch.nn as nn
 # Import our resolver for sum operations
 import utils.hash_utils as hash_utils
+# Import debug memory logger
+from utils.debug_memory_logger import get_debug_logger
 
 
 
@@ -20,6 +22,13 @@ import utils.hash_utils as hash_utils
 def main(cfg: DictConfig):
     logger = logging.getLogger(__name__)
     logger.info("\n" + OmegaConf.to_yaml(cfg))
+    
+    # Initialize GPU memory debug logger (gated by config)
+    debug_logger = None
+    if hasattr(cfg, "experiment") and hasattr(cfg.experiment, "debug_memory_logging") and bool(cfg.experiment.debug_memory_logging):
+        debug_logger = get_debug_logger()
+        debug_logger.log_cuda_info()
+        debug_logger.log_memory("START", "Main function started")
     
     # Create file handler for debug logging in base directory
     original_cwd = hydra.utils.get_original_cwd()
@@ -57,7 +66,11 @@ def main(cfg: DictConfig):
     
     try:
         # Create the dataset
+        if debug_logger is not None:
+            debug_logger.log_memory("DATASET_START", "Creating dataset")
         dataset = hydra.utils.instantiate(cfg.dataset)
+        if debug_logger is not None:
+            debug_logger.log_memory("DATASET_LOADED", f"Dataset created with {len(dataset)} samples")
 
 
         # Improved DataLoader with parallel workers and pinned memory
@@ -99,15 +112,24 @@ def main(cfg: DictConfig):
 
         sampler = hydra.utils.instantiate(sampling_config, dataset=dataset, **sampler_kwargs)
 
+        if debug_logger is not None:
+            debug_logger.log_memory("DATALOADER_START", "Creating DataLoader")
         dataloader = DataLoader(
             dataset,
             **base_dataloader_kwargs,
             sampler=sampler,
             shuffle=False if sampler is not None else True,
         )
+        if debug_logger is not None:
+            debug_logger.log_memory("DATALOADER_CREATED", f"DataLoader created with batch_size={cfg.experiment.batch_size}")
         
         # Create encoder
+        if debug_logger is not None:
+            debug_logger.log_memory("ENCODER_START", "Creating encoder")
         encoder = hydra.utils.instantiate(cfg.encoder)
+
+        if debug_logger is not None:
+            debug_logger.log_model_info("ENCODER_CREATED", "encoder", encoder)
         
         train_predictor_posthoc = False
         if hasattr(cfg, "experiment") and hasattr(cfg.experiment, "train_predictor_posthoc"):
@@ -116,13 +138,25 @@ def main(cfg: DictConfig):
         # Instantiate predictor independently (no longer part of encoder)
         predictor = None
         if hasattr(cfg, "predictor") and cfg.predictor is not None:
+
+            if debug_logger is not None:
+                debug_logger.log_memory("PREDICTOR_START", "Creating predictor")
+
             predictor = hydra.utils.instantiate(cfg.predictor)
             if hasattr(encoder, "latent_act"):
                 predictor.latent_act = encoder.latent_act
             else:
                 predictor.latent_act = nn.SELU()
 
+            if debug_logger is not None:
+                debug_logger.log_model_info("PREDICTOR_CREATED", "predictor", predictor)
+
+
+        if debug_logger is not None:
+            debug_logger.log_memory("GENERATOR_START", "Creating generator")
         generator = hydra.utils.instantiate(cfg.generator)
+        if debug_logger is not None:
+            debug_logger.log_model_info("GENERATOR_CREATED", "generator", generator)
         
         # Get model parameters
         if not train_predictor_posthoc and predictor is not None:
@@ -149,8 +183,15 @@ def main(cfg: DictConfig):
         # GPU Transfer Check
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         gpu_start = time.time()
+        if debug_logger is not None:
+            debug_logger.log_memory("GPU_TRANSFER_START", "Moving models to GPU")
         encoder = encoder.to(device)
+        if debug_logger is not None:
+            debug_logger.log_memory("ENCODER_GPU", f"Encoder moved to {device}")
         generator = generator.to(device)
+        if debug_logger is not None:
+            debug_logger.log_memory("GENERATOR_GPU", f"Generator moved to {device}")
+            debug_logger.reset_peak_memory()
         
         # Run training with the hash-based output directory
         train_start = time.time()
@@ -167,6 +208,7 @@ def main(cfg: DictConfig):
         )
         
         logger.info(f"Training completed. Best epoch: {stats['best_epoch']}")    
+
     
     finally:
         # Make sure to finish the W&B run

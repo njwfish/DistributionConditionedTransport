@@ -194,6 +194,7 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
     else:
         gen.model.load_state_dict(state['generator_state_dict'])
 
+
     # Load predictor weights based on requested source
     if predictor is not None:
         def _try_load_predictor(ckpt_path: str) -> bool:
@@ -233,6 +234,7 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
                 if not loaded_pred:
                     loaded_pred = _try_load_predictor(root_pred_path) or _try_load_predictor(subdir_pred_path)
 
+
     enc.eval(); gen.eval()
     enc.to(device); gen.to(device)
     if predictor is not None:
@@ -243,6 +245,7 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
 
 def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], predictor_source: str = 'separate'):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     cfg, enc, gen, predictor, train_predictor_posthoc = load_models_from_experiment(experiment_dir, device, predictor_source=predictor_source)
 
     Xs_training = training_data['Xs']

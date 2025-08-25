@@ -344,7 +344,15 @@ class Progen2Generator(nn.Module):
         Returns:
             Negative log likelihood loss
         """
-        # TODO: normalize latents and add errors for flattened batches.
+        # Validate latent dimensions and normalize per-sample
+        if latent_source.dim() != 2 or latent_target.dim() != 2:
+            raise ValueError(
+                f"Progen2Generator.loss expects 2D latents shaped (batch_size, latent_dim)."
+                f" Got latent_source.shape={tuple(latent_source.shape)},"
+                f" latent_target.shape={tuple(latent_target.shape)}"
+            )
+        latent_source = latent_source / torch.norm(latent_source, dim=-1, keepdim=True).clamp_min(1e-12)
+        latent_target = latent_target / torch.norm(latent_target, dim=-1, keepdim=True).clamp_min(1e-12)
 
         source_ids = x_source['progen_input_ids']
         source_attention_mask = x_source['progen_attention_mask']
@@ -411,7 +419,15 @@ class Progen2Generator(nn.Module):
         Returns:
             Generated token IDs, and optionally decoded texts
         """
-        # TODO: normalize latents and add errors for flattened batches.
+        # Validate latent dimensions and normalize per-sample
+        if latent_source.dim() != 2 or latent_target.dim() != 2:
+            raise ValueError(
+                f"Progen2Generator.sample expects 2D latents shaped (batch_size, latent_dim)."
+                f" Got latent_source.shape={tuple(latent_source.shape)},"
+                f" latent_target.shape={tuple(latent_target.shape)}"
+            )
+        latent_source = latent_source / torch.norm(latent_source, dim=-1, keepdim=True).clamp_min(1e-12)
+        latent_target = latent_target / torch.norm(latent_target, dim=-1, keepdim=True).clamp_min(1e-12)
 
         device = latent_source.device
         # TODO: I think there might be additional weird behavior if we flatten inputs before calling the sample method.

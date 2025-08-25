@@ -166,22 +166,54 @@ class ESM2_DFM_Generator(nn.Module):
         Inputs mirror Progen2Generator.loss: x_source and x_target provide tokenizer-specific
         fields for ESM (esm_input_ids, esm_attention_mask).
         """
-        # TODO: normalize latents and add errors for flattened batches.
+        # Validate latent dimensions and normalize per-sample
+        if latent_source.dim() != 2 or latent_target.dim() != 2:
+            raise ValueError(
+                f"ESM2_DFM_Generator.loss expects 2D latents shaped (batch_size, latent_dim)."
+                f" Got latent_source.shape={tuple(latent_source.shape)},"
+                f" latent_target.shape={tuple(latent_target.shape)}"
+            )
+        latent_source = latent_source / torch.norm(latent_source, dim=-1, keepdim=True).clamp_min(1e-12)
+        latent_target = latent_target / torch.norm(latent_target, dim=-1, keepdim=True).clamp_min(1e-12)
+
+        # Validate input shapes (allow [B, L] or [B, S, L])
+        if x_source["esm_input_ids"].dim() not in (2, 3) or x_source["esm_attention_mask"].dim() not in (2, 3):
+            raise ValueError(
+                f"ESM2_DFM_Generator.loss expects source tensors with 2 or 3 dims."
+                f" Got input_ids.dim={x_source['esm_input_ids'].dim()}, attention_mask.dim={x_source['esm_attention_mask'].dim()}"
+            )
+        if x_source["esm_input_ids"].dim() == 2 and x_source["esm_input_ids"].size(0) != latent_source.size(0):
+            raise ValueError(
+                f"ESM2_DFM_Generator.loss received 2D source input_ids with batch={x_source['esm_input_ids'].size(0)} but latents batch={latent_source.size(0)}."
+                f" This suggests inputs were flattened across set dimension. Keep inputs un-flattened with shape [B, S, L]."
+            )
+        if x_target["esm_input_ids"].dim() not in (2, 3) or x_target["esm_attention_mask"].dim() not in (2, 3):
+            raise ValueError(
+                f"ESM2_DFM_Generator.loss expects target tensors with 2 or 3 dims."
+                f" Got input_ids.dim={x_target['esm_input_ids'].dim()}, attention_mask.dim={x_target['esm_attention_mask'].dim()}"
+            )
+        if x_target["esm_input_ids"].dim() == 2 and x_target["esm_input_ids"].size(0) != latent_target.size(0):
+            raise ValueError(
+                f"ESM2_DFM_Generator.loss received 2D target input_ids with batch={x_target['esm_input_ids'].size(0)} but latents batch={latent_target.size(0)}."
+                f" This suggests inputs were flattened across set dimension. Keep inputs un-flattened with shape [B, S, L]."
+            )
         input_ids_source = x_source["esm_input_ids"]  # (B, L)
         attention_mask_source = x_source["esm_attention_mask"]  # (B, L)
         input_ids_target = x_target["esm_input_ids"]  # (B, L)
         attention_mask_target = x_target["esm_attention_mask"]  # (B, L)
 
-        # Flatten set dimension consistently ONCE across source/target and expand latents once
+        # Keep un-flattened shapes; model handles batching, and set microbatching is upstream
         if input_ids_source.ndim == 3:
             B, S, L = input_ids_source.shape
             input_ids_source = input_ids_source.view(B * S, L)
             attention_mask_source = attention_mask_source.view(B * S, L)
             input_ids_target = input_ids_target.view(B * S, L)
             attention_mask_target = attention_mask_target.view(B * S, L)
+            # TODO: it was suggested to use one of the two, I suppose one is wrong and the other is right. Figure out which is which (referring to commented lines).
             latent_source = latent_source.unsqueeze(1).repeat(1, S, 1).view(B * S, -1)
             latent_target = latent_target.unsqueeze(1).repeat(1, S, 1).view(B * S, -1)
-
+            #latent_source = latent_source.unsqueeze(1).expand(B, S, -1).reshape(B * S, -1)
+            #latent_target = latent_target.unsqueeze(1).expand(B, S, -1).reshape(B * S, -1)
         device = input_ids_target.device
         B, L = input_ids_target.shape
 
@@ -230,7 +262,27 @@ class ESM2_DFM_Generator(nn.Module):
         - Returns [batch_size, num_samples, seq_len] token ids for ESM vocabulary.
         - Optionally returns decoded strings.
         """
-        # TODO: normalize latents and add errors for flattened batches.
+        # Validate latent dimensions and normalize per-sample
+        if latent_source.dim() != 2 or latent_target.dim() != 2:
+            raise ValueError(
+                f"ESM2_DFM_Generator.sample expects 2D latents shaped (batch_size, latent_dim)."
+                f" Got latent_source.shape={tuple(latent_source.shape)},"
+                f" latent_target.shape={tuple(latent_target.shape)}"
+            )
+        latent_source = latent_source / torch.norm(latent_source, dim=-1, keepdim=True).clamp_min(1e-12)
+        latent_target = latent_target / torch.norm(latent_target, dim=-1, keepdim=True).clamp_min(1e-12)
+
+        # Validate source shapes (allow [B, L] or [B, S, L])
+        if x_source["esm_input_ids"].dim() not in (2, 3) or x_source["esm_attention_mask"].dim() not in (2, 3):
+            raise ValueError(
+                f"ESM2_DFM_Generator.sample expects source tensors with 2 or 3 dims."
+                f" Got input_ids.dim={x_source['esm_input_ids'].dim()}, attention_mask.dim={x_source['esm_attention_mask'].dim()}"
+            )
+        if x_source["esm_input_ids"].dim() == 2 and x_source["esm_input_ids"].size(0) != latent_source.size(0):
+            raise ValueError(
+                f"ESM2_DFM_Generator.sample received 2D source input_ids with batch={x_source['esm_input_ids'].size(0)} but latents batch={latent_source.size(0)}."
+                f" This suggests inputs were flattened across set dimension. Keep inputs un-flattened with shape [B, S, L]."
+            )
 
         self.model.eval()
         device = latent_source.device

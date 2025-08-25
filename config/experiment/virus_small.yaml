@@ -10,20 +10,23 @@ defaults:
   - /encoder: esm
   - /generator: progen2
   - /scheduler: cosine
-  - /loss: predictor
-  - /predictor: default  
-  - /sampling: default
   - /training: default_virus
+  - /loss: predictor
+  - /predictor: default  # use unified predictor
+  - /predictor_sampling: default
+  - /predictor_training: default
+  - /sampling: default
+
 
 # TODO: change to the full data file once you are done with debugging
-data_file: virus_tokenized_data_for_tde_reduced_96.pt
-# data_file: virus_tokenized_data_for_tde.pt
-
-train_predictor_posthoc: true
+data_file: virus_tokenized_data_for_tde_downsampled100.pt
 
 # Experiment-specific parameters
 use_predicted_latent: true
 predictor_loss_weight: 0
+
+train_predictor_posthoc: true
+
 
 predictor_model_type: "mlp"
 predictor_conditioning_mode: "sinusoidal"
@@ -34,8 +37,8 @@ predictor_model_args:
 # sampling parameters
 weight_mode: "uniform"
 num_samples: 50
-unidirectional: false
 exponential_weight_scale: 1.0
+selective_pairing_mode: "single_step"
 
 # Experiment-specific parameters
 latent_dim: 128 # TODO: make sure that this is really the correct latent_dim for the ESM2 8M model. Also make sure that there is no conflict due to double usage.
@@ -65,5 +68,4 @@ debug_memory_logging: false  # enable/disable GPU debug memory logger
 condition_method: prefix
 temperature: 1.0
 
-precomputed_d_values_pth: /orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430/virus_all_d_values.npz
-
+#precomputed_d_values_pth: /orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430/virus_all_d_values.npz

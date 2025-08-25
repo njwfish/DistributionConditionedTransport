@@ -194,7 +194,6 @@ class Trainer:
         optimizer,
         loss_manager,
         scheduler=None,
-        predictor=None,
         device=None,
         output_dir='./outputs',
         config=None,
@@ -302,9 +301,6 @@ class Trainer:
 
             generator.load_state_dict(checkpoint['generator_state_dict'])
             
-            if predictor is not None and 'predictor_state_dict' in checkpoint:
-                predictor.load_state_dict(checkpoint['predictor_state_dict'])
-
             if predictor is not None and 'predictor_state_dict' in checkpoint:
                 predictor.load_state_dict(checkpoint['predictor_state_dict'])
 
@@ -419,12 +415,12 @@ class Trainer:
                             end_s = min(start_s + mb_size, set_size)
                             # Build microbatch by stacking slice range
                             x_source_mb = {
-                                'progen_input_ids': (src_ids[:, start_s:end_s, :].reshape(src_ids.shape[0] * (end_s - start_s), src_ids.shape[-1]) if src_ids.ndim == 3 else src_ids),
-                                'progen_attention_mask': (src_mask[:, start_s:end_s, :].reshape(src_mask.shape[0] * (end_s - start_s), src_mask.shape[-1]) if src_mask.ndim == 3 else src_mask),
+                                'progen_input_ids': (src_ids[:, start_s:end_s, :] if src_ids.ndim == 3 else src_ids),
+                                'progen_attention_mask': (src_mask[:, start_s:end_s, :] if src_mask.ndim == 3 else src_mask),
                             }
                             x_target_mb = {
-                                'progen_input_ids': (tgt_ids[:, start_s:end_s, :].reshape(tgt_ids.shape[0] * (end_s - start_s), tgt_ids.shape[-1]) if tgt_ids.ndim == 3 else tgt_ids),
-                                'progen_attention_mask': (tgt_mask[:, start_s:end_s, :].reshape(tgt_mask.shape[0] * (end_s - start_s), tgt_mask.shape[-1]) if tgt_mask.ndim == 3 else tgt_mask),
+                                'progen_input_ids': (tgt_ids[:, start_s:end_s, :] if tgt_ids.ndim == 3 else tgt_ids),
+                                'progen_attention_mask': (tgt_mask[:, start_s:end_s, :] if tgt_mask.ndim == 3 else tgt_mask),
                             }
                             with torch.cuda.amp.autocast(**_autocast_kwargs):
                                 loss_mb = generator.loss(x_source_mb, x_target_mb, source_latent_detached, target_latent_detached)
@@ -593,7 +589,7 @@ class Trainer:
             
             # Evaluation and early stopping logic
             if ((epoch + 1) % self.eval_interval == 0 or (epoch + 1) == self.num_epochs):
-                eval_loss = self._evaluate(encoder, generator, dataloader, device, loss_manager, predictor=predictor)
+                eval_loss = self._evaluate(encoder, generator, dataloader, device, loss_manager, predictor=predictor, config=config)
 
                 stats['eval_losses'].append(eval_loss)
                 
@@ -668,7 +664,7 @@ class Trainer:
         
         return output_dir, stats
     
-    def _evaluate(self, encoder, generator, dataloader, device, loss_manager, predictor=None):
+    def _evaluate(self, encoder, generator, dataloader, device, loss_manager, predictor=None, config=None):
 
         """Run evaluation and return average loss."""
         debug_logger = None

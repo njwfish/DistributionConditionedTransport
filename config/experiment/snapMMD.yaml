@@ -13,11 +13,18 @@ defaults:
   - /training: default5000
   - /loss: predictor
   - /predictor: default  # use unified predictor
+  - /predictor_sampling: default
+  - /predictor_training: default
   - /sampling: default
+
+ot_coupling: false
 
 # predictor parameters
 use_predicted_latent: true
 predictor_loss_weight: 0
+
+train_predictor_posthoc: true
+
 
 predictor_model_type: "mlp"
 predictor_conditioning_mode: "sinusoidal"
@@ -33,8 +40,8 @@ predictor_model_args:
 # sampling parameters
 weight_mode: "uniform"
 num_samples: null
-unidirectional: false
-exponential_weight_scale: 1.0
+exponential_weight_scale: 1.44  # approx ln(2)
+selective_pairing_mode: "single_step"
 
 # Experiment-specific parameters
 latent_dim: 16

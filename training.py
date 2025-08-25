@@ -158,6 +158,7 @@ class Trainer:
         optimizer,
         loss_manager,
         scheduler=None,
+        predictor=None,
         device=None,
         output_dir='./outputs',
         config=None,
@@ -170,6 +171,8 @@ class Trainer:
         
         encoder.to(device)
         generator.to(device)
+        if predictor is not None:
+            predictor.to(device)
         
         
         stats = {
@@ -250,6 +253,9 @@ class Trainer:
             encoder.load_state_dict(checkpoint['encoder_state_dict'])
 
             generator.load_state_dict(checkpoint['generator_state_dict'])
+            
+            if predictor is not None and 'predictor_state_dict' in checkpoint:
+                predictor.load_state_dict(checkpoint['predictor_state_dict'])
 
             if 'optimizer_state_dict' in checkpoint:
                 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -273,6 +279,8 @@ class Trainer:
             
             encoder.train()
             generator.train()
+            if predictor is not None:
+                predictor.train()
             
             epoch_losses = []
             
@@ -287,7 +295,7 @@ class Trainer:
                 # Handle samples which can be either a tensor or a dictionary
                 batch_loss_start = time.time()
                 optimizer.zero_grad()
-                loss, losses = loss_manager.loss(encoder, generator, batch, device)
+                loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 
                 # Standard backward and optimizer step per batch
                 loss.backward()
@@ -322,14 +330,19 @@ class Trainer:
 
                         generator_state = generator.state_dict()
                         
-                        torch.save({
+                        checkpoint_data = {
                             'epoch': epoch + 1,
                             'encoder_state_dict': encoder.state_dict(),
                             'generator_state_dict': generator_state,
                             'optimizer_state_dict': optimizer.state_dict(),
                             'scheduler_state_dict': scheduler.state_dict(),
                             'step': step,
-                        }, checkpoint_path)
+                        }
+                        
+                        if predictor is not None:
+                            checkpoint_data['predictor_state_dict'] = predictor.state_dict()
+                        
+                        torch.save(checkpoint_data, checkpoint_path)
                         self.logger.info(f"Saved checkpoint to {checkpoint_path}")      
 
                 step += 1
@@ -365,7 +378,7 @@ class Trainer:
                 
                 generator_state = generator.state_dict()
 
-                torch.save({
+                checkpoint_data = {
                     'epoch': epoch + 1,
                     'encoder_state_dict': encoder.state_dict(),
                     'generator_state_dict': generator_state,
@@ -373,7 +386,12 @@ class Trainer:
                     'scheduler_state_dict': scheduler.state_dict(),
                     'loss': avg_epoch_loss,
                     'step': step,
-                }, checkpoint_path)
+                }
+                
+                if predictor is not None:
+                    checkpoint_data['predictor_state_dict'] = predictor.state_dict()
+                
+                torch.save(checkpoint_data, checkpoint_path)
                 self.logger.info(f"Saved checkpoint to {checkpoint_path}")
                 
                 # Log model checkpoint to W&B
@@ -382,7 +400,7 @@ class Trainer:
             
             # Evaluation and early stopping logic
             if ((epoch + 1) % self.eval_interval == 0 or (epoch + 1) == self.num_epochs):
-                eval_loss = self._evaluate(encoder, generator, dataloader, device, loss_manager)
+                eval_loss = self._evaluate(encoder, generator, dataloader, device, loss_manager, predictor=predictor)
                 stats['eval_losses'].append(eval_loss)
                 
                 self.logger.info(f"Evaluation Loss: {eval_loss:.6f}")
@@ -403,7 +421,7 @@ class Trainer:
                     
                     generator_state = generator.state_dict()
 
-                    torch.save({
+                    checkpoint_data = {
                         'epoch': epoch + 1,
                         'encoder_state_dict': encoder.state_dict(),
                         'generator_state_dict': generator_state,
@@ -411,7 +429,12 @@ class Trainer:
                         'scheduler_state_dict': scheduler.state_dict(),
                         'loss': eval_loss,
                         'step': step,
-                    }, best_model_path)
+                    }
+                    
+                    if predictor is not None:
+                        checkpoint_data['predictor_state_dict'] = predictor.state_dict()
+                    
+                    torch.save(checkpoint_data, best_model_path)
                     self.logger.info(f"New best model saved to {best_model_path}")
                     
                     # Log best model to W&B
@@ -450,10 +473,12 @@ class Trainer:
         
         return output_dir, stats
     
-    def _evaluate(self, encoder, generator, dataloader, device, loss_manager):
+    def _evaluate(self, encoder, generator, dataloader, device, loss_manager, predictor=None):
         """Run evaluation and return average loss."""
         encoder.eval()
         generator.eval()
+        if predictor is not None:
+            predictor.eval()
         
         total_loss = 0
         num_batches = 0
@@ -462,7 +487,7 @@ class Trainer:
             for batch in dataloader:
                 # TODO: legacy code was not using loss manager here, is there any specific reason for this?
                 # Use loss manager for consistent loss computation
-                loss, losses = loss_manager.loss(encoder, generator, batch, device)
+                loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 total_loss += loss.item()
                 num_batches += 1
         

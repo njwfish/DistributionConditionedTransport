@@ -8,8 +8,8 @@ description: "Multivariate normal distribution experiment with coupled distribut
 defaults:
   - /dataset: mvn
   - /encoder: gnn
-  - /model: diffusion_mlp
-  - /generator: flow_matching
+  - /model: noise_mlp
+  - /generator: energy
   - /training: default5000
   - /sampling: default
 
@@ -23,5 +23,5 @@ exponential_weight_scale: 1.0
 latent_dim: 16
 hidden_dim: 64
 set_size: 500
-batch_size: 256
+batch_size: 64
 lr: 2e-4 

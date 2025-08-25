@@ -194,6 +194,7 @@ class Trainer:
         optimizer,
         loss_manager,
         scheduler=None,
+        predictor=None,
         device=None,
         output_dir='./outputs',
         config=None,
@@ -300,6 +301,9 @@ class Trainer:
             encoder.load_state_dict(checkpoint['encoder_state_dict'])
 
             generator.load_state_dict(checkpoint['generator_state_dict'])
+            
+            if predictor is not None and 'predictor_state_dict' in checkpoint:
+                predictor.load_state_dict(checkpoint['predictor_state_dict'])
 
             if predictor is not None and 'predictor_state_dict' in checkpoint:
                 predictor.load_state_dict(checkpoint['predictor_state_dict'])
@@ -345,6 +349,8 @@ class Trainer:
             
             encoder.train()
             generator.train()
+            if predictor is not None:
+                predictor.train()
             
             epoch_losses = []
             
@@ -510,7 +516,7 @@ class Trainer:
 
                         generator_state = generator.state_dict()
                         
-                        save_dict = {
+                        checkpoint_data = {
                             'epoch': epoch + 1,
                             'encoder_state_dict': encoder.state_dict(),
                             'generator_state_dict': generator_state,
@@ -518,12 +524,16 @@ class Trainer:
                             'scheduler_state_dict': scheduler.state_dict(),
                             'step': step,
                         }
+                        
                         if predictor is not None:
-                            save_dict['predictor_state_dict'] = predictor.state_dict()
-                        torch.save(save_dict, checkpoint_path)
-                        self.logger.info(f"Saved checkpoint to {checkpoint_path}")
+                            checkpoint_data['predictor_state_dict'] = predictor.state_dict()
+                        
+                        torch.save(checkpoint_data, checkpoint_path)
+                        self.logger.info(f"Saved checkpoint to {checkpoint_path}")      
+
                         # Prune older checkpoints beyond patience
                         self._cleanup_old_checkpoints(output_dir, keep_last_n=self.patience)
+
 
                 step += 1
             
@@ -558,7 +568,7 @@ class Trainer:
                 
                 generator_state = generator.state_dict()
 
-                save_dict = {
+                checkpoint_data = {
                     'epoch': epoch + 1,
                     'encoder_state_dict': encoder.state_dict(),
                     'generator_state_dict': generator_state,
@@ -567,9 +577,12 @@ class Trainer:
                     'loss': avg_epoch_loss,
                     'step': step,
                 }
+                
                 if predictor is not None:
-                    save_dict['predictor_state_dict'] = predictor.state_dict()
-                torch.save(save_dict, checkpoint_path)
+                    checkpoint_data['predictor_state_dict'] = predictor.state_dict()
+                
+                torch.save(checkpoint_data, checkpoint_path)
+
                 self.logger.info(f"Saved checkpoint to {checkpoint_path}")
                 # Prune older checkpoints beyond patience
                 self._cleanup_old_checkpoints(output_dir, keep_last_n=self.patience)
@@ -580,7 +593,8 @@ class Trainer:
             
             # Evaluation and early stopping logic
             if ((epoch + 1) % self.eval_interval == 0 or (epoch + 1) == self.num_epochs):
-                eval_loss = self._evaluate(encoder, generator, predictor, dataloader, device, loss_manager)
+                eval_loss = self._evaluate(encoder, generator, dataloader, device, loss_manager, predictor=predictor)
+
                 stats['eval_losses'].append(eval_loss)
                 
                 self.logger.info(f"Evaluation Loss: {eval_loss:.6f}")
@@ -601,7 +615,7 @@ class Trainer:
                     
                     generator_state = generator.state_dict()
 
-                    save_dict = {
+                    checkpoint_data = {
                         'epoch': epoch + 1,
                         'encoder_state_dict': encoder.state_dict(),
                         'generator_state_dict': generator_state,
@@ -610,9 +624,12 @@ class Trainer:
                         'loss': eval_loss,
                         'step': step,
                     }
+                    
                     if predictor is not None:
-                        save_dict['predictor_state_dict'] = predictor.state_dict()
-                    torch.save(save_dict, best_model_path)
+                        checkpoint_data['predictor_state_dict'] = predictor.state_dict()
+                    
+                    torch.save(checkpoint_data, best_model_path)
+
                     self.logger.info(f"New best model saved to {best_model_path}")
                     
                     # Log best model to W&B
@@ -651,7 +668,8 @@ class Trainer:
         
         return output_dir, stats
     
-    def _evaluate(self, encoder, generator, predictor, dataloader, device, loss_manager):
+    def _evaluate(self, encoder, generator, dataloader, device, loss_manager, predictor=None):
+
         """Run evaluation and return average loss."""
         debug_logger = None
         try:
@@ -688,6 +706,7 @@ class Trainer:
             for batch in dataloader:
                 # TODO: legacy code was not using loss manager here, is there any specific reason for this?
                 # Use loss manager for consistent loss computation
+
                 _autocast_kwargs = {"enabled": autocast_enabled}
                 if amp_dtype is not None:
                     _autocast_kwargs["dtype"] = amp_dtype

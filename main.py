@@ -127,6 +127,7 @@ def main(cfg: DictConfig):
         if debug_logger is not None:
             debug_logger.log_memory("ENCODER_START", "Creating encoder")
         encoder = hydra.utils.instantiate(cfg.encoder)
+
         if debug_logger is not None:
             debug_logger.log_model_info("ENCODER_CREATED", "encoder", encoder)
         
@@ -137,15 +138,19 @@ def main(cfg: DictConfig):
         # Instantiate predictor independently (no longer part of encoder)
         predictor = None
         if hasattr(cfg, "predictor") and cfg.predictor is not None:
+
             if debug_logger is not None:
                 debug_logger.log_memory("PREDICTOR_START", "Creating predictor")
+
             predictor = hydra.utils.instantiate(cfg.predictor)
             if hasattr(encoder, "latent_act"):
                 predictor.latent_act = encoder.latent_act
             else:
                 predictor.latent_act = nn.SELU()
+
             if debug_logger is not None:
                 debug_logger.log_model_info("PREDICTOR_CREATED", "predictor", predictor)
+
 
         if debug_logger is not None:
             debug_logger.log_memory("GENERATOR_START", "Creating generator")
@@ -204,49 +209,6 @@ def main(cfg: DictConfig):
         
         logger.info(f"Training completed. Best epoch: {stats['best_epoch']}")    
 
-        # Optional posthoc predictor training
-        if train_predictor_posthoc and predictor is not None:
-            # Load best encoder weights
-            best_model_path = os.path.join(output_dir, "best_model.pt")
-            if not os.path.exists(best_model_path):
-                raise FileNotFoundError(f"Best model not found at {best_model_path}")
-
-            best_checkpoint = torch.load(best_model_path, weights_only=False, map_location=device)
-            if "encoder_state_dict" not in best_checkpoint:
-                raise KeyError("'encoder_state_dict' missing in best model checkpoint")
-            encoder.load_state_dict(best_checkpoint["encoder_state_dict"]) 
-            encoder.eval()
-            for p in encoder.parameters():
-                p.requires_grad = False
-
-            # Use the already-instantiated predictor (fresh, not trained yet)
-            predictor.to(device)
-
-            # Optimizer for predictor only
-            pred_optimizer = hydra.utils.instantiate(cfg.optimizer)(params=predictor.parameters())
-
-            # Simple predictor trainer using same dataloader
-            predictor_trainer = PredictorTrainer(
-                num_epochs=cfg.training.num_epochs,
-                log_interval=cfg.training.log_interval,
-                save_interval=cfg.training.save_interval,
-                eval_interval=cfg.training.eval_interval,
-                early_stopping=cfg.training.early_stopping,
-                patience=cfg.training.patience,
-                use_tqdm=cfg.training.use_tqdm,
-            )
-
-            pred_output_dir, pred_stats = predictor_trainer.train(
-                encoder=encoder,
-                predictor=predictor,
-                dataloader=dataloader,
-                optimizer=pred_optimizer,
-                device=device,
-                output_dir=output_dir,
-            )
-            logger.info(
-                f"Predictor training completed. Best epoch: {pred_stats.get('best_epoch', 0)}"
-            )
     
     finally:
         # Make sure to finish the W&B run

@@ -5,7 +5,8 @@ match_criteria:
     dataset_name: ${dataset_name}
   sampling:
     weight_mode: ${experiment.weight_mode}
-    unidirectional: ${experiment.unidirectional}
+    selective_pairing_mode: ${experiment.selective_pairing_mode}
+
     num_samples: ${experiment.num_samples}
     exponential_weight_scale: ${experiment.exponential_weight_scale}
   loss:
@@ -23,7 +24,7 @@ match_criteria:
 naming_parameters:
   - dataset.dataset_name
   - sampling.weight_mode
-  - experiment.unidirectional
+  - sampling.selective_pairing_mode
   - loss.predictor_loss_weight
   - predictor._target_
   - predictor.model_type
@@ -31,7 +32,6 @@ naming_parameters:
   - experiment.train_predictor_posthoc
 
 output_folder: figures
-dataset_name: LV
-default_seed_for_plots: 0
+default_seed_for_plots: 1
 
 

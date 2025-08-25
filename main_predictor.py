@@ -12,6 +12,7 @@ import time
 import torch.nn as nn
 # Import our resolver for sum operations
 import utils.hash_utils as hash_utils
+
 # Import debug memory logger
 from utils.debug_memory_logger import get_debug_logger
 
@@ -21,6 +22,7 @@ def main(cfg: DictConfig):
     logger = logging.getLogger(__name__)
     logger.info("\n" + OmegaConf.to_yaml(cfg))
     
+
     # Initialize GPU memory debug logger (gated by config)
     debug_logger = None
     if hasattr(cfg, "experiment") and hasattr(cfg.experiment, "debug_memory_logging") and bool(cfg.experiment.debug_memory_logging):
@@ -54,22 +56,22 @@ def main(cfg: DictConfig):
         wandb.run.summary["config_hash"] = config_hash
     
     try:
-        # Parse model path from config (added with +model_path=...)
-        if not hasattr(cfg, "model_path") or cfg.model_path is None:
-            raise ValueError("model_path must be specified via command line: +model_path=/path/to/best_model.pt")
-        
-        model_path = cfg.model_path
+        # Resolve model path. If not explicitly provided, use hashed output dir just like main.py
+        if hasattr(cfg, "model_path") and cfg.model_path is not None:
+            model_path = cfg.model_path
+        else:
+            base_output_dir = os.path.join(original_cwd, "outputs")
+            output_dir = hash_utils.get_output_dir(cfg, base_dir=base_output_dir)
+            model_path = os.path.join(output_dir, "best_model.pt")
+
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model file not found at {model_path}")
-            
+
         logger.info(f"Loading trained model from: {model_path}")
         
         # Create the dataset
-        if debug_logger is not None:
-            debug_logger.log_memory("DATASET_START", "Creating dataset")
         dataset = hydra.utils.instantiate(cfg.dataset)
-        if debug_logger is not None:
-            debug_logger.log_memory("DATASET_LOADED", f"Dataset created with {len(dataset)} samples")
+
 
         # Improved DataLoader with parallel workers and pinned memory
         dataloader_start = time.time()
@@ -110,43 +112,34 @@ def main(cfg: DictConfig):
 
         sampler = hydra.utils.instantiate(sampling_config, dataset=dataset, **sampler_kwargs)
 
+
         if debug_logger is not None:
             debug_logger.log_memory("DATALOADER_START", "Creating DataLoader")
+
         dataloader = DataLoader(
             dataset,
             **base_dataloader_kwargs,
             sampler=sampler,
             shuffle=False if sampler is not None else True,
         )
-        if debug_logger is not None:
-            debug_logger.log_memory("DATALOADER_CREATED", f"DataLoader created with batch_size={cfg.experiment.batch_size}")
+
         
         # Create encoder (same architecture as trained model)
-        if debug_logger is not None:
-            debug_logger.log_memory("ENCODER_START", "Creating encoder")
         encoder = hydra.utils.instantiate(cfg.encoder)
-        if debug_logger is not None:
-            debug_logger.log_model_info("ENCODER_CREATED", "encoder", encoder)
         
         # Create generator (same architecture as trained model) 
-        if debug_logger is not None:
-            debug_logger.log_memory("GENERATOR_START", "Creating generator")
         generator = hydra.utils.instantiate(cfg.generator)
-        if debug_logger is not None:
-            debug_logger.log_model_info("GENERATOR_CREATED", "generator", generator)
 
         # Create predictor (fresh, not trained)
         predictor = None
         if hasattr(cfg, "predictor") and cfg.predictor is not None:
-            if debug_logger is not None:
-                debug_logger.log_memory("PREDICTOR_START", "Creating predictor")
+
             predictor = hydra.utils.instantiate(cfg.predictor)
             if hasattr(encoder, "latent_act"):
                 predictor.latent_act = encoder.latent_act
             else:
                 predictor.latent_act = nn.SELU()
-            if debug_logger is not None:
-                debug_logger.log_model_info("PREDICTOR_CREATED", "predictor", predictor)
+
         else:
             raise ValueError("Predictor configuration is required for predictor-only training")
         
@@ -166,16 +159,12 @@ def main(cfg: DictConfig):
         generator.load_state_dict(best_checkpoint["generator_state_dict"])
         
         # Move models to device
-        if debug_logger is not None:
-            debug_logger.log_memory("GPU_TRANSFER_START", "Moving models to GPU")
+
         encoder = encoder.to(device)
         generator = generator.to(device)
         predictor = predictor.to(device)
         
-        if debug_logger is not None:
-            debug_logger.log_memory("MODELS_GPU", f"All models moved to {device}")
-            debug_logger.reset_peak_memory()
-        
+
         # Set encoder and generator to eval mode and freeze their parameters
         encoder.eval()
         generator.eval()
@@ -196,13 +185,13 @@ def main(cfg: DictConfig):
 
         # Simple predictor trainer using same training config as main training
         predictor_trainer = PredictorTrainer(
-            num_epochs=cfg.training.num_epochs,
-            log_interval=cfg.training.log_interval,
-            save_interval=cfg.training.save_interval,
-            eval_interval=cfg.training.eval_interval,
-            early_stopping=cfg.training.early_stopping,
-            patience=cfg.training.patience,
-            use_tqdm=cfg.training.use_tqdm,
+            num_epochs=cfg.predictor_training.num_epochs,
+            log_interval=cfg.predictor_training.log_interval,
+            save_interval=cfg.predictor_training.save_interval,
+            eval_interval=cfg.predictor_training.eval_interval,
+            early_stopping=cfg.predictor_training.early_stopping,
+            patience=cfg.predictor_training.patience,
+            use_tqdm=cfg.predictor_training.use_tqdm,
         )
 
         # Run predictor training

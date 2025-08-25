@@ -167,7 +167,7 @@ DATASET_CONFIGS: Dict[str, Dict[str, Any]] = {
 # Model loading and forecasting (CDE only)
 # -----------------------------
 
-def load_models_from_experiment(experiment_dir: str, device: torch.device):
+def load_models_from_experiment(experiment_dir: str, device: torch.device, predictor_source: str = 'separate'):
     info = get_experiment_info(experiment_dir, load_checkpoints=False)
     cfg = info['config']
 
@@ -194,25 +194,46 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device):
     else:
         gen.model.load_state_dict(state['generator_state_dict'])
 
-    # Load predictor weights based on training mode
+
+    # Load predictor weights based on requested source
     if predictor is not None:
-        if train_predictor_posthoc:
-            pred_best_path = os.path.join(info['dir'], 'predictor_best_model.pt')
-            if os.path.exists(pred_best_path):
-                pred_ckpt = torch.load(pred_best_path, map_location=device, weights_only=False)
+        def _try_load_predictor(ckpt_path: str) -> bool:
+            if os.path.exists(ckpt_path):
+                pred_ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
                 if 'predictor_state_dict' in pred_ckpt:
                     predictor.load_state_dict(pred_ckpt['predictor_state_dict'])
-            elif 'predictor_state_dict' in state:
+                    return True
+            return False
+
+        root_pred_path = os.path.join(info['dir'], 'predictor_best_model.pt')
+        subdir_pred_path = os.path.join(info['dir'], 'predictor_training', 'predictor_best_model.pt')
+
+        loaded_pred = False
+
+        if predictor_source == 'main':
+            # Load from root-level artifacts (saved by main.py posthoc or joint)
+            loaded_pred = _try_load_predictor(root_pred_path)
+            if not loaded_pred and 'predictor_state_dict' in state:
                 predictor.load_state_dict(state['predictor_state_dict'])
-        else:
-            if 'predictor_state_dict' in state:
-                predictor.load_state_dict(state['predictor_state_dict'])
+                loaded_pred = True
+        elif predictor_source == 'separate':
+            # Load from dedicated predictor subdirectory (saved by main_predictor.py)
+            loaded_pred = _try_load_predictor(subdir_pred_path)
+        else:  # 'auto'
+            if train_predictor_posthoc:
+                # Prefer explicit predictor checkpoint; fall back to others
+                loaded_pred = _try_load_predictor(root_pred_path) or _try_load_predictor(subdir_pred_path)
+                if not loaded_pred and 'predictor_state_dict' in state:
+                    predictor.load_state_dict(state['predictor_state_dict'])
+                    loaded_pred = True
             else:
-                pred_best_path = os.path.join(info['dir'], 'predictor_best_model.pt')
-                if os.path.exists(pred_best_path):
-                    pred_ckpt = torch.load(pred_best_path, map_location=device, weights_only=False)
-                    if 'predictor_state_dict' in pred_ckpt:
-                        predictor.load_state_dict(pred_ckpt['predictor_state_dict'])
+                # Prefer joint-trained weights inside best_model; fall back to files
+                if 'predictor_state_dict' in state:
+                    predictor.load_state_dict(state['predictor_state_dict'])
+                    loaded_pred = True
+                if not loaded_pred:
+                    loaded_pred = _try_load_predictor(root_pred_path) or _try_load_predictor(subdir_pred_path)
+
 
     enc.eval(); gen.eval()
     enc.to(device); gen.to(device)
@@ -222,9 +243,10 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device):
     return cfg, enc, gen, predictor, train_predictor_posthoc
 
 
-def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any]):
+def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], predictor_source: str = 'separate'):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    cfg, enc, gen, predictor, train_predictor_posthoc = load_models_from_experiment(experiment_dir, device)
+
+    cfg, enc, gen, predictor, train_predictor_posthoc = load_models_from_experiment(experiment_dir, device, predictor_source=predictor_source)
 
     Xs_training = training_data['Xs']
     samples_s = torch.tensor(Xs_training[-1]).unsqueeze(0).to(device).float()
@@ -534,6 +556,8 @@ def main():
     parser.add_argument('--skip-plots', action='store_true', help='Skip plotting, only compute metrics')
     parser.add_argument('--disable-emd', action='store_true', help='Disable EMD computation to reduce memory usage')
     parser.add_argument('--set', dest='overrides', action='append', default=[], help='Override config values with dot-notation (e.g., match_criteria.sampling.mode=bidirectional). Can be used multiple times.')
+    parser.add_argument('--predictor-source', type=str, choices=['auto', 'main', 'separate'], default='auto',
+                        help='Where to load predictor checkpoint from: auto (default), main (root dir or joint), or main_predictor (predictor_training subdir)')
     args = parser.parse_args()
 
     # Load analysis config and apply CLI overrides
@@ -650,7 +674,7 @@ def main():
     per_seed_results: List[Tuple[int, float, Any]] = []  # (seed, mmd^2, emd)
     forecast_for_plot = None
     for seed, (exp_seed, (exp_dir, cfg)) in zip(seeds_sorted, matched_with_seed):
-        forecast = generate_cde_forecast(exp_dir, training_data)
+        forecast = generate_cde_forecast(exp_dir, training_data, predictor_source=args.predictor_source)
         mmd2, emd = compute_mmd_and_emd(dataset_name, forecast['forecast'], logger, enable_emd=not args.disable_emd)
         per_seed_results.append((seed, mmd2, emd))
         if forecast_for_plot is None and seed == default_seed_for_plots:
@@ -700,7 +724,7 @@ def main():
     if not args.skip_plots:
         if forecast_for_plot is None:
             # If not found seed==default, just take first
-            forecast_for_plot = generate_cde_forecast(matched_with_seed[0][1][0], training_data)
+            forecast_for_plot = generate_cde_forecast(matched_with_seed[0][1][0], training_data, predictor_source=args.predictor_source)
 
         # Prepare title suffix with naming parameters and metrics
         metrics_title_segment = f"MMD={mmd_mean:.4g}±{mmd_std:.2g}{emd_title_segment}"

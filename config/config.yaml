@@ -1,6 +1,5 @@
 # @package _global_
 
-# TODO: can we take out predictor_training now that I removed the section at the end of main.py that was training the latent mapping model redundantly?
 # Default configurations
 defaults:
   - dataset: none  # Dataset-specific config

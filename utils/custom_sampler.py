@@ -25,7 +25,7 @@ class CustomWeightedSampler(WeightedRandomSampler):
         num_samples: Optional[int] = None,
         replacement: bool = True,
         const_weight: float = 1.0,
-        unidirectional: bool = False,
+        selective_pairing_mode: Optional[str] = None,
         specific_pairing: Optional[List[Tuple[int, int]]] = None,
         exponential_weight_scale: Optional[float] = 1.0,
         precomputed_d_values: Optional[List[float]] = None,
@@ -48,8 +48,7 @@ class CustomWeightedSampler(WeightedRandomSampler):
         self.dataset = dataset
         self.weight_mode = weight_mode
         self.const_weight = const_weight
-        self.unidirectional = unidirectional
-        self.specific_pairing = specific_pairing
+        self.selective_pairing_mode = selective_pairing_mode
         self.exponential_weight_scale = exponential_weight_scale
         self.precomputed_d_values = precomputed_d_values
         
@@ -68,7 +67,7 @@ class CustomWeightedSampler(WeightedRandomSampler):
         )
         
         logger.info(f"CustomWeightedSampler initialized with weight_mode='{weight_mode}', "
-                   f"unidirectional={unidirectional}, "
+                   f"selective_pairing_mode={selective_pairing_mode}, "
                    f"specific_pairing={specific_pairing}, "
                    f"exponential_weight_scale={exponential_weight_scale}, "
                    f"precomputed_d_values={'provided' if precomputed_d_values is not None else 'None'}, "
@@ -100,15 +99,24 @@ class CustomWeightedSampler(WeightedRandomSampler):
             raise NotImplementedError(f"Weight mode '{self.weight_mode}' is not implemented.")
                                       
                                       
-        if self.unidirectional:
+        if self.selective_pairing_mode == "unidirectional":
             # set all weights with d < 0 to 0
             for idx in range(len(self.dataset)):
                 d = self._get_d_value(idx)
                 if d < 0:
                     weights[idx] = 0.0
+                    
+        if self.selective_pairing_mode == "single_step":
+            # set everything outside a specific list of pairs to 0
+            for idx in range(len(self.dataset)):
+                item = self.dataset[idx]
+                source_idx = item['source_idx']
+                target_idx = item['target_idx']
+                if source_idx != target_idx - 1:
+                    weights[idx] = 0.0  
                            
 
-        if self.specific_pairing:
+        if self.selective_pairing_mode == "specific":
             # set everything outside a specific list of pairs to 0
             for idx in range(len(self.dataset)):
                 item = self.dataset[idx]
@@ -130,8 +138,7 @@ class CustomWeightedSampler(WeightedRandomSampler):
             'num_nonzero': (weights > 0).sum().item(),
             'total_samples': len(weights),
             'weight_mode': self.weight_mode,
-            'unidirectional': self.unidirectional,
-            'specific_pairing': self.specific_pairing,
+            'selective_pairing_mode': self.selective_pairing_mode,
             'exponential_weight_scale': self.exponential_weight_scale,
             'const_weight': self.const_weight,
             'precomputed_d_values': self.precomputed_d_values is not None,

@@ -10,18 +10,18 @@ Analyzing dataset=PBMC, weight_mode=uniform, selective_pairing_mode=single_step 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (1, 1, 500, 30) (1, 500, 30) torch.Size([500, 30])
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (1, 1, 500, 30) (1, 500, 30) torch.Size([500, 30])
 Individual results (by seed):
-  Seed 0: MMD = 0.998967, MMD^2 = 0.997934, EMD = n/a
-  Seed 1: MMD = 1.181671, MMD^2 = 1.396347, EMD = n/a
-  Seed 2: MMD = 1.113520, MMD^2 = 1.239927, EMD = n/a
-  Seed 3: MMD = 1.019373, MMD^2 = 1.039121, EMD = n/a
-  Seed 4: MMD = 1.171384, MMD^2 = 1.372140, EMD = n/a
-  Seed 5: MMD = 0.610549, MMD^2 = 0.372771, EMD = n/a
-  Seed 6: MMD = 1.057168, MMD^2 = 1.117604, EMD = n/a
-  Seed 7: MMD = 0.991760, MMD^2 = 0.983588, EMD = n/a
-  Seed 8: MMD = 0.711101, MMD^2 = 0.505665, EMD = n/a
-  Seed 9: MMD = 0.551286, MMD^2 = 0.303916, EMD = n/a
-MMD: 0.940678 ± 0.219149
-MMD^2: 0.932901 ± 0.380273
+  Seed 0: MMD = 1.155050, MMD^2 = 1.334141, EMD = n/a
+  Seed 1: MMD = 1.398835, MMD^2 = 1.956740, EMD = n/a
+  Seed 2: MMD = 1.401794, MMD^2 = 1.965027, EMD = n/a
+  Seed 3: MMD = 1.286137, MMD^2 = 1.654148, EMD = n/a
+  Seed 4: MMD = 1.406734, MMD^2 = 1.978900, EMD = n/a
+  Seed 5: MMD = 0.880497, MMD^2 = 0.775276, EMD = n/a
+  Seed 6: MMD = 1.349645, MMD^2 = 1.821541, EMD = n/a
+  Seed 7: MMD = 1.259268, MMD^2 = 1.585757, EMD = n/a
+  Seed 8: MMD = 1.180778, MMD^2 = 1.394237, EMD = n/a
+  Seed 9: MMD = 1.276172, MMD^2 = 1.628616, EMD = n/a
+MMD: 1.259491 ± 0.152054
+MMD^2: 1.609438 ± 0.353469
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (1, 1, 500, 30) (500, 30)
 
 ✓ Analysis complete. Figures and logs saved to: figures/snapMMD_MFM_PBMC_PBMC_uniform_single_step_1/

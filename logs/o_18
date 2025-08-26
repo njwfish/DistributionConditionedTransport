@@ -15872,3 +15872,2413 @@ similar_experiments []
 [2025-08-25 22:49:54,202][training][INFO] - Epoch 3901 complete. Avg Loss: 0.045651
 [2025-08-25 22:49:54,244][training][INFO] - Epoch 3902, Batch 0/95, Loss: 0.045410
 [2025-08-25 22:49:55,488][training][INFO] - Epoch 3902, Batch 50/95, Loss: 0.045317
+[2025-08-25 22:49:56,575][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:49:56,575][training][INFO] - Epoch 3902 complete. Avg Loss: 0.045970
+[2025-08-25 22:49:56,617][training][INFO] - Epoch 3903, Batch 0/95, Loss: 0.044867
+[2025-08-25 22:49:57,870][training][INFO] - Epoch 3903, Batch 50/95, Loss: 0.042191
+[2025-08-25 22:49:58,966][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:49:58,967][training][INFO] - Epoch 3903 complete. Avg Loss: 0.045186
+[2025-08-25 22:49:59,009][training][INFO] - Epoch 3904, Batch 0/95, Loss: 0.048552
+[2025-08-25 22:50:00,242][training][INFO] - Epoch 3904, Batch 50/95, Loss: 0.042634
+[2025-08-25 22:50:01,356][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:01,357][training][INFO] - Epoch 3904 complete. Avg Loss: 0.045337
+[2025-08-25 22:50:01,397][training][INFO] - Epoch 3905, Batch 0/95, Loss: 0.044079
+[2025-08-25 22:50:02,643][training][INFO] - Epoch 3905, Batch 50/95, Loss: 0.047706
+[2025-08-25 22:50:03,732][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:03,732][training][INFO] - Epoch 3905 complete. Avg Loss: 0.045664
+[2025-08-25 22:50:03,780][training][INFO] - Epoch 3906, Batch 0/95, Loss: 0.047065
+[2025-08-25 22:50:05,024][training][INFO] - Epoch 3906, Batch 50/95, Loss: 0.044814
+[2025-08-25 22:50:06,109][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:06,109][training][INFO] - Epoch 3906 complete. Avg Loss: 0.045584
+[2025-08-25 22:50:06,152][training][INFO] - Epoch 3907, Batch 0/95, Loss: 0.045909
+[2025-08-25 22:50:07,407][training][INFO] - Epoch 3907, Batch 50/95, Loss: 0.042737
+[2025-08-25 22:50:08,493][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:08,494][training][INFO] - Epoch 3907 complete. Avg Loss: 0.045586
+[2025-08-25 22:50:08,538][training][INFO] - Epoch 3908, Batch 0/95, Loss: 0.045725
+[2025-08-25 22:50:09,781][training][INFO] - Epoch 3908, Batch 50/95, Loss: 0.043990
+[2025-08-25 22:50:10,871][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:10,871][training][INFO] - Epoch 3908 complete. Avg Loss: 0.044920
+[2025-08-25 22:50:10,910][training][INFO] - Epoch 3909, Batch 0/95, Loss: 0.041447
+[2025-08-25 22:50:12,151][training][INFO] - Epoch 3909, Batch 50/95, Loss: 0.048564
+[2025-08-25 22:50:13,236][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:13,237][training][INFO] - Epoch 3909 complete. Avg Loss: 0.045797
+[2025-08-25 22:50:13,277][training][INFO] - Epoch 3910, Batch 0/95, Loss: 0.047037
+[2025-08-25 22:50:14,520][training][INFO] - Epoch 3910, Batch 50/95, Loss: 0.042367
+[2025-08-25 22:50:15,614][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:15,614][training][INFO] - Epoch 3910 complete. Avg Loss: 0.046035
+[2025-08-25 22:50:15,655][training][INFO] - Epoch 3911, Batch 0/95, Loss: 0.043849
+[2025-08-25 22:50:16,915][training][INFO] - Epoch 3911, Batch 50/95, Loss: 0.043608
+[2025-08-25 22:50:17,998][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:17,999][training][INFO] - Epoch 3911 complete. Avg Loss: 0.044808
+[2025-08-25 22:50:18,038][training][INFO] - Epoch 3912, Batch 0/95, Loss: 0.044528
+[2025-08-25 22:50:19,293][training][INFO] - Epoch 3912, Batch 50/95, Loss: 0.044707
+[2025-08-25 22:50:20,372][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:20,372][training][INFO] - Epoch 3912 complete. Avg Loss: 0.045445
+[2025-08-25 22:50:20,413][training][INFO] - Epoch 3913, Batch 0/95, Loss: 0.049908
+[2025-08-25 22:50:21,659][training][INFO] - Epoch 3913, Batch 50/95, Loss: 0.046884
+[2025-08-25 22:50:22,762][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:22,762][training][INFO] - Epoch 3913 complete. Avg Loss: 0.045645
+[2025-08-25 22:50:22,804][training][INFO] - Epoch 3914, Batch 0/95, Loss: 0.048171
+[2025-08-25 22:50:24,050][training][INFO] - Epoch 3914, Batch 50/95, Loss: 0.046688
+[2025-08-25 22:50:25,135][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:25,136][training][INFO] - Epoch 3914 complete. Avg Loss: 0.045710
+[2025-08-25 22:50:25,176][training][INFO] - Epoch 3915, Batch 0/95, Loss: 0.044351
+[2025-08-25 22:50:26,418][training][INFO] - Epoch 3915, Batch 50/95, Loss: 0.045681
+[2025-08-25 22:50:27,499][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:27,500][training][INFO] - Epoch 3915 complete. Avg Loss: 0.045298
+[2025-08-25 22:50:27,542][training][INFO] - Epoch 3916, Batch 0/95, Loss: 0.045446
+[2025-08-25 22:50:28,849][training][INFO] - Epoch 3916, Batch 50/95, Loss: 0.047965
+[2025-08-25 22:50:29,938][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:29,938][training][INFO] - Epoch 3916 complete. Avg Loss: 0.045050
+[2025-08-25 22:50:29,978][training][INFO] - Epoch 3917, Batch 0/95, Loss: 0.042409
+[2025-08-25 22:50:31,261][training][INFO] - Epoch 3917, Batch 50/95, Loss: 0.044632
+[2025-08-25 22:50:32,336][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:32,336][training][INFO] - Epoch 3917 complete. Avg Loss: 0.045081
+[2025-08-25 22:50:32,377][training][INFO] - Epoch 3918, Batch 0/95, Loss: 0.051086
+[2025-08-25 22:50:33,636][training][INFO] - Epoch 3918, Batch 50/95, Loss: 0.048181
+[2025-08-25 22:50:34,724][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:34,724][training][INFO] - Epoch 3918 complete. Avg Loss: 0.045301
+[2025-08-25 22:50:34,765][training][INFO] - Epoch 3919, Batch 0/95, Loss: 0.046795
+[2025-08-25 22:50:36,037][training][INFO] - Epoch 3919, Batch 50/95, Loss: 0.049027
+[2025-08-25 22:50:37,128][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:37,128][training][INFO] - Epoch 3919 complete. Avg Loss: 0.045558
+[2025-08-25 22:50:37,169][training][INFO] - Epoch 3920, Batch 0/95, Loss: 0.044073
+[2025-08-25 22:50:38,402][training][INFO] - Epoch 3920, Batch 50/95, Loss: 0.044369
+[2025-08-25 22:50:39,487][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:39,488][training][INFO] - Epoch 3920 complete. Avg Loss: 0.045648
+[2025-08-25 22:50:39,528][training][INFO] - Epoch 3921, Batch 0/95, Loss: 0.046253
+[2025-08-25 22:50:40,790][training][INFO] - Epoch 3921, Batch 50/95, Loss: 0.045301
+[2025-08-25 22:50:41,877][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:41,878][training][INFO] - Epoch 3921 complete. Avg Loss: 0.045188
+[2025-08-25 22:50:41,919][training][INFO] - Epoch 3922, Batch 0/95, Loss: 0.042025
+[2025-08-25 22:50:43,159][training][INFO] - Epoch 3922, Batch 50/95, Loss: 0.044503
+[2025-08-25 22:50:44,240][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:44,240][training][INFO] - Epoch 3922 complete. Avg Loss: 0.045110
+[2025-08-25 22:50:44,281][training][INFO] - Epoch 3923, Batch 0/95, Loss: 0.046465
+[2025-08-25 22:50:45,531][training][INFO] - Epoch 3923, Batch 50/95, Loss: 0.049093
+[2025-08-25 22:50:46,630][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:46,630][training][INFO] - Epoch 3923 complete. Avg Loss: 0.045199
+[2025-08-25 22:50:46,674][training][INFO] - Epoch 3924, Batch 0/95, Loss: 0.046171
+[2025-08-25 22:50:47,943][training][INFO] - Epoch 3924, Batch 50/95, Loss: 0.045373
+[2025-08-25 22:50:49,050][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:49,050][training][INFO] - Epoch 3924 complete. Avg Loss: 0.045575
+[2025-08-25 22:50:49,093][training][INFO] - Epoch 3925, Batch 0/95, Loss: 0.042351
+[2025-08-25 22:50:50,371][training][INFO] - Epoch 3925, Batch 50/95, Loss: 0.047634
+[2025-08-25 22:50:51,466][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:51,466][training][INFO] - Epoch 3925 complete. Avg Loss: 0.045594
+[2025-08-25 22:50:51,508][training][INFO] - Epoch 3926, Batch 0/95, Loss: 0.048025
+[2025-08-25 22:50:52,770][training][INFO] - Epoch 3926, Batch 50/95, Loss: 0.045524
+[2025-08-25 22:50:53,861][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:53,861][training][INFO] - Epoch 3926 complete. Avg Loss: 0.045848
+[2025-08-25 22:50:53,901][training][INFO] - Epoch 3927, Batch 0/95, Loss: 0.044884
+[2025-08-25 22:50:55,165][training][INFO] - Epoch 3927, Batch 50/95, Loss: 0.046673
+[2025-08-25 22:50:56,264][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:56,264][training][INFO] - Epoch 3927 complete. Avg Loss: 0.045074
+[2025-08-25 22:50:56,307][training][INFO] - Epoch 3928, Batch 0/95, Loss: 0.044504
+[2025-08-25 22:50:57,564][training][INFO] - Epoch 3928, Batch 50/95, Loss: 0.050607
+[2025-08-25 22:50:58,667][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:50:58,667][training][INFO] - Epoch 3928 complete. Avg Loss: 0.045646
+[2025-08-25 22:50:58,708][training][INFO] - Epoch 3929, Batch 0/95, Loss: 0.046527
+[2025-08-25 22:50:59,972][training][INFO] - Epoch 3929, Batch 50/95, Loss: 0.041548
+[2025-08-25 22:51:01,062][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:01,062][training][INFO] - Epoch 3929 complete. Avg Loss: 0.044887
+[2025-08-25 22:51:01,102][training][INFO] - Epoch 3930, Batch 0/95, Loss: 0.047228
+[2025-08-25 22:51:02,335][training][INFO] - Epoch 3930, Batch 50/95, Loss: 0.048358
+[2025-08-25 22:51:03,410][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:03,410][training][INFO] - Epoch 3930 complete. Avg Loss: 0.045643
+[2025-08-25 22:51:03,452][training][INFO] - Epoch 3931, Batch 0/95, Loss: 0.049833
+[2025-08-25 22:51:04,707][training][INFO] - Epoch 3931, Batch 50/95, Loss: 0.044216
+[2025-08-25 22:51:05,786][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:05,786][training][INFO] - Epoch 3931 complete. Avg Loss: 0.045930
+[2025-08-25 22:51:05,825][training][INFO] - Epoch 3932, Batch 0/95, Loss: 0.043957
+[2025-08-25 22:51:07,070][training][INFO] - Epoch 3932, Batch 50/95, Loss: 0.043022
+[2025-08-25 22:51:08,150][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:08,150][training][INFO] - Epoch 3932 complete. Avg Loss: 0.045406
+[2025-08-25 22:51:08,191][training][INFO] - Epoch 3933, Batch 0/95, Loss: 0.047182
+[2025-08-25 22:51:09,454][training][INFO] - Epoch 3933, Batch 50/95, Loss: 0.046926
+[2025-08-25 22:51:10,554][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:10,554][training][INFO] - Epoch 3933 complete. Avg Loss: 0.046021
+[2025-08-25 22:51:10,597][training][INFO] - Epoch 3934, Batch 0/95, Loss: 0.043557
+[2025-08-25 22:51:11,858][training][INFO] - Epoch 3934, Batch 50/95, Loss: 0.044731
+[2025-08-25 22:51:12,956][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:12,956][training][INFO] - Epoch 3934 complete. Avg Loss: 0.045544
+[2025-08-25 22:51:12,998][training][INFO] - Epoch 3935, Batch 0/95, Loss: 0.045213
+[2025-08-25 22:51:14,258][training][INFO] - Epoch 3935, Batch 50/95, Loss: 0.048795
+[2025-08-25 22:51:15,339][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:15,339][training][INFO] - Epoch 3935 complete. Avg Loss: 0.045372
+[2025-08-25 22:51:15,380][training][INFO] - Epoch 3936, Batch 0/95, Loss: 0.048439
+[2025-08-25 22:51:16,631][training][INFO] - Epoch 3936, Batch 50/95, Loss: 0.047870
+[2025-08-25 22:51:17,715][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:17,715][training][INFO] - Epoch 3936 complete. Avg Loss: 0.045922
+[2025-08-25 22:51:17,757][training][INFO] - Epoch 3937, Batch 0/95, Loss: 0.049206
+[2025-08-25 22:51:19,005][training][INFO] - Epoch 3937, Batch 50/95, Loss: 0.044573
+[2025-08-25 22:51:20,105][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:20,105][training][INFO] - Epoch 3937 complete. Avg Loss: 0.045653
+[2025-08-25 22:51:20,146][training][INFO] - Epoch 3938, Batch 0/95, Loss: 0.042758
+[2025-08-25 22:51:21,391][training][INFO] - Epoch 3938, Batch 50/95, Loss: 0.049064
+[2025-08-25 22:51:22,484][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:22,485][training][INFO] - Epoch 3938 complete. Avg Loss: 0.045523
+[2025-08-25 22:51:22,524][training][INFO] - Epoch 3939, Batch 0/95, Loss: 0.043077
+[2025-08-25 22:51:23,763][training][INFO] - Epoch 3939, Batch 50/95, Loss: 0.047994
+[2025-08-25 22:51:24,839][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:24,839][training][INFO] - Epoch 3939 complete. Avg Loss: 0.046047
+[2025-08-25 22:51:24,879][training][INFO] - Epoch 3940, Batch 0/95, Loss: 0.046302
+[2025-08-25 22:51:26,142][training][INFO] - Epoch 3940, Batch 50/95, Loss: 0.046429
+[2025-08-25 22:51:27,213][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:27,214][training][INFO] - Epoch 3940 complete. Avg Loss: 0.045905
+[2025-08-25 22:51:27,253][training][INFO] - Epoch 3941, Batch 0/95, Loss: 0.041522
+[2025-08-25 22:51:28,490][training][INFO] - Epoch 3941, Batch 50/95, Loss: 0.049428
+[2025-08-25 22:51:29,581][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:29,581][training][INFO] - Epoch 3941 complete. Avg Loss: 0.044950
+[2025-08-25 22:51:29,622][training][INFO] - Epoch 3942, Batch 0/95, Loss: 0.042584
+[2025-08-25 22:51:30,879][training][INFO] - Epoch 3942, Batch 50/95, Loss: 0.043531
+[2025-08-25 22:51:31,985][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:31,985][training][INFO] - Epoch 3942 complete. Avg Loss: 0.045974
+[2025-08-25 22:51:32,027][training][INFO] - Epoch 3943, Batch 0/95, Loss: 0.045456
+[2025-08-25 22:51:33,282][training][INFO] - Epoch 3943, Batch 50/95, Loss: 0.044414
+[2025-08-25 22:51:34,369][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:34,370][training][INFO] - Epoch 3943 complete. Avg Loss: 0.045315
+[2025-08-25 22:51:34,411][training][INFO] - Epoch 3944, Batch 0/95, Loss: 0.039231
+[2025-08-25 22:51:35,646][training][INFO] - Epoch 3944, Batch 50/95, Loss: 0.044450
+[2025-08-25 22:51:36,750][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:36,751][training][INFO] - Epoch 3944 complete. Avg Loss: 0.045669
+[2025-08-25 22:51:36,791][training][INFO] - Epoch 3945, Batch 0/95, Loss: 0.043589
+[2025-08-25 22:51:38,069][training][INFO] - Epoch 3945, Batch 50/95, Loss: 0.047011
+[2025-08-25 22:51:39,170][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:39,170][training][INFO] - Epoch 3945 complete. Avg Loss: 0.045632
+[2025-08-25 22:51:39,210][training][INFO] - Epoch 3946, Batch 0/95, Loss: 0.043075
+[2025-08-25 22:51:40,472][training][INFO] - Epoch 3946, Batch 50/95, Loss: 0.044782
+[2025-08-25 22:51:41,576][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:41,576][training][INFO] - Epoch 3946 complete. Avg Loss: 0.045000
+[2025-08-25 22:51:41,619][training][INFO] - Epoch 3947, Batch 0/95, Loss: 0.044464
+[2025-08-25 22:51:42,870][training][INFO] - Epoch 3947, Batch 50/95, Loss: 0.045763
+[2025-08-25 22:51:43,966][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:43,966][training][INFO] - Epoch 3947 complete. Avg Loss: 0.045349
+[2025-08-25 22:51:44,007][training][INFO] - Epoch 3948, Batch 0/95, Loss: 0.044177
+[2025-08-25 22:51:45,271][training][INFO] - Epoch 3948, Batch 50/95, Loss: 0.047941
+[2025-08-25 22:51:46,359][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:46,359][training][INFO] - Epoch 3948 complete. Avg Loss: 0.045606
+[2025-08-25 22:51:46,402][training][INFO] - Epoch 3949, Batch 0/95, Loss: 0.049565
+[2025-08-25 22:51:47,714][training][INFO] - Epoch 3949, Batch 50/95, Loss: 0.046614
+[2025-08-25 22:51:48,816][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:48,817][training][INFO] - Epoch 3949 complete. Avg Loss: 0.045598
+[2025-08-25 22:51:48,858][training][INFO] - Epoch 3950, Batch 0/95, Loss: 0.043630
+[2025-08-25 22:51:50,119][training][INFO] - Epoch 3950, Batch 50/95, Loss: 0.045224
+[2025-08-25 22:51:51,223][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:51,224][training][INFO] - Epoch 3950 complete. Avg Loss: 0.045108
+[2025-08-25 22:51:51,265][training][INFO] - Epoch 3951, Batch 0/95, Loss: 0.046770
+[2025-08-25 22:51:52,499][training][INFO] - Epoch 3951, Batch 50/95, Loss: 0.044172
+[2025-08-25 22:51:53,591][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:53,591][training][INFO] - Epoch 3951 complete. Avg Loss: 0.045682
+[2025-08-25 22:51:53,632][training][INFO] - Epoch 3952, Batch 0/95, Loss: 0.042788
+[2025-08-25 22:51:54,896][training][INFO] - Epoch 3952, Batch 50/95, Loss: 0.045902
+[2025-08-25 22:51:55,994][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:55,994][training][INFO] - Epoch 3952 complete. Avg Loss: 0.045508
+[2025-08-25 22:51:56,036][training][INFO] - Epoch 3953, Batch 0/95, Loss: 0.042856
+[2025-08-25 22:51:57,275][training][INFO] - Epoch 3953, Batch 50/95, Loss: 0.044923
+[2025-08-25 22:51:58,366][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:51:58,366][training][INFO] - Epoch 3953 complete. Avg Loss: 0.045086
+[2025-08-25 22:51:58,407][training][INFO] - Epoch 3954, Batch 0/95, Loss: 0.047954
+[2025-08-25 22:51:59,645][training][INFO] - Epoch 3954, Batch 50/95, Loss: 0.048721
+[2025-08-25 22:52:00,728][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:00,729][training][INFO] - Epoch 3954 complete. Avg Loss: 0.045859
+[2025-08-25 22:52:00,771][training][INFO] - Epoch 3955, Batch 0/95, Loss: 0.041119
+[2025-08-25 22:52:02,015][training][INFO] - Epoch 3955, Batch 50/95, Loss: 0.045964
+[2025-08-25 22:52:03,097][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:03,098][training][INFO] - Epoch 3955 complete. Avg Loss: 0.045272
+[2025-08-25 22:52:03,139][training][INFO] - Epoch 3956, Batch 0/95, Loss: 0.042930
+[2025-08-25 22:52:04,383][training][INFO] - Epoch 3956, Batch 50/95, Loss: 0.040344
+[2025-08-25 22:52:05,521][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:05,521][training][INFO] - Epoch 3956 complete. Avg Loss: 0.045724
+[2025-08-25 22:52:05,563][training][INFO] - Epoch 3957, Batch 0/95, Loss: 0.049071
+[2025-08-25 22:52:06,827][training][INFO] - Epoch 3957, Batch 50/95, Loss: 0.044734
+[2025-08-25 22:52:07,916][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:07,916][training][INFO] - Epoch 3957 complete. Avg Loss: 0.045021
+[2025-08-25 22:52:07,958][training][INFO] - Epoch 3958, Batch 0/95, Loss: 0.045431
+[2025-08-25 22:52:09,205][training][INFO] - Epoch 3958, Batch 50/95, Loss: 0.043405
+[2025-08-25 22:52:10,283][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:10,283][training][INFO] - Epoch 3958 complete. Avg Loss: 0.045854
+[2025-08-25 22:52:10,324][training][INFO] - Epoch 3959, Batch 0/95, Loss: 0.046307
+[2025-08-25 22:52:11,576][training][INFO] - Epoch 3959, Batch 50/95, Loss: 0.042796
+[2025-08-25 22:52:12,652][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:12,652][training][INFO] - Epoch 3959 complete. Avg Loss: 0.045956
+[2025-08-25 22:52:12,691][training][INFO] - Epoch 3960, Batch 0/95, Loss: 0.048016
+[2025-08-25 22:52:13,941][training][INFO] - Epoch 3960, Batch 50/95, Loss: 0.047548
+[2025-08-25 22:52:15,035][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:15,035][training][INFO] - Epoch 3960 complete. Avg Loss: 0.045731
+[2025-08-25 22:52:15,077][training][INFO] - Epoch 3961, Batch 0/95, Loss: 0.047444
+[2025-08-25 22:52:16,328][training][INFO] - Epoch 3961, Batch 50/95, Loss: 0.046586
+[2025-08-25 22:52:17,406][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:17,406][training][INFO] - Epoch 3961 complete. Avg Loss: 0.045167
+[2025-08-25 22:52:17,449][training][INFO] - Epoch 3962, Batch 0/95, Loss: 0.042154
+[2025-08-25 22:52:18,702][training][INFO] - Epoch 3962, Batch 50/95, Loss: 0.049251
+[2025-08-25 22:52:19,802][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:19,802][training][INFO] - Epoch 3962 complete. Avg Loss: 0.045340
+[2025-08-25 22:52:19,842][training][INFO] - Epoch 3963, Batch 0/95, Loss: 0.047033
+[2025-08-25 22:52:21,083][training][INFO] - Epoch 3963, Batch 50/95, Loss: 0.043255
+[2025-08-25 22:52:22,162][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:22,163][training][INFO] - Epoch 3963 complete. Avg Loss: 0.045532
+[2025-08-25 22:52:22,203][training][INFO] - Epoch 3964, Batch 0/95, Loss: 0.048255
+[2025-08-25 22:52:23,434][training][INFO] - Epoch 3964, Batch 50/95, Loss: 0.042103
+[2025-08-25 22:52:24,513][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:24,514][training][INFO] - Epoch 3964 complete. Avg Loss: 0.044781
+[2025-08-25 22:52:24,553][training][INFO] - Epoch 3965, Batch 0/95, Loss: 0.043295
+[2025-08-25 22:52:25,797][training][INFO] - Epoch 3965, Batch 50/95, Loss: 0.048557
+[2025-08-25 22:52:26,883][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:26,884][training][INFO] - Epoch 3965 complete. Avg Loss: 0.045338
+[2025-08-25 22:52:26,927][training][INFO] - Epoch 3966, Batch 0/95, Loss: 0.044818
+[2025-08-25 22:52:28,169][training][INFO] - Epoch 3966, Batch 50/95, Loss: 0.047777
+[2025-08-25 22:52:29,251][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:29,251][training][INFO] - Epoch 3966 complete. Avg Loss: 0.045078
+[2025-08-25 22:52:29,291][training][INFO] - Epoch 3967, Batch 0/95, Loss: 0.041986
+[2025-08-25 22:52:30,542][training][INFO] - Epoch 3967, Batch 50/95, Loss: 0.045080
+[2025-08-25 22:52:31,619][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:31,619][training][INFO] - Epoch 3967 complete. Avg Loss: 0.045326
+[2025-08-25 22:52:31,661][training][INFO] - Epoch 3968, Batch 0/95, Loss: 0.047186
+[2025-08-25 22:52:32,910][training][INFO] - Epoch 3968, Batch 50/95, Loss: 0.044603
+[2025-08-25 22:52:34,002][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:34,003][training][INFO] - Epoch 3968 complete. Avg Loss: 0.045001
+[2025-08-25 22:52:34,042][training][INFO] - Epoch 3969, Batch 0/95, Loss: 0.049310
+[2025-08-25 22:52:35,281][training][INFO] - Epoch 3969, Batch 50/95, Loss: 0.044926
+[2025-08-25 22:52:36,363][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:36,364][training][INFO] - Epoch 3969 complete. Avg Loss: 0.045319
+[2025-08-25 22:52:36,404][training][INFO] - Epoch 3970, Batch 0/95, Loss: 0.047381
+[2025-08-25 22:52:37,657][training][INFO] - Epoch 3970, Batch 50/95, Loss: 0.045993
+[2025-08-25 22:52:38,749][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:38,750][training][INFO] - Epoch 3970 complete. Avg Loss: 0.045081
+[2025-08-25 22:52:38,790][training][INFO] - Epoch 3971, Batch 0/95, Loss: 0.045897
+[2025-08-25 22:52:40,053][training][INFO] - Epoch 3971, Batch 50/95, Loss: 0.049287
+[2025-08-25 22:52:41,143][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:41,144][training][INFO] - Epoch 3971 complete. Avg Loss: 0.045249
+[2025-08-25 22:52:41,184][training][INFO] - Epoch 3972, Batch 0/95, Loss: 0.044951
+[2025-08-25 22:52:42,434][training][INFO] - Epoch 3972, Batch 50/95, Loss: 0.052963
+[2025-08-25 22:52:43,531][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:43,531][training][INFO] - Epoch 3972 complete. Avg Loss: 0.045614
+[2025-08-25 22:52:43,572][training][INFO] - Epoch 3973, Batch 0/95, Loss: 0.045088
+[2025-08-25 22:52:44,814][training][INFO] - Epoch 3973, Batch 50/95, Loss: 0.045194
+[2025-08-25 22:52:45,906][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:45,907][training][INFO] - Epoch 3973 complete. Avg Loss: 0.044875
+[2025-08-25 22:52:45,947][training][INFO] - Epoch 3974, Batch 0/95, Loss: 0.050301
+[2025-08-25 22:52:47,190][training][INFO] - Epoch 3974, Batch 50/95, Loss: 0.048705
+[2025-08-25 22:52:48,294][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:48,294][training][INFO] - Epoch 3974 complete. Avg Loss: 0.045132
+[2025-08-25 22:52:48,338][training][INFO] - Epoch 3975, Batch 0/95, Loss: 0.042285
+[2025-08-25 22:52:49,599][training][INFO] - Epoch 3975, Batch 50/95, Loss: 0.046008
+[2025-08-25 22:52:50,689][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:50,689][training][INFO] - Epoch 3975 complete. Avg Loss: 0.044965
+[2025-08-25 22:52:50,730][training][INFO] - Epoch 3976, Batch 0/95, Loss: 0.043261
+[2025-08-25 22:52:51,987][training][INFO] - Epoch 3976, Batch 50/95, Loss: 0.049921
+[2025-08-25 22:52:53,083][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:53,083][training][INFO] - Epoch 3976 complete. Avg Loss: 0.045212
+[2025-08-25 22:52:53,123][training][INFO] - Epoch 3977, Batch 0/95, Loss: 0.046228
+[2025-08-25 22:52:54,380][training][INFO] - Epoch 3977, Batch 50/95, Loss: 0.052884
+[2025-08-25 22:52:55,480][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:55,480][training][INFO] - Epoch 3977 complete. Avg Loss: 0.045720
+[2025-08-25 22:52:55,522][training][INFO] - Epoch 3978, Batch 0/95, Loss: 0.048044
+[2025-08-25 22:52:56,761][training][INFO] - Epoch 3978, Batch 50/95, Loss: 0.044355
+[2025-08-25 22:52:57,838][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:52:57,838][training][INFO] - Epoch 3978 complete. Avg Loss: 0.046188
+[2025-08-25 22:52:57,880][training][INFO] - Epoch 3979, Batch 0/95, Loss: 0.046292
+[2025-08-25 22:52:59,127][training][INFO] - Epoch 3979, Batch 50/95, Loss: 0.046784
+[2025-08-25 22:53:00,227][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:00,228][training][INFO] - Epoch 3979 complete. Avg Loss: 0.045549
+[2025-08-25 22:53:00,267][training][INFO] - Epoch 3980, Batch 0/95, Loss: 0.041407
+[2025-08-25 22:53:01,563][training][INFO] - Epoch 3980, Batch 50/95, Loss: 0.042550
+[2025-08-25 22:53:02,678][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:02,679][training][INFO] - Epoch 3980 complete. Avg Loss: 0.045544
+[2025-08-25 22:53:02,720][training][INFO] - Epoch 3981, Batch 0/95, Loss: 0.049302
+[2025-08-25 22:53:03,987][training][INFO] - Epoch 3981, Batch 50/95, Loss: 0.046578
+[2025-08-25 22:53:05,084][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:05,084][training][INFO] - Epoch 3981 complete. Avg Loss: 0.045329
+[2025-08-25 22:53:05,125][training][INFO] - Epoch 3982, Batch 0/95, Loss: 0.046633
+[2025-08-25 22:53:06,374][training][INFO] - Epoch 3982, Batch 50/95, Loss: 0.043538
+[2025-08-25 22:53:07,457][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:07,457][training][INFO] - Epoch 3982 complete. Avg Loss: 0.045127
+[2025-08-25 22:53:07,499][training][INFO] - Epoch 3983, Batch 0/95, Loss: 0.047145
+[2025-08-25 22:53:08,763][training][INFO] - Epoch 3983, Batch 50/95, Loss: 0.043356
+[2025-08-25 22:53:09,846][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:09,846][training][INFO] - Epoch 3983 complete. Avg Loss: 0.045405
+[2025-08-25 22:53:09,887][training][INFO] - Epoch 3984, Batch 0/95, Loss: 0.046824
+[2025-08-25 22:53:11,140][training][INFO] - Epoch 3984, Batch 50/95, Loss: 0.040171
+[2025-08-25 22:53:12,215][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:12,215][training][INFO] - Epoch 3984 complete. Avg Loss: 0.045496
+[2025-08-25 22:53:12,257][training][INFO] - Epoch 3985, Batch 0/95, Loss: 0.045876
+[2025-08-25 22:53:13,499][training][INFO] - Epoch 3985, Batch 50/95, Loss: 0.043698
+[2025-08-25 22:53:14,579][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:14,579][training][INFO] - Epoch 3985 complete. Avg Loss: 0.045014
+[2025-08-25 22:53:14,621][training][INFO] - Epoch 3986, Batch 0/95, Loss: 0.045214
+[2025-08-25 22:53:15,856][training][INFO] - Epoch 3986, Batch 50/95, Loss: 0.046389
+[2025-08-25 22:53:16,952][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:16,952][training][INFO] - Epoch 3986 complete. Avg Loss: 0.045672
+[2025-08-25 22:53:16,993][training][INFO] - Epoch 3987, Batch 0/95, Loss: 0.043252
+[2025-08-25 22:53:18,252][training][INFO] - Epoch 3987, Batch 50/95, Loss: 0.052479
+[2025-08-25 22:53:19,351][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:19,351][training][INFO] - Epoch 3987 complete. Avg Loss: 0.045776
+[2025-08-25 22:53:19,392][training][INFO] - Epoch 3988, Batch 0/95, Loss: 0.044911
+[2025-08-25 22:53:20,646][training][INFO] - Epoch 3988, Batch 50/95, Loss: 0.051156
+[2025-08-25 22:53:21,731][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:21,731][training][INFO] - Epoch 3988 complete. Avg Loss: 0.045698
+[2025-08-25 22:53:21,771][training][INFO] - Epoch 3989, Batch 0/95, Loss: 0.044224
+[2025-08-25 22:53:23,025][training][INFO] - Epoch 3989, Batch 50/95, Loss: 0.050159
+[2025-08-25 22:53:24,112][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:24,113][training][INFO] - Epoch 3989 complete. Avg Loss: 0.045680
+[2025-08-25 22:53:24,154][training][INFO] - Epoch 3990, Batch 0/95, Loss: 0.042809
+[2025-08-25 22:53:25,406][training][INFO] - Epoch 3990, Batch 50/95, Loss: 0.045354
+[2025-08-25 22:53:26,507][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:26,507][training][INFO] - Epoch 3990 complete. Avg Loss: 0.045528
+[2025-08-25 22:53:26,549][training][INFO] - Epoch 3991, Batch 0/95, Loss: 0.044372
+[2025-08-25 22:53:27,795][training][INFO] - Epoch 3991, Batch 50/95, Loss: 0.049805
+[2025-08-25 22:53:28,879][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:28,879][training][INFO] - Epoch 3991 complete. Avg Loss: 0.045642
+[2025-08-25 22:53:28,921][training][INFO] - Epoch 3992, Batch 0/95, Loss: 0.045638
+[2025-08-25 22:53:30,174][training][INFO] - Epoch 3992, Batch 50/95, Loss: 0.047114
+[2025-08-25 22:53:31,263][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:31,263][training][INFO] - Epoch 3992 complete. Avg Loss: 0.045780
+[2025-08-25 22:53:31,305][training][INFO] - Epoch 3993, Batch 0/95, Loss: 0.048891
+[2025-08-25 22:53:32,543][training][INFO] - Epoch 3993, Batch 50/95, Loss: 0.043450
+[2025-08-25 22:53:33,642][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:33,643][training][INFO] - Epoch 3993 complete. Avg Loss: 0.045876
+[2025-08-25 22:53:33,685][training][INFO] - Epoch 3994, Batch 0/95, Loss: 0.043754
+[2025-08-25 22:53:34,943][training][INFO] - Epoch 3994, Batch 50/95, Loss: 0.044915
+[2025-08-25 22:53:36,011][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:36,012][training][INFO] - Epoch 3994 complete. Avg Loss: 0.044710
+[2025-08-25 22:53:36,051][training][INFO] - Epoch 3995, Batch 0/95, Loss: 0.042851
+[2025-08-25 22:53:37,309][training][INFO] - Epoch 3995, Batch 50/95, Loss: 0.039831
+[2025-08-25 22:53:38,392][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:38,392][training][INFO] - Epoch 3995 complete. Avg Loss: 0.045590
+[2025-08-25 22:53:38,432][training][INFO] - Epoch 3996, Batch 0/95, Loss: 0.045501
+[2025-08-25 22:53:39,675][training][INFO] - Epoch 3996, Batch 50/95, Loss: 0.045673
+[2025-08-25 22:53:40,754][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:40,755][training][INFO] - Epoch 3996 complete. Avg Loss: 0.045452
+[2025-08-25 22:53:40,795][training][INFO] - Epoch 3997, Batch 0/95, Loss: 0.046337
+[2025-08-25 22:53:42,036][training][INFO] - Epoch 3997, Batch 50/95, Loss: 0.049531
+[2025-08-25 22:53:43,131][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:43,131][training][INFO] - Epoch 3997 complete. Avg Loss: 0.045526
+[2025-08-25 22:53:43,174][training][INFO] - Epoch 3998, Batch 0/95, Loss: 0.041289
+[2025-08-25 22:53:44,428][training][INFO] - Epoch 3998, Batch 50/95, Loss: 0.046675
+[2025-08-25 22:53:45,520][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:45,520][training][INFO] - Epoch 3998 complete. Avg Loss: 0.045132
+[2025-08-25 22:53:45,562][training][INFO] - Epoch 3999, Batch 0/95, Loss: 0.044456
+[2025-08-25 22:53:46,807][training][INFO] - Epoch 3999, Batch 50/95, Loss: 0.046834
+[2025-08-25 22:53:47,888][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:47,888][training][INFO] - Epoch 3999 complete. Avg Loss: 0.045314
+[2025-08-25 22:53:47,929][training][INFO] - Epoch 4000, Batch 0/95, Loss: 0.048257
+[2025-08-25 22:53:49,184][training][INFO] - Epoch 4000, Batch 50/95, Loss: 0.047417
+[2025-08-25 22:53:50,275][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:50,275][training][INFO] - Epoch 4000 complete. Avg Loss: 0.045113
+[2025-08-25 22:53:50,281][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/tde_mfm/outputs/snapMMD_MFM_PBMC_6185a7840e1f3dab791245b6c5a393f3/checkpoint_epoch_4000.pt
+[2025-08-25 22:53:52,436][training][INFO] - Evaluation Loss: 0.044773
+[2025-08-25 22:53:52,442][training][INFO] - New best model saved to /orcd/archive/abugoot/001/Projects/paolo/tde_mfm/outputs/snapMMD_MFM_PBMC_6185a7840e1f3dab791245b6c5a393f3/best_model.pt
+[2025-08-25 22:53:52,485][training][INFO] - Epoch 4001, Batch 0/95, Loss: 0.047369
+[2025-08-25 22:53:53,751][training][INFO] - Epoch 4001, Batch 50/95, Loss: 0.045122
+[2025-08-25 22:53:54,841][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:54,841][training][INFO] - Epoch 4001 complete. Avg Loss: 0.045068
+[2025-08-25 22:53:54,882][training][INFO] - Epoch 4002, Batch 0/95, Loss: 0.044448
+[2025-08-25 22:53:56,124][training][INFO] - Epoch 4002, Batch 50/95, Loss: 0.046604
+[2025-08-25 22:53:57,201][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:57,201][training][INFO] - Epoch 4002 complete. Avg Loss: 0.045408
+[2025-08-25 22:53:57,246][training][INFO] - Epoch 4003, Batch 0/95, Loss: 0.046552
+[2025-08-25 22:53:58,499][training][INFO] - Epoch 4003, Batch 50/95, Loss: 0.041696
+[2025-08-25 22:53:59,586][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:53:59,586][training][INFO] - Epoch 4003 complete. Avg Loss: 0.045038
+[2025-08-25 22:53:59,626][training][INFO] - Epoch 4004, Batch 0/95, Loss: 0.044743
+[2025-08-25 22:54:00,868][training][INFO] - Epoch 4004, Batch 50/95, Loss: 0.043612
+[2025-08-25 22:54:01,956][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:01,956][training][INFO] - Epoch 4004 complete. Avg Loss: 0.045187
+[2025-08-25 22:54:01,996][training][INFO] - Epoch 4005, Batch 0/95, Loss: 0.043678
+[2025-08-25 22:54:03,236][training][INFO] - Epoch 4005, Batch 50/95, Loss: 0.045760
+[2025-08-25 22:54:04,331][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:04,332][training][INFO] - Epoch 4005 complete. Avg Loss: 0.045479
+[2025-08-25 22:54:04,372][training][INFO] - Epoch 4006, Batch 0/95, Loss: 0.046321
+[2025-08-25 22:54:05,628][training][INFO] - Epoch 4006, Batch 50/95, Loss: 0.046314
+[2025-08-25 22:54:06,716][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:06,717][training][INFO] - Epoch 4006 complete. Avg Loss: 0.045147
+[2025-08-25 22:54:06,756][training][INFO] - Epoch 4007, Batch 0/95, Loss: 0.052846
+[2025-08-25 22:54:07,992][training][INFO] - Epoch 4007, Batch 50/95, Loss: 0.045343
+[2025-08-25 22:54:09,070][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:09,070][training][INFO] - Epoch 4007 complete. Avg Loss: 0.045180
+[2025-08-25 22:54:09,114][training][INFO] - Epoch 4008, Batch 0/95, Loss: 0.045727
+[2025-08-25 22:54:10,358][training][INFO] - Epoch 4008, Batch 50/95, Loss: 0.042929
+[2025-08-25 22:54:11,428][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:11,428][training][INFO] - Epoch 4008 complete. Avg Loss: 0.045590
+[2025-08-25 22:54:11,468][training][INFO] - Epoch 4009, Batch 0/95, Loss: 0.041246
+[2025-08-25 22:54:12,715][training][INFO] - Epoch 4009, Batch 50/95, Loss: 0.049802
+[2025-08-25 22:54:13,804][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:13,804][training][INFO] - Epoch 4009 complete. Avg Loss: 0.045309
+[2025-08-25 22:54:13,846][training][INFO] - Epoch 4010, Batch 0/95, Loss: 0.047129
+[2025-08-25 22:54:15,095][training][INFO] - Epoch 4010, Batch 50/95, Loss: 0.045462
+[2025-08-25 22:54:16,183][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:16,183][training][INFO] - Epoch 4010 complete. Avg Loss: 0.045361
+[2025-08-25 22:54:16,224][training][INFO] - Epoch 4011, Batch 0/95, Loss: 0.047943
+[2025-08-25 22:54:17,472][training][INFO] - Epoch 4011, Batch 50/95, Loss: 0.048887
+[2025-08-25 22:54:18,551][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:18,552][training][INFO] - Epoch 4011 complete. Avg Loss: 0.045366
+[2025-08-25 22:54:18,593][training][INFO] - Epoch 4012, Batch 0/95, Loss: 0.045842
+[2025-08-25 22:54:19,847][training][INFO] - Epoch 4012, Batch 50/95, Loss: 0.044187
+[2025-08-25 22:54:20,929][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:20,930][training][INFO] - Epoch 4012 complete. Avg Loss: 0.045642
+[2025-08-25 22:54:20,971][training][INFO] - Epoch 4013, Batch 0/95, Loss: 0.045991
+[2025-08-25 22:54:22,225][training][INFO] - Epoch 4013, Batch 50/95, Loss: 0.046474
+[2025-08-25 22:54:23,314][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:23,314][training][INFO] - Epoch 4013 complete. Avg Loss: 0.045216
+[2025-08-25 22:54:23,354][training][INFO] - Epoch 4014, Batch 0/95, Loss: 0.047916
+[2025-08-25 22:54:24,611][training][INFO] - Epoch 4014, Batch 50/95, Loss: 0.044004
+[2025-08-25 22:54:25,722][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:25,722][training][INFO] - Epoch 4014 complete. Avg Loss: 0.045043
+[2025-08-25 22:54:25,764][training][INFO] - Epoch 4015, Batch 0/95, Loss: 0.046926
+[2025-08-25 22:54:27,021][training][INFO] - Epoch 4015, Batch 50/95, Loss: 0.042494
+[2025-08-25 22:54:28,121][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:28,121][training][INFO] - Epoch 4015 complete. Avg Loss: 0.045551
+[2025-08-25 22:54:28,160][training][INFO] - Epoch 4016, Batch 0/95, Loss: 0.043558
+[2025-08-25 22:54:29,393][training][INFO] - Epoch 4016, Batch 50/95, Loss: 0.046272
+[2025-08-25 22:54:30,486][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:30,486][training][INFO] - Epoch 4016 complete. Avg Loss: 0.045105
+[2025-08-25 22:54:30,527][training][INFO] - Epoch 4017, Batch 0/95, Loss: 0.048769
+[2025-08-25 22:54:31,769][training][INFO] - Epoch 4017, Batch 50/95, Loss: 0.049240
+[2025-08-25 22:54:32,872][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:32,872][training][INFO] - Epoch 4017 complete. Avg Loss: 0.045698
+[2025-08-25 22:54:32,915][training][INFO] - Epoch 4018, Batch 0/95, Loss: 0.050322
+[2025-08-25 22:54:34,168][training][INFO] - Epoch 4018, Batch 50/95, Loss: 0.045508
+[2025-08-25 22:54:35,264][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:35,264][training][INFO] - Epoch 4018 complete. Avg Loss: 0.045688
+[2025-08-25 22:54:35,304][training][INFO] - Epoch 4019, Batch 0/95, Loss: 0.042881
+[2025-08-25 22:54:36,545][training][INFO] - Epoch 4019, Batch 50/95, Loss: 0.049601
+[2025-08-25 22:54:37,629][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:37,629][training][INFO] - Epoch 4019 complete. Avg Loss: 0.045304
+[2025-08-25 22:54:37,668][training][INFO] - Epoch 4020, Batch 0/95, Loss: 0.045823
+[2025-08-25 22:54:38,918][training][INFO] - Epoch 4020, Batch 50/95, Loss: 0.041085
+[2025-08-25 22:54:39,997][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:39,998][training][INFO] - Epoch 4020 complete. Avg Loss: 0.045254
+[2025-08-25 22:54:40,038][training][INFO] - Epoch 4021, Batch 0/95, Loss: 0.049317
+[2025-08-25 22:54:41,294][training][INFO] - Epoch 4021, Batch 50/95, Loss: 0.049768
+[2025-08-25 22:54:42,375][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:42,375][training][INFO] - Epoch 4021 complete. Avg Loss: 0.045620
+[2025-08-25 22:54:42,417][training][INFO] - Epoch 4022, Batch 0/95, Loss: 0.048873
+[2025-08-25 22:54:43,682][training][INFO] - Epoch 4022, Batch 50/95, Loss: 0.046417
+[2025-08-25 22:54:44,769][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:44,770][training][INFO] - Epoch 4022 complete. Avg Loss: 0.044908
+[2025-08-25 22:54:44,812][training][INFO] - Epoch 4023, Batch 0/95, Loss: 0.045201
+[2025-08-25 22:54:46,050][training][INFO] - Epoch 4023, Batch 50/95, Loss: 0.045618
+[2025-08-25 22:54:47,141][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:47,142][training][INFO] - Epoch 4023 complete. Avg Loss: 0.045312
+[2025-08-25 22:54:47,184][training][INFO] - Epoch 4024, Batch 0/95, Loss: 0.042530
+[2025-08-25 22:54:48,425][training][INFO] - Epoch 4024, Batch 50/95, Loss: 0.044156
+[2025-08-25 22:54:49,529][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:49,529][training][INFO] - Epoch 4024 complete. Avg Loss: 0.045573
+[2025-08-25 22:54:49,569][training][INFO] - Epoch 4025, Batch 0/95, Loss: 0.043219
+[2025-08-25 22:54:50,833][training][INFO] - Epoch 4025, Batch 50/95, Loss: 0.041668
+[2025-08-25 22:54:51,923][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:51,924][training][INFO] - Epoch 4025 complete. Avg Loss: 0.045288
+[2025-08-25 22:54:51,964][training][INFO] - Epoch 4026, Batch 0/95, Loss: 0.041942
+[2025-08-25 22:54:53,211][training][INFO] - Epoch 4026, Batch 50/95, Loss: 0.042155
+[2025-08-25 22:54:54,299][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:54,299][training][INFO] - Epoch 4026 complete. Avg Loss: 0.044966
+[2025-08-25 22:54:54,340][training][INFO] - Epoch 4027, Batch 0/95, Loss: 0.044489
+[2025-08-25 22:54:55,592][training][INFO] - Epoch 4027, Batch 50/95, Loss: 0.049301
+[2025-08-25 22:54:56,675][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:56,675][training][INFO] - Epoch 4027 complete. Avg Loss: 0.045660
+[2025-08-25 22:54:56,715][training][INFO] - Epoch 4028, Batch 0/95, Loss: 0.046939
+[2025-08-25 22:54:57,967][training][INFO] - Epoch 4028, Batch 50/95, Loss: 0.047569
+[2025-08-25 22:54:59,050][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:54:59,050][training][INFO] - Epoch 4028 complete. Avg Loss: 0.045293
+[2025-08-25 22:54:59,091][training][INFO] - Epoch 4029, Batch 0/95, Loss: 0.047627
+[2025-08-25 22:55:00,343][training][INFO] - Epoch 4029, Batch 50/95, Loss: 0.047589
+[2025-08-25 22:55:01,434][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:01,434][training][INFO] - Epoch 4029 complete. Avg Loss: 0.045325
+[2025-08-25 22:55:01,475][training][INFO] - Epoch 4030, Batch 0/95, Loss: 0.046597
+[2025-08-25 22:55:02,727][training][INFO] - Epoch 4030, Batch 50/95, Loss: 0.048244
+[2025-08-25 22:55:03,826][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:03,826][training][INFO] - Epoch 4030 complete. Avg Loss: 0.045513
+[2025-08-25 22:55:03,867][training][INFO] - Epoch 4031, Batch 0/95, Loss: 0.044149
+[2025-08-25 22:55:05,129][training][INFO] - Epoch 4031, Batch 50/95, Loss: 0.047530
+[2025-08-25 22:55:06,232][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:06,232][training][INFO] - Epoch 4031 complete. Avg Loss: 0.045596
+[2025-08-25 22:55:06,273][training][INFO] - Epoch 4032, Batch 0/95, Loss: 0.040977
+[2025-08-25 22:55:07,532][training][INFO] - Epoch 4032, Batch 50/95, Loss: 0.043595
+[2025-08-25 22:55:08,614][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:08,614][training][INFO] - Epoch 4032 complete. Avg Loss: 0.045039
+[2025-08-25 22:55:08,655][training][INFO] - Epoch 4033, Batch 0/95, Loss: 0.044293
+[2025-08-25 22:55:09,906][training][INFO] - Epoch 4033, Batch 50/95, Loss: 0.046945
+[2025-08-25 22:55:10,989][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:10,989][training][INFO] - Epoch 4033 complete. Avg Loss: 0.045298
+[2025-08-25 22:55:11,034][training][INFO] - Epoch 4034, Batch 0/95, Loss: 0.045408
+[2025-08-25 22:55:12,296][training][INFO] - Epoch 4034, Batch 50/95, Loss: 0.042037
+[2025-08-25 22:55:13,388][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:13,388][training][INFO] - Epoch 4034 complete. Avg Loss: 0.045311
+[2025-08-25 22:55:13,428][training][INFO] - Epoch 4035, Batch 0/95, Loss: 0.048596
+[2025-08-25 22:55:14,675][training][INFO] - Epoch 4035, Batch 50/95, Loss: 0.047888
+[2025-08-25 22:55:15,763][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:15,763][training][INFO] - Epoch 4035 complete. Avg Loss: 0.045756
+[2025-08-25 22:55:15,805][training][INFO] - Epoch 4036, Batch 0/95, Loss: 0.049337
+[2025-08-25 22:55:17,066][training][INFO] - Epoch 4036, Batch 50/95, Loss: 0.046475
+[2025-08-25 22:55:18,136][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:18,136][training][INFO] - Epoch 4036 complete. Avg Loss: 0.045578
+[2025-08-25 22:55:18,177][training][INFO] - Epoch 4037, Batch 0/95, Loss: 0.046747
+[2025-08-25 22:55:19,435][training][INFO] - Epoch 4037, Batch 50/95, Loss: 0.046745
+[2025-08-25 22:55:20,524][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:20,525][training][INFO] - Epoch 4037 complete. Avg Loss: 0.045199
+[2025-08-25 22:55:20,566][training][INFO] - Epoch 4038, Batch 0/95, Loss: 0.047363
+[2025-08-25 22:55:21,827][training][INFO] - Epoch 4038, Batch 50/95, Loss: 0.047533
+[2025-08-25 22:55:22,922][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:22,922][training][INFO] - Epoch 4038 complete. Avg Loss: 0.045179
+[2025-08-25 22:55:22,963][training][INFO] - Epoch 4039, Batch 0/95, Loss: 0.040320
+[2025-08-25 22:55:24,224][training][INFO] - Epoch 4039, Batch 50/95, Loss: 0.044330
+[2025-08-25 22:55:25,315][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:25,316][training][INFO] - Epoch 4039 complete. Avg Loss: 0.044916
+[2025-08-25 22:55:25,356][training][INFO] - Epoch 4040, Batch 0/95, Loss: 0.044195
+[2025-08-25 22:55:26,604][training][INFO] - Epoch 4040, Batch 50/95, Loss: 0.044013
+[2025-08-25 22:55:27,693][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:27,693][training][INFO] - Epoch 4040 complete. Avg Loss: 0.045549
+[2025-08-25 22:55:27,737][training][INFO] - Epoch 4041, Batch 0/95, Loss: 0.047792
+[2025-08-25 22:55:28,970][training][INFO] - Epoch 4041, Batch 50/95, Loss: 0.038666
+[2025-08-25 22:55:30,051][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:30,051][training][INFO] - Epoch 4041 complete. Avg Loss: 0.045018
+[2025-08-25 22:55:30,094][training][INFO] - Epoch 4042, Batch 0/95, Loss: 0.045374
+[2025-08-25 22:55:31,342][training][INFO] - Epoch 4042, Batch 50/95, Loss: 0.043593
+[2025-08-25 22:55:32,454][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:32,455][training][INFO] - Epoch 4042 complete. Avg Loss: 0.045596
+[2025-08-25 22:55:32,496][training][INFO] - Epoch 4043, Batch 0/95, Loss: 0.048196
+[2025-08-25 22:55:33,750][training][INFO] - Epoch 4043, Batch 50/95, Loss: 0.047569
+[2025-08-25 22:55:34,858][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:34,858][training][INFO] - Epoch 4043 complete. Avg Loss: 0.045371
+[2025-08-25 22:55:34,898][training][INFO] - Epoch 4044, Batch 0/95, Loss: 0.042392
+[2025-08-25 22:55:36,133][training][INFO] - Epoch 4044, Batch 50/95, Loss: 0.048583
+[2025-08-25 22:55:37,216][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:37,216][training][INFO] - Epoch 4044 complete. Avg Loss: 0.045771
+[2025-08-25 22:55:37,258][training][INFO] - Epoch 4045, Batch 0/95, Loss: 0.042585
+[2025-08-25 22:55:38,525][training][INFO] - Epoch 4045, Batch 50/95, Loss: 0.045247
+[2025-08-25 22:55:39,623][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:39,623][training][INFO] - Epoch 4045 complete. Avg Loss: 0.045185
+[2025-08-25 22:55:39,663][training][INFO] - Epoch 4046, Batch 0/95, Loss: 0.044031
+[2025-08-25 22:55:40,901][training][INFO] - Epoch 4046, Batch 50/95, Loss: 0.041586
+[2025-08-25 22:55:41,972][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:41,972][training][INFO] - Epoch 4046 complete. Avg Loss: 0.045330
+[2025-08-25 22:55:42,012][training][INFO] - Epoch 4047, Batch 0/95, Loss: 0.049071
+[2025-08-25 22:55:43,265][training][INFO] - Epoch 4047, Batch 50/95, Loss: 0.044822
+[2025-08-25 22:55:44,338][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:44,339][training][INFO] - Epoch 4047 complete. Avg Loss: 0.044897
+[2025-08-25 22:55:44,379][training][INFO] - Epoch 4048, Batch 0/95, Loss: 0.048650
+[2025-08-25 22:55:45,635][training][INFO] - Epoch 4048, Batch 50/95, Loss: 0.043464
+[2025-08-25 22:55:46,707][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:46,707][training][INFO] - Epoch 4048 complete. Avg Loss: 0.045378
+[2025-08-25 22:55:46,748][training][INFO] - Epoch 4049, Batch 0/95, Loss: 0.043495
+[2025-08-25 22:55:48,000][training][INFO] - Epoch 4049, Batch 50/95, Loss: 0.043313
+[2025-08-25 22:55:49,089][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:49,090][training][INFO] - Epoch 4049 complete. Avg Loss: 0.044903
+[2025-08-25 22:55:49,129][training][INFO] - Epoch 4050, Batch 0/95, Loss: 0.044566
+[2025-08-25 22:55:50,376][training][INFO] - Epoch 4050, Batch 50/95, Loss: 0.049528
+[2025-08-25 22:55:51,464][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:51,464][training][INFO] - Epoch 4050 complete. Avg Loss: 0.045138
+[2025-08-25 22:55:51,507][training][INFO] - Epoch 4051, Batch 0/95, Loss: 0.040163
+[2025-08-25 22:55:52,753][training][INFO] - Epoch 4051, Batch 50/95, Loss: 0.048253
+[2025-08-25 22:55:53,850][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:53,850][training][INFO] - Epoch 4051 complete. Avg Loss: 0.045404
+[2025-08-25 22:55:53,892][training][INFO] - Epoch 4052, Batch 0/95, Loss: 0.048817
+[2025-08-25 22:55:55,145][training][INFO] - Epoch 4052, Batch 50/95, Loss: 0.046376
+[2025-08-25 22:55:56,246][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:56,246][training][INFO] - Epoch 4052 complete. Avg Loss: 0.045718
+[2025-08-25 22:55:56,288][training][INFO] - Epoch 4053, Batch 0/95, Loss: 0.046162
+[2025-08-25 22:55:57,554][training][INFO] - Epoch 4053, Batch 50/95, Loss: 0.043079
+[2025-08-25 22:55:58,655][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:55:58,656][training][INFO] - Epoch 4053 complete. Avg Loss: 0.045881
+[2025-08-25 22:55:58,696][training][INFO] - Epoch 4054, Batch 0/95, Loss: 0.047936
+[2025-08-25 22:55:59,954][training][INFO] - Epoch 4054, Batch 50/95, Loss: 0.040747
+[2025-08-25 22:56:01,047][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:01,047][training][INFO] - Epoch 4054 complete. Avg Loss: 0.045410
+[2025-08-25 22:56:01,089][training][INFO] - Epoch 4055, Batch 0/95, Loss: 0.045536
+[2025-08-25 22:56:02,337][training][INFO] - Epoch 4055, Batch 50/95, Loss: 0.047427
+[2025-08-25 22:56:03,418][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:03,418][training][INFO] - Epoch 4055 complete. Avg Loss: 0.045893
+[2025-08-25 22:56:03,459][training][INFO] - Epoch 4056, Batch 0/95, Loss: 0.046325
+[2025-08-25 22:56:04,724][training][INFO] - Epoch 4056, Batch 50/95, Loss: 0.047226
+[2025-08-25 22:56:05,818][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:05,818][training][INFO] - Epoch 4056 complete. Avg Loss: 0.045251
+[2025-08-25 22:56:05,860][training][INFO] - Epoch 4057, Batch 0/95, Loss: 0.048618
+[2025-08-25 22:56:07,124][training][INFO] - Epoch 4057, Batch 50/95, Loss: 0.046418
+[2025-08-25 22:56:08,224][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:08,224][training][INFO] - Epoch 4057 complete. Avg Loss: 0.045357
+[2025-08-25 22:56:08,266][training][INFO] - Epoch 4058, Batch 0/95, Loss: 0.048440
+[2025-08-25 22:56:09,527][training][INFO] - Epoch 4058, Batch 50/95, Loss: 0.047903
+[2025-08-25 22:56:10,623][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:10,623][training][INFO] - Epoch 4058 complete. Avg Loss: 0.045310
+[2025-08-25 22:56:10,664][training][INFO] - Epoch 4059, Batch 0/95, Loss: 0.052401
+[2025-08-25 22:56:11,923][training][INFO] - Epoch 4059, Batch 50/95, Loss: 0.047206
+[2025-08-25 22:56:13,023][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:13,024][training][INFO] - Epoch 4059 complete. Avg Loss: 0.045813
+[2025-08-25 22:56:13,065][training][INFO] - Epoch 4060, Batch 0/95, Loss: 0.044360
+[2025-08-25 22:56:14,315][training][INFO] - Epoch 4060, Batch 50/95, Loss: 0.046268
+[2025-08-25 22:56:15,420][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:15,420][training][INFO] - Epoch 4060 complete. Avg Loss: 0.044932
+[2025-08-25 22:56:15,461][training][INFO] - Epoch 4061, Batch 0/95, Loss: 0.042692
+[2025-08-25 22:56:16,702][training][INFO] - Epoch 4061, Batch 50/95, Loss: 0.045228
+[2025-08-25 22:56:17,782][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:17,782][training][INFO] - Epoch 4061 complete. Avg Loss: 0.045500
+[2025-08-25 22:56:17,823][training][INFO] - Epoch 4062, Batch 0/95, Loss: 0.048811
+[2025-08-25 22:56:19,074][training][INFO] - Epoch 4062, Batch 50/95, Loss: 0.046726
+[2025-08-25 22:56:20,154][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:20,154][training][INFO] - Epoch 4062 complete. Avg Loss: 0.045473
+[2025-08-25 22:56:20,195][training][INFO] - Epoch 4063, Batch 0/95, Loss: 0.043375
+[2025-08-25 22:56:21,446][training][INFO] - Epoch 4063, Batch 50/95, Loss: 0.043568
+[2025-08-25 22:56:22,547][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:22,547][training][INFO] - Epoch 4063 complete. Avg Loss: 0.045368
+[2025-08-25 22:56:22,588][training][INFO] - Epoch 4064, Batch 0/95, Loss: 0.047351
+[2025-08-25 22:56:23,850][training][INFO] - Epoch 4064, Batch 50/95, Loss: 0.046674
+[2025-08-25 22:56:24,945][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:24,946][training][INFO] - Epoch 4064 complete. Avg Loss: 0.045270
+[2025-08-25 22:56:24,986][training][INFO] - Epoch 4065, Batch 0/95, Loss: 0.046455
+[2025-08-25 22:56:26,234][training][INFO] - Epoch 4065, Batch 50/95, Loss: 0.043603
+[2025-08-25 22:56:27,315][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:27,315][training][INFO] - Epoch 4065 complete. Avg Loss: 0.045272
+[2025-08-25 22:56:27,355][training][INFO] - Epoch 4066, Batch 0/95, Loss: 0.042631
+[2025-08-25 22:56:28,588][training][INFO] - Epoch 4066, Batch 50/95, Loss: 0.042374
+[2025-08-25 22:56:29,666][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:29,667][training][INFO] - Epoch 4066 complete. Avg Loss: 0.045277
+[2025-08-25 22:56:29,707][training][INFO] - Epoch 4067, Batch 0/95, Loss: 0.042410
+[2025-08-25 22:56:30,951][training][INFO] - Epoch 4067, Batch 50/95, Loss: 0.043405
+[2025-08-25 22:56:32,030][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:32,031][training][INFO] - Epoch 4067 complete. Avg Loss: 0.045400
+[2025-08-25 22:56:32,072][training][INFO] - Epoch 4068, Batch 0/95, Loss: 0.041759
+[2025-08-25 22:56:33,318][training][INFO] - Epoch 4068, Batch 50/95, Loss: 0.045656
+[2025-08-25 22:56:34,410][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:34,410][training][INFO] - Epoch 4068 complete. Avg Loss: 0.044962
+[2025-08-25 22:56:34,452][training][INFO] - Epoch 4069, Batch 0/95, Loss: 0.046545
+[2025-08-25 22:56:35,695][training][INFO] - Epoch 4069, Batch 50/95, Loss: 0.043211
+[2025-08-25 22:56:36,769][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:36,769][training][INFO] - Epoch 4069 complete. Avg Loss: 0.045412
+[2025-08-25 22:56:36,810][training][INFO] - Epoch 4070, Batch 0/95, Loss: 0.041571
+[2025-08-25 22:56:38,060][training][INFO] - Epoch 4070, Batch 50/95, Loss: 0.045879
+[2025-08-25 22:56:39,150][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:39,151][training][INFO] - Epoch 4070 complete. Avg Loss: 0.044922
+[2025-08-25 22:56:39,190][training][INFO] - Epoch 4071, Batch 0/95, Loss: 0.045325
+[2025-08-25 22:56:40,428][training][INFO] - Epoch 4071, Batch 50/95, Loss: 0.046712
+[2025-08-25 22:56:41,506][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:41,506][training][INFO] - Epoch 4071 complete. Avg Loss: 0.045174
+[2025-08-25 22:56:41,548][training][INFO] - Epoch 4072, Batch 0/95, Loss: 0.048472
+[2025-08-25 22:56:42,790][training][INFO] - Epoch 4072, Batch 50/95, Loss: 0.046077
+[2025-08-25 22:56:43,886][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:43,886][training][INFO] - Epoch 4072 complete. Avg Loss: 0.045245
+[2025-08-25 22:56:43,926][training][INFO] - Epoch 4073, Batch 0/95, Loss: 0.050569
+[2025-08-25 22:56:45,173][training][INFO] - Epoch 4073, Batch 50/95, Loss: 0.049688
+[2025-08-25 22:56:46,259][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:46,259][training][INFO] - Epoch 4073 complete. Avg Loss: 0.045413
+[2025-08-25 22:56:46,300][training][INFO] - Epoch 4074, Batch 0/95, Loss: 0.048225
+[2025-08-25 22:56:47,552][training][INFO] - Epoch 4074, Batch 50/95, Loss: 0.050520
+[2025-08-25 22:56:48,636][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:48,636][training][INFO] - Epoch 4074 complete. Avg Loss: 0.045534
+[2025-08-25 22:56:48,677][training][INFO] - Epoch 4075, Batch 0/95, Loss: 0.044829
+[2025-08-25 22:56:49,944][training][INFO] - Epoch 4075, Batch 50/95, Loss: 0.046391
+[2025-08-25 22:56:51,040][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:51,040][training][INFO] - Epoch 4075 complete. Avg Loss: 0.045409
+[2025-08-25 22:56:51,082][training][INFO] - Epoch 4076, Batch 0/95, Loss: 0.044551
+[2025-08-25 22:56:52,327][training][INFO] - Epoch 4076, Batch 50/95, Loss: 0.042593
+[2025-08-25 22:56:53,434][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:53,435][training][INFO] - Epoch 4076 complete. Avg Loss: 0.044444
+[2025-08-25 22:56:53,476][training][INFO] - Epoch 4077, Batch 0/95, Loss: 0.045882
+[2025-08-25 22:56:54,734][training][INFO] - Epoch 4077, Batch 50/95, Loss: 0.048458
+[2025-08-25 22:56:55,826][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:55,826][training][INFO] - Epoch 4077 complete. Avg Loss: 0.045465
+[2025-08-25 22:56:55,869][training][INFO] - Epoch 4078, Batch 0/95, Loss: 0.044765
+[2025-08-25 22:56:57,108][training][INFO] - Epoch 4078, Batch 50/95, Loss: 0.041819
+[2025-08-25 22:56:58,206][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:56:58,206][training][INFO] - Epoch 4078 complete. Avg Loss: 0.044521
+[2025-08-25 22:56:58,246][training][INFO] - Epoch 4079, Batch 0/95, Loss: 0.046654
+[2025-08-25 22:56:59,480][training][INFO] - Epoch 4079, Batch 50/95, Loss: 0.050686
+[2025-08-25 22:57:00,564][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:00,564][training][INFO] - Epoch 4079 complete. Avg Loss: 0.045452
+[2025-08-25 22:57:00,604][training][INFO] - Epoch 4080, Batch 0/95, Loss: 0.050916
+[2025-08-25 22:57:01,850][training][INFO] - Epoch 4080, Batch 50/95, Loss: 0.045252
+[2025-08-25 22:57:02,930][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:02,931][training][INFO] - Epoch 4080 complete. Avg Loss: 0.045471
+[2025-08-25 22:57:02,971][training][INFO] - Epoch 4081, Batch 0/95, Loss: 0.045995
+[2025-08-25 22:57:04,233][training][INFO] - Epoch 4081, Batch 50/95, Loss: 0.041071
+[2025-08-25 22:57:05,326][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:05,326][training][INFO] - Epoch 4081 complete. Avg Loss: 0.045496
+[2025-08-25 22:57:05,367][training][INFO] - Epoch 4082, Batch 0/95, Loss: 0.046046
+[2025-08-25 22:57:06,625][training][INFO] - Epoch 4082, Batch 50/95, Loss: 0.041866
+[2025-08-25 22:57:07,712][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:07,712][training][INFO] - Epoch 4082 complete. Avg Loss: 0.045465
+[2025-08-25 22:57:07,754][training][INFO] - Epoch 4083, Batch 0/95, Loss: 0.047411
+[2025-08-25 22:57:08,992][training][INFO] - Epoch 4083, Batch 50/95, Loss: 0.046188
+[2025-08-25 22:57:10,077][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:10,077][training][INFO] - Epoch 4083 complete. Avg Loss: 0.045720
+[2025-08-25 22:57:10,120][training][INFO] - Epoch 4084, Batch 0/95, Loss: 0.046945
+[2025-08-25 22:57:11,359][training][INFO] - Epoch 4084, Batch 50/95, Loss: 0.044655
+[2025-08-25 22:57:12,440][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:12,440][training][INFO] - Epoch 4084 complete. Avg Loss: 0.044646
+[2025-08-25 22:57:12,481][training][INFO] - Epoch 4085, Batch 0/95, Loss: 0.043325
+[2025-08-25 22:57:13,730][training][INFO] - Epoch 4085, Batch 50/95, Loss: 0.044138
+[2025-08-25 22:57:14,807][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:14,807][training][INFO] - Epoch 4085 complete. Avg Loss: 0.044999
+[2025-08-25 22:57:14,849][training][INFO] - Epoch 4086, Batch 0/95, Loss: 0.046330
+[2025-08-25 22:57:16,093][training][INFO] - Epoch 4086, Batch 50/95, Loss: 0.045484
+[2025-08-25 22:57:17,185][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:17,185][training][INFO] - Epoch 4086 complete. Avg Loss: 0.045274
+[2025-08-25 22:57:17,227][training][INFO] - Epoch 4087, Batch 0/95, Loss: 0.042690
+[2025-08-25 22:57:18,479][training][INFO] - Epoch 4087, Batch 50/95, Loss: 0.045724
+[2025-08-25 22:57:19,561][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:19,561][training][INFO] - Epoch 4087 complete. Avg Loss: 0.045226
+[2025-08-25 22:57:19,602][training][INFO] - Epoch 4088, Batch 0/95, Loss: 0.050229
+[2025-08-25 22:57:20,852][training][INFO] - Epoch 4088, Batch 50/95, Loss: 0.046944
+[2025-08-25 22:57:21,941][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:21,941][training][INFO] - Epoch 4088 complete. Avg Loss: 0.045896
+[2025-08-25 22:57:21,983][training][INFO] - Epoch 4089, Batch 0/95, Loss: 0.046570
+[2025-08-25 22:57:23,238][training][INFO] - Epoch 4089, Batch 50/95, Loss: 0.042712
+[2025-08-25 22:57:24,332][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:24,333][training][INFO] - Epoch 4089 complete. Avg Loss: 0.044980
+[2025-08-25 22:57:24,375][training][INFO] - Epoch 4090, Batch 0/95, Loss: 0.050745
+[2025-08-25 22:57:25,623][training][INFO] - Epoch 4090, Batch 50/95, Loss: 0.044884
+[2025-08-25 22:57:26,714][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:26,714][training][INFO] - Epoch 4090 complete. Avg Loss: 0.045710
+[2025-08-25 22:57:26,755][training][INFO] - Epoch 4091, Batch 0/95, Loss: 0.041118
+[2025-08-25 22:57:28,011][training][INFO] - Epoch 4091, Batch 50/95, Loss: 0.047395
+[2025-08-25 22:57:29,104][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:29,104][training][INFO] - Epoch 4091 complete. Avg Loss: 0.045369
+[2025-08-25 22:57:29,146][training][INFO] - Epoch 4092, Batch 0/95, Loss: 0.039897
+[2025-08-25 22:57:30,376][training][INFO] - Epoch 4092, Batch 50/95, Loss: 0.046466
+[2025-08-25 22:57:31,482][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:31,482][training][INFO] - Epoch 4092 complete. Avg Loss: 0.045344
+[2025-08-25 22:57:31,523][training][INFO] - Epoch 4093, Batch 0/95, Loss: 0.044556
+[2025-08-25 22:57:32,791][training][INFO] - Epoch 4093, Batch 50/95, Loss: 0.046445
+[2025-08-25 22:57:33,884][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:33,884][training][INFO] - Epoch 4093 complete. Avg Loss: 0.045353
+[2025-08-25 22:57:33,924][training][INFO] - Epoch 4094, Batch 0/95, Loss: 0.044024
+[2025-08-25 22:57:35,179][training][INFO] - Epoch 4094, Batch 50/95, Loss: 0.045168
+[2025-08-25 22:57:36,258][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:36,258][training][INFO] - Epoch 4094 complete. Avg Loss: 0.045287
+[2025-08-25 22:57:36,300][training][INFO] - Epoch 4095, Batch 0/95, Loss: 0.046989
+[2025-08-25 22:57:37,544][training][INFO] - Epoch 4095, Batch 50/95, Loss: 0.044713
+[2025-08-25 22:57:38,626][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:38,626][training][INFO] - Epoch 4095 complete. Avg Loss: 0.045276
+[2025-08-25 22:57:38,668][training][INFO] - Epoch 4096, Batch 0/95, Loss: 0.045611
+[2025-08-25 22:57:39,918][training][INFO] - Epoch 4096, Batch 50/95, Loss: 0.046286
+[2025-08-25 22:57:40,996][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:40,997][training][INFO] - Epoch 4096 complete. Avg Loss: 0.045077
+[2025-08-25 22:57:41,037][training][INFO] - Epoch 4097, Batch 0/95, Loss: 0.049388
+[2025-08-25 22:57:42,277][training][INFO] - Epoch 4097, Batch 50/95, Loss: 0.043245
+[2025-08-25 22:57:43,353][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:43,354][training][INFO] - Epoch 4097 complete. Avg Loss: 0.045189
+[2025-08-25 22:57:43,393][training][INFO] - Epoch 4098, Batch 0/95, Loss: 0.048645
+[2025-08-25 22:57:44,646][training][INFO] - Epoch 4098, Batch 50/95, Loss: 0.047033
+[2025-08-25 22:57:45,741][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:45,741][training][INFO] - Epoch 4098 complete. Avg Loss: 0.045376
+[2025-08-25 22:57:45,783][training][INFO] - Epoch 4099, Batch 0/95, Loss: 0.046770
+[2025-08-25 22:57:47,019][training][INFO] - Epoch 4099, Batch 50/95, Loss: 0.043679
+[2025-08-25 22:57:48,110][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:48,110][training][INFO] - Epoch 4099 complete. Avg Loss: 0.045773
+[2025-08-25 22:57:48,151][training][INFO] - Epoch 4100, Batch 0/95, Loss: 0.047604
+[2025-08-25 22:57:49,406][training][INFO] - Epoch 4100, Batch 50/95, Loss: 0.042992
+[2025-08-25 22:57:50,493][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:50,493][training][INFO] - Epoch 4100 complete. Avg Loss: 0.045034
+[2025-08-25 22:57:50,582][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/tde_mfm/outputs/snapMMD_MFM_PBMC_6185a7840e1f3dab791245b6c5a393f3/checkpoint_epoch_4100.pt
+[2025-08-25 22:57:52,750][training][INFO] - Evaluation Loss: 0.045133
+[2025-08-25 22:57:52,750][training][INFO] - No improvement for 1 evaluations
+[2025-08-25 22:57:52,790][training][INFO] - Epoch 4101, Batch 0/95, Loss: 0.045581
+[2025-08-25 22:57:54,042][training][INFO] - Epoch 4101, Batch 50/95, Loss: 0.042920
+[2025-08-25 22:57:55,128][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:55,128][training][INFO] - Epoch 4101 complete. Avg Loss: 0.045788
+[2025-08-25 22:57:55,169][training][INFO] - Epoch 4102, Batch 0/95, Loss: 0.046285
+[2025-08-25 22:57:56,408][training][INFO] - Epoch 4102, Batch 50/95, Loss: 0.046250
+[2025-08-25 22:57:57,490][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:57,491][training][INFO] - Epoch 4102 complete. Avg Loss: 0.045611
+[2025-08-25 22:57:57,533][training][INFO] - Epoch 4103, Batch 0/95, Loss: 0.042827
+[2025-08-25 22:57:58,767][training][INFO] - Epoch 4103, Batch 50/95, Loss: 0.047890
+[2025-08-25 22:57:59,844][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:57:59,844][training][INFO] - Epoch 4103 complete. Avg Loss: 0.045183
+[2025-08-25 22:57:59,886][training][INFO] - Epoch 4104, Batch 0/95, Loss: 0.044988
+[2025-08-25 22:58:01,133][training][INFO] - Epoch 4104, Batch 50/95, Loss: 0.047299
+[2025-08-25 22:58:02,221][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:02,221][training][INFO] - Epoch 4104 complete. Avg Loss: 0.044974
+[2025-08-25 22:58:02,263][training][INFO] - Epoch 4105, Batch 0/95, Loss: 0.042954
+[2025-08-25 22:58:03,520][training][INFO] - Epoch 4105, Batch 50/95, Loss: 0.038018
+[2025-08-25 22:58:04,618][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:04,619][training][INFO] - Epoch 4105 complete. Avg Loss: 0.044792
+[2025-08-25 22:58:04,661][training][INFO] - Epoch 4106, Batch 0/95, Loss: 0.048330
+[2025-08-25 22:58:05,927][training][INFO] - Epoch 4106, Batch 50/95, Loss: 0.049368
+[2025-08-25 22:58:07,020][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:07,020][training][INFO] - Epoch 4106 complete. Avg Loss: 0.045254
+[2025-08-25 22:58:07,061][training][INFO] - Epoch 4107, Batch 0/95, Loss: 0.047029
+[2025-08-25 22:58:08,319][training][INFO] - Epoch 4107, Batch 50/95, Loss: 0.040967
+[2025-08-25 22:58:09,398][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:09,399][training][INFO] - Epoch 4107 complete. Avg Loss: 0.045014
+[2025-08-25 22:58:09,443][training][INFO] - Epoch 4108, Batch 0/95, Loss: 0.049468
+[2025-08-25 22:58:10,692][training][INFO] - Epoch 4108, Batch 50/95, Loss: 0.039663
+[2025-08-25 22:58:11,774][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:11,774][training][INFO] - Epoch 4108 complete. Avg Loss: 0.045555
+[2025-08-25 22:58:11,815][training][INFO] - Epoch 4109, Batch 0/95, Loss: 0.039574
+[2025-08-25 22:58:13,067][training][INFO] - Epoch 4109, Batch 50/95, Loss: 0.042042
+[2025-08-25 22:58:14,158][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:14,158][training][INFO] - Epoch 4109 complete. Avg Loss: 0.045901
+[2025-08-25 22:58:14,198][training][INFO] - Epoch 4110, Batch 0/95, Loss: 0.048557
+[2025-08-25 22:58:15,452][training][INFO] - Epoch 4110, Batch 50/95, Loss: 0.044461
+[2025-08-25 22:58:16,542][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:16,542][training][INFO] - Epoch 4110 complete. Avg Loss: 0.045024
+[2025-08-25 22:58:16,586][training][INFO] - Epoch 4111, Batch 0/95, Loss: 0.042421
+[2025-08-25 22:58:17,846][training][INFO] - Epoch 4111, Batch 50/95, Loss: 0.045853
+[2025-08-25 22:58:18,937][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:18,938][training][INFO] - Epoch 4111 complete. Avg Loss: 0.044899
+[2025-08-25 22:58:18,978][training][INFO] - Epoch 4112, Batch 0/95, Loss: 0.045509
+[2025-08-25 22:58:20,236][training][INFO] - Epoch 4112, Batch 50/95, Loss: 0.042760
+[2025-08-25 22:58:21,325][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:21,325][training][INFO] - Epoch 4112 complete. Avg Loss: 0.045186
+[2025-08-25 22:58:21,368][training][INFO] - Epoch 4113, Batch 0/95, Loss: 0.043984
+[2025-08-25 22:58:22,613][training][INFO] - Epoch 4113, Batch 50/95, Loss: 0.040506
+[2025-08-25 22:58:23,711][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:23,712][training][INFO] - Epoch 4113 complete. Avg Loss: 0.045429
+[2025-08-25 22:58:23,752][training][INFO] - Epoch 4114, Batch 0/95, Loss: 0.052495
+[2025-08-25 22:58:24,986][training][INFO] - Epoch 4114, Batch 50/95, Loss: 0.043357
+[2025-08-25 22:58:26,051][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:26,052][training][INFO] - Epoch 4114 complete. Avg Loss: 0.045514
+[2025-08-25 22:58:26,092][training][INFO] - Epoch 4115, Batch 0/95, Loss: 0.048570
+[2025-08-25 22:58:27,318][training][INFO] - Epoch 4115, Batch 50/95, Loss: 0.051868
+[2025-08-25 22:58:28,379][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:28,379][training][INFO] - Epoch 4115 complete. Avg Loss: 0.045473
+[2025-08-25 22:58:28,418][training][INFO] - Epoch 4116, Batch 0/95, Loss: 0.045804
+[2025-08-25 22:58:29,620][training][INFO] - Epoch 4116, Batch 50/95, Loss: 0.045005
+[2025-08-25 22:58:30,665][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:30,666][training][INFO] - Epoch 4116 complete. Avg Loss: 0.045630
+[2025-08-25 22:58:30,704][training][INFO] - Epoch 4117, Batch 0/95, Loss: 0.042906
+[2025-08-25 22:58:31,909][training][INFO] - Epoch 4117, Batch 50/95, Loss: 0.044145
+[2025-08-25 22:58:32,953][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:32,954][training][INFO] - Epoch 4117 complete. Avg Loss: 0.045293
+[2025-08-25 22:58:32,993][training][INFO] - Epoch 4118, Batch 0/95, Loss: 0.045356
+[2025-08-25 22:58:34,217][training][INFO] - Epoch 4118, Batch 50/95, Loss: 0.049669
+[2025-08-25 22:58:35,271][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:35,271][training][INFO] - Epoch 4118 complete. Avg Loss: 0.045326
+[2025-08-25 22:58:35,310][training][INFO] - Epoch 4119, Batch 0/95, Loss: 0.045228
+[2025-08-25 22:58:36,519][training][INFO] - Epoch 4119, Batch 50/95, Loss: 0.044275
+[2025-08-25 22:58:37,583][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:37,583][training][INFO] - Epoch 4119 complete. Avg Loss: 0.045713
+[2025-08-25 22:58:37,622][training][INFO] - Epoch 4120, Batch 0/95, Loss: 0.045382
+[2025-08-25 22:58:38,837][training][INFO] - Epoch 4120, Batch 50/95, Loss: 0.050383
+[2025-08-25 22:58:39,890][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:39,890][training][INFO] - Epoch 4120 complete. Avg Loss: 0.045510
+[2025-08-25 22:58:39,929][training][INFO] - Epoch 4121, Batch 0/95, Loss: 0.045243
+[2025-08-25 22:58:41,162][training][INFO] - Epoch 4121, Batch 50/95, Loss: 0.045044
+[2025-08-25 22:58:42,215][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:42,216][training][INFO] - Epoch 4121 complete. Avg Loss: 0.045524
+[2025-08-25 22:58:42,257][training][INFO] - Epoch 4122, Batch 0/95, Loss: 0.045061
+[2025-08-25 22:58:43,464][training][INFO] - Epoch 4122, Batch 50/95, Loss: 0.042579
+[2025-08-25 22:58:44,510][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:44,510][training][INFO] - Epoch 4122 complete. Avg Loss: 0.045332
+[2025-08-25 22:58:44,550][training][INFO] - Epoch 4123, Batch 0/95, Loss: 0.040791
+[2025-08-25 22:58:45,762][training][INFO] - Epoch 4123, Batch 50/95, Loss: 0.045570
+[2025-08-25 22:58:46,813][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:46,813][training][INFO] - Epoch 4123 complete. Avg Loss: 0.045254
+[2025-08-25 22:58:46,854][training][INFO] - Epoch 4124, Batch 0/95, Loss: 0.045193
+[2025-08-25 22:58:48,071][training][INFO] - Epoch 4124, Batch 50/95, Loss: 0.045065
+[2025-08-25 22:58:49,133][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:49,134][training][INFO] - Epoch 4124 complete. Avg Loss: 0.045636
+[2025-08-25 22:58:49,174][training][INFO] - Epoch 4125, Batch 0/95, Loss: 0.045913
+[2025-08-25 22:58:50,388][training][INFO] - Epoch 4125, Batch 50/95, Loss: 0.043711
+[2025-08-25 22:58:51,450][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:51,450][training][INFO] - Epoch 4125 complete. Avg Loss: 0.044868
+[2025-08-25 22:58:51,489][training][INFO] - Epoch 4126, Batch 0/95, Loss: 0.044982
+[2025-08-25 22:58:52,710][training][INFO] - Epoch 4126, Batch 50/95, Loss: 0.044427
+[2025-08-25 22:58:53,779][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:53,780][training][INFO] - Epoch 4126 complete. Avg Loss: 0.045539
+[2025-08-25 22:58:53,821][training][INFO] - Epoch 4127, Batch 0/95, Loss: 0.044411
+[2025-08-25 22:58:55,036][training][INFO] - Epoch 4127, Batch 50/95, Loss: 0.044158
+[2025-08-25 22:58:56,098][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:56,099][training][INFO] - Epoch 4127 complete. Avg Loss: 0.045673
+[2025-08-25 22:58:56,139][training][INFO] - Epoch 4128, Batch 0/95, Loss: 0.043667
+[2025-08-25 22:58:57,344][training][INFO] - Epoch 4128, Batch 50/95, Loss: 0.044539
+[2025-08-25 22:58:58,399][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:58:58,399][training][INFO] - Epoch 4128 complete. Avg Loss: 0.045564
+[2025-08-25 22:58:58,441][training][INFO] - Epoch 4129, Batch 0/95, Loss: 0.043822
+[2025-08-25 22:58:59,648][training][INFO] - Epoch 4129, Batch 50/95, Loss: 0.045217
+[2025-08-25 22:59:00,697][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:00,698][training][INFO] - Epoch 4129 complete. Avg Loss: 0.045203
+[2025-08-25 22:59:00,738][training][INFO] - Epoch 4130, Batch 0/95, Loss: 0.045832
+[2025-08-25 22:59:01,952][training][INFO] - Epoch 4130, Batch 50/95, Loss: 0.047115
+[2025-08-25 22:59:03,021][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:03,021][training][INFO] - Epoch 4130 complete. Avg Loss: 0.045322
+[2025-08-25 22:59:03,061][training][INFO] - Epoch 4131, Batch 0/95, Loss: 0.047896
+[2025-08-25 22:59:04,286][training][INFO] - Epoch 4131, Batch 50/95, Loss: 0.044046
+[2025-08-25 22:59:05,357][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:05,357][training][INFO] - Epoch 4131 complete. Avg Loss: 0.044764
+[2025-08-25 22:59:05,398][training][INFO] - Epoch 4132, Batch 0/95, Loss: 0.043635
+[2025-08-25 22:59:06,613][training][INFO] - Epoch 4132, Batch 50/95, Loss: 0.043071
+[2025-08-25 22:59:07,677][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:07,677][training][INFO] - Epoch 4132 complete. Avg Loss: 0.045038
+[2025-08-25 22:59:07,717][training][INFO] - Epoch 4133, Batch 0/95, Loss: 0.042491
+[2025-08-25 22:59:08,937][training][INFO] - Epoch 4133, Batch 50/95, Loss: 0.047474
+[2025-08-25 22:59:10,000][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:10,000][training][INFO] - Epoch 4133 complete. Avg Loss: 0.045577
+[2025-08-25 22:59:10,040][training][INFO] - Epoch 4134, Batch 0/95, Loss: 0.046643
+[2025-08-25 22:59:11,255][training][INFO] - Epoch 4134, Batch 50/95, Loss: 0.043449
+[2025-08-25 22:59:12,316][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:12,317][training][INFO] - Epoch 4134 complete. Avg Loss: 0.044813
+[2025-08-25 22:59:12,360][training][INFO] - Epoch 4135, Batch 0/95, Loss: 0.044397
+[2025-08-25 22:59:13,568][training][INFO] - Epoch 4135, Batch 50/95, Loss: 0.041967
+[2025-08-25 22:59:14,630][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:14,630][training][INFO] - Epoch 4135 complete. Avg Loss: 0.045163
+[2025-08-25 22:59:14,669][training][INFO] - Epoch 4136, Batch 0/95, Loss: 0.047157
+[2025-08-25 22:59:15,899][training][INFO] - Epoch 4136, Batch 50/95, Loss: 0.043123
+[2025-08-25 22:59:16,960][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:16,960][training][INFO] - Epoch 4136 complete. Avg Loss: 0.044772
+[2025-08-25 22:59:17,000][training][INFO] - Epoch 4137, Batch 0/95, Loss: 0.044681
+[2025-08-25 22:59:18,211][training][INFO] - Epoch 4137, Batch 50/95, Loss: 0.039809
+[2025-08-25 22:59:19,269][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:19,270][training][INFO] - Epoch 4137 complete. Avg Loss: 0.045136
+[2025-08-25 22:59:19,311][training][INFO] - Epoch 4138, Batch 0/95, Loss: 0.040428
+[2025-08-25 22:59:20,519][training][INFO] - Epoch 4138, Batch 50/95, Loss: 0.047602
+[2025-08-25 22:59:21,572][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:21,573][training][INFO] - Epoch 4138 complete. Avg Loss: 0.045117
+[2025-08-25 22:59:21,616][training][INFO] - Epoch 4139, Batch 0/95, Loss: 0.046866
+[2025-08-25 22:59:22,833][training][INFO] - Epoch 4139, Batch 50/95, Loss: 0.046622
+[2025-08-25 22:59:23,898][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:23,898][training][INFO] - Epoch 4139 complete. Avg Loss: 0.045355
+[2025-08-25 22:59:23,939][training][INFO] - Epoch 4140, Batch 0/95, Loss: 0.043877
+[2025-08-25 22:59:25,149][training][INFO] - Epoch 4140, Batch 50/95, Loss: 0.041946
+[2025-08-25 22:59:26,191][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:26,192][training][INFO] - Epoch 4140 complete. Avg Loss: 0.044999
+[2025-08-25 22:59:26,231][training][INFO] - Epoch 4141, Batch 0/95, Loss: 0.046782
+[2025-08-25 22:59:27,421][training][INFO] - Epoch 4141, Batch 50/95, Loss: 0.047957
+[2025-08-25 22:59:28,461][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:28,461][training][INFO] - Epoch 4141 complete. Avg Loss: 0.044800
+[2025-08-25 22:59:28,500][training][INFO] - Epoch 4142, Batch 0/95, Loss: 0.048356
+[2025-08-25 22:59:29,690][training][INFO] - Epoch 4142, Batch 50/95, Loss: 0.042996
+[2025-08-25 22:59:30,739][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:30,740][training][INFO] - Epoch 4142 complete. Avg Loss: 0.045032
+[2025-08-25 22:59:30,780][training][INFO] - Epoch 4143, Batch 0/95, Loss: 0.045976
+[2025-08-25 22:59:31,980][training][INFO] - Epoch 4143, Batch 50/95, Loss: 0.044426
+[2025-08-25 22:59:33,021][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:33,022][training][INFO] - Epoch 4143 complete. Avg Loss: 0.045183
+[2025-08-25 22:59:33,061][training][INFO] - Epoch 4144, Batch 0/95, Loss: 0.045293
+[2025-08-25 22:59:34,258][training][INFO] - Epoch 4144, Batch 50/95, Loss: 0.041507
+[2025-08-25 22:59:35,305][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:35,305][training][INFO] - Epoch 4144 complete. Avg Loss: 0.044997
+[2025-08-25 22:59:35,345][training][INFO] - Epoch 4145, Batch 0/95, Loss: 0.049407
+[2025-08-25 22:59:36,534][training][INFO] - Epoch 4145, Batch 50/95, Loss: 0.045374
+[2025-08-25 22:59:37,571][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:37,572][training][INFO] - Epoch 4145 complete. Avg Loss: 0.045107
+[2025-08-25 22:59:37,610][training][INFO] - Epoch 4146, Batch 0/95, Loss: 0.044624
+[2025-08-25 22:59:38,800][training][INFO] - Epoch 4146, Batch 50/95, Loss: 0.042232
+[2025-08-25 22:59:39,837][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:39,837][training][INFO] - Epoch 4146 complete. Avg Loss: 0.045201
+[2025-08-25 22:59:39,877][training][INFO] - Epoch 4147, Batch 0/95, Loss: 0.043733
+[2025-08-25 22:59:41,076][training][INFO] - Epoch 4147, Batch 50/95, Loss: 0.044737
+[2025-08-25 22:59:42,106][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:42,107][training][INFO] - Epoch 4147 complete. Avg Loss: 0.045479
+[2025-08-25 22:59:42,146][training][INFO] - Epoch 4148, Batch 0/95, Loss: 0.046850
+[2025-08-25 22:59:43,333][training][INFO] - Epoch 4148, Batch 50/95, Loss: 0.043605
+[2025-08-25 22:59:44,373][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:44,373][training][INFO] - Epoch 4148 complete. Avg Loss: 0.044567
+[2025-08-25 22:59:44,414][training][INFO] - Epoch 4149, Batch 0/95, Loss: 0.050442
+[2025-08-25 22:59:45,582][training][INFO] - Epoch 4149, Batch 50/95, Loss: 0.045839
+[2025-08-25 22:59:46,609][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:46,609][training][INFO] - Epoch 4149 complete. Avg Loss: 0.045159
+[2025-08-25 22:59:46,649][training][INFO] - Epoch 4150, Batch 0/95, Loss: 0.048432
+[2025-08-25 22:59:47,824][training][INFO] - Epoch 4150, Batch 50/95, Loss: 0.046336
+[2025-08-25 22:59:48,866][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:48,867][training][INFO] - Epoch 4150 complete. Avg Loss: 0.045207
+[2025-08-25 22:59:48,907][training][INFO] - Epoch 4151, Batch 0/95, Loss: 0.045045
+[2025-08-25 22:59:50,097][training][INFO] - Epoch 4151, Batch 50/95, Loss: 0.044423
+[2025-08-25 22:59:51,126][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:51,127][training][INFO] - Epoch 4151 complete. Avg Loss: 0.045564
+[2025-08-25 22:59:51,165][training][INFO] - Epoch 4152, Batch 0/95, Loss: 0.046743
+[2025-08-25 22:59:52,338][training][INFO] - Epoch 4152, Batch 50/95, Loss: 0.046224
+[2025-08-25 22:59:53,358][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:53,359][training][INFO] - Epoch 4152 complete. Avg Loss: 0.045041
+[2025-08-25 22:59:53,399][training][INFO] - Epoch 4153, Batch 0/95, Loss: 0.045345
+[2025-08-25 22:59:54,598][training][INFO] - Epoch 4153, Batch 50/95, Loss: 0.047465
+[2025-08-25 22:59:55,643][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:55,643][training][INFO] - Epoch 4153 complete. Avg Loss: 0.045067
+[2025-08-25 22:59:55,681][training][INFO] - Epoch 4154, Batch 0/95, Loss: 0.042433
+[2025-08-25 22:59:56,861][training][INFO] - Epoch 4154, Batch 50/95, Loss: 0.041677
+[2025-08-25 22:59:57,901][training][INFO] - Learning rate: 0.000200
+[2025-08-25 22:59:57,901][training][INFO] - Epoch 4154 complete. Avg Loss: 0.045651
+[2025-08-25 22:59:57,941][training][INFO] - Epoch 4155, Batch 0/95, Loss: 0.043336
+[2025-08-25 22:59:59,124][training][INFO] - Epoch 4155, Batch 50/95, Loss: 0.047158
+[2025-08-25 23:00:00,160][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:00,161][training][INFO] - Epoch 4155 complete. Avg Loss: 0.045802
+[2025-08-25 23:00:00,199][training][INFO] - Epoch 4156, Batch 0/95, Loss: 0.044558
+[2025-08-25 23:00:01,383][training][INFO] - Epoch 4156, Batch 50/95, Loss: 0.045594
+[2025-08-25 23:00:02,420][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:02,420][training][INFO] - Epoch 4156 complete. Avg Loss: 0.045479
+[2025-08-25 23:00:02,458][training][INFO] - Epoch 4157, Batch 0/95, Loss: 0.045108
+[2025-08-25 23:00:03,647][training][INFO] - Epoch 4157, Batch 50/95, Loss: 0.041984
+[2025-08-25 23:00:04,693][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:04,693][training][INFO] - Epoch 4157 complete. Avg Loss: 0.044807
+[2025-08-25 23:00:04,733][training][INFO] - Epoch 4158, Batch 0/95, Loss: 0.047551
+[2025-08-25 23:00:05,920][training][INFO] - Epoch 4158, Batch 50/95, Loss: 0.041511
+[2025-08-25 23:00:06,954][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:06,954][training][INFO] - Epoch 4158 complete. Avg Loss: 0.045060
+[2025-08-25 23:00:06,995][training][INFO] - Epoch 4159, Batch 0/95, Loss: 0.041207
+[2025-08-25 23:00:08,198][training][INFO] - Epoch 4159, Batch 50/95, Loss: 0.046535
+[2025-08-25 23:00:09,235][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:09,235][training][INFO] - Epoch 4159 complete. Avg Loss: 0.045284
+[2025-08-25 23:00:09,275][training][INFO] - Epoch 4160, Batch 0/95, Loss: 0.046999
+[2025-08-25 23:00:10,464][training][INFO] - Epoch 4160, Batch 50/95, Loss: 0.046176
+[2025-08-25 23:00:11,511][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:11,512][training][INFO] - Epoch 4160 complete. Avg Loss: 0.045313
+[2025-08-25 23:00:11,552][training][INFO] - Epoch 4161, Batch 0/95, Loss: 0.042155
+[2025-08-25 23:00:12,747][training][INFO] - Epoch 4161, Batch 50/95, Loss: 0.048487
+[2025-08-25 23:00:13,787][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:13,788][training][INFO] - Epoch 4161 complete. Avg Loss: 0.044692
+[2025-08-25 23:00:13,826][training][INFO] - Epoch 4162, Batch 0/95, Loss: 0.046116
+[2025-08-25 23:00:15,015][training][INFO] - Epoch 4162, Batch 50/95, Loss: 0.045911
+[2025-08-25 23:00:16,063][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:16,064][training][INFO] - Epoch 4162 complete. Avg Loss: 0.045379
+[2025-08-25 23:00:16,103][training][INFO] - Epoch 4163, Batch 0/95, Loss: 0.043401
+[2025-08-25 23:00:17,297][training][INFO] - Epoch 4163, Batch 50/95, Loss: 0.045790
+[2025-08-25 23:00:18,342][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:18,343][training][INFO] - Epoch 4163 complete. Avg Loss: 0.045284
+[2025-08-25 23:00:18,381][training][INFO] - Epoch 4164, Batch 0/95, Loss: 0.044382
+[2025-08-25 23:00:19,575][training][INFO] - Epoch 4164, Batch 50/95, Loss: 0.045458
+[2025-08-25 23:00:20,624][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:20,624][training][INFO] - Epoch 4164 complete. Avg Loss: 0.045089
+[2025-08-25 23:00:20,663][training][INFO] - Epoch 4165, Batch 0/95, Loss: 0.046166
+[2025-08-25 23:00:21,845][training][INFO] - Epoch 4165, Batch 50/95, Loss: 0.048925
+[2025-08-25 23:00:22,872][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:22,873][training][INFO] - Epoch 4165 complete. Avg Loss: 0.045123
+[2025-08-25 23:00:22,913][training][INFO] - Epoch 4166, Batch 0/95, Loss: 0.039610
+[2025-08-25 23:00:24,098][training][INFO] - Epoch 4166, Batch 50/95, Loss: 0.045151
+[2025-08-25 23:00:25,163][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:25,163][training][INFO] - Epoch 4166 complete. Avg Loss: 0.045265
+[2025-08-25 23:00:25,203][training][INFO] - Epoch 4167, Batch 0/95, Loss: 0.043735
+[2025-08-25 23:00:26,410][training][INFO] - Epoch 4167, Batch 50/95, Loss: 0.043053
+[2025-08-25 23:00:27,453][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:27,453][training][INFO] - Epoch 4167 complete. Avg Loss: 0.045072
+[2025-08-25 23:00:27,491][training][INFO] - Epoch 4168, Batch 0/95, Loss: 0.044546
+[2025-08-25 23:00:28,690][training][INFO] - Epoch 4168, Batch 50/95, Loss: 0.044756
+[2025-08-25 23:00:29,734][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:29,735][training][INFO] - Epoch 4168 complete. Avg Loss: 0.045691
+[2025-08-25 23:00:29,773][training][INFO] - Epoch 4169, Batch 0/95, Loss: 0.044989
+[2025-08-25 23:00:30,953][training][INFO] - Epoch 4169, Batch 50/95, Loss: 0.040829
+[2025-08-25 23:00:31,983][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:31,983][training][INFO] - Epoch 4169 complete. Avg Loss: 0.045676
+[2025-08-25 23:00:32,025][training][INFO] - Epoch 4170, Batch 0/95, Loss: 0.045840
+[2025-08-25 23:00:33,199][training][INFO] - Epoch 4170, Batch 50/95, Loss: 0.043413
+[2025-08-25 23:00:34,237][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:34,237][training][INFO] - Epoch 4170 complete. Avg Loss: 0.045208
+[2025-08-25 23:00:34,278][training][INFO] - Epoch 4171, Batch 0/95, Loss: 0.040690
+[2025-08-25 23:00:35,472][training][INFO] - Epoch 4171, Batch 50/95, Loss: 0.041325
+[2025-08-25 23:00:36,522][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:36,522][training][INFO] - Epoch 4171 complete. Avg Loss: 0.044855
+[2025-08-25 23:00:36,561][training][INFO] - Epoch 4172, Batch 0/95, Loss: 0.047278
+[2025-08-25 23:00:37,762][training][INFO] - Epoch 4172, Batch 50/95, Loss: 0.047611
+[2025-08-25 23:00:38,800][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:38,800][training][INFO] - Epoch 4172 complete. Avg Loss: 0.045775
+[2025-08-25 23:00:38,840][training][INFO] - Epoch 4173, Batch 0/95, Loss: 0.049907
+[2025-08-25 23:00:40,051][training][INFO] - Epoch 4173, Batch 50/95, Loss: 0.044323
+[2025-08-25 23:00:41,084][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:41,085][training][INFO] - Epoch 4173 complete. Avg Loss: 0.044974
+[2025-08-25 23:00:41,123][training][INFO] - Epoch 4174, Batch 0/95, Loss: 0.050201
+[2025-08-25 23:00:42,321][training][INFO] - Epoch 4174, Batch 50/95, Loss: 0.040446
+[2025-08-25 23:00:43,369][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:43,369][training][INFO] - Epoch 4174 complete. Avg Loss: 0.044994
+[2025-08-25 23:00:43,412][training][INFO] - Epoch 4175, Batch 0/95, Loss: 0.046355
+[2025-08-25 23:00:44,609][training][INFO] - Epoch 4175, Batch 50/95, Loss: 0.042086
+[2025-08-25 23:00:45,665][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:45,665][training][INFO] - Epoch 4175 complete. Avg Loss: 0.045170
+[2025-08-25 23:00:45,704][training][INFO] - Epoch 4176, Batch 0/95, Loss: 0.048007
+[2025-08-25 23:00:46,909][training][INFO] - Epoch 4176, Batch 50/95, Loss: 0.044965
+[2025-08-25 23:00:47,954][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:47,954][training][INFO] - Epoch 4176 complete. Avg Loss: 0.045485
+[2025-08-25 23:00:47,993][training][INFO] - Epoch 4177, Batch 0/95, Loss: 0.049547
+[2025-08-25 23:00:49,194][training][INFO] - Epoch 4177, Batch 50/95, Loss: 0.041404
+[2025-08-25 23:00:50,226][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:50,226][training][INFO] - Epoch 4177 complete. Avg Loss: 0.045139
+[2025-08-25 23:00:50,266][training][INFO] - Epoch 4178, Batch 0/95, Loss: 0.048621
+[2025-08-25 23:00:51,473][training][INFO] - Epoch 4178, Batch 50/95, Loss: 0.046899
+[2025-08-25 23:00:52,516][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:52,516][training][INFO] - Epoch 4178 complete. Avg Loss: 0.045304
+[2025-08-25 23:00:52,556][training][INFO] - Epoch 4179, Batch 0/95, Loss: 0.044592
+[2025-08-25 23:00:53,770][training][INFO] - Epoch 4179, Batch 50/95, Loss: 0.046544
+[2025-08-25 23:00:54,822][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:54,822][training][INFO] - Epoch 4179 complete. Avg Loss: 0.045219
+[2025-08-25 23:00:54,863][training][INFO] - Epoch 4180, Batch 0/95, Loss: 0.040923
+[2025-08-25 23:00:56,080][training][INFO] - Epoch 4180, Batch 50/95, Loss: 0.043922
+[2025-08-25 23:00:57,120][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:57,120][training][INFO] - Epoch 4180 complete. Avg Loss: 0.045420
+[2025-08-25 23:00:57,162][training][INFO] - Epoch 4181, Batch 0/95, Loss: 0.052435
+[2025-08-25 23:00:58,358][training][INFO] - Epoch 4181, Batch 50/95, Loss: 0.042752
+[2025-08-25 23:00:59,394][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:00:59,394][training][INFO] - Epoch 4181 complete. Avg Loss: 0.045139
+[2025-08-25 23:00:59,434][training][INFO] - Epoch 4182, Batch 0/95, Loss: 0.046635
+[2025-08-25 23:01:00,641][training][INFO] - Epoch 4182, Batch 50/95, Loss: 0.042401
+[2025-08-25 23:01:01,690][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:01,691][training][INFO] - Epoch 4182 complete. Avg Loss: 0.045404
+[2025-08-25 23:01:01,731][training][INFO] - Epoch 4183, Batch 0/95, Loss: 0.045297
+[2025-08-25 23:01:02,944][training][INFO] - Epoch 4183, Batch 50/95, Loss: 0.040654
+[2025-08-25 23:01:03,994][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:03,995][training][INFO] - Epoch 4183 complete. Avg Loss: 0.044753
+[2025-08-25 23:01:04,033][training][INFO] - Epoch 4184, Batch 0/95, Loss: 0.045567
+[2025-08-25 23:01:05,221][training][INFO] - Epoch 4184, Batch 50/95, Loss: 0.041309
+[2025-08-25 23:01:06,264][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:06,264][training][INFO] - Epoch 4184 complete. Avg Loss: 0.045802
+[2025-08-25 23:01:06,303][training][INFO] - Epoch 4185, Batch 0/95, Loss: 0.048791
+[2025-08-25 23:01:07,487][training][INFO] - Epoch 4185, Batch 50/95, Loss: 0.052178
+[2025-08-25 23:01:08,532][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:08,533][training][INFO] - Epoch 4185 complete. Avg Loss: 0.045080
+[2025-08-25 23:01:08,571][training][INFO] - Epoch 4186, Batch 0/95, Loss: 0.049018
+[2025-08-25 23:01:09,785][training][INFO] - Epoch 4186, Batch 50/95, Loss: 0.041393
+[2025-08-25 23:01:10,849][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:10,850][training][INFO] - Epoch 4186 complete. Avg Loss: 0.045528
+[2025-08-25 23:01:10,888][training][INFO] - Epoch 4187, Batch 0/95, Loss: 0.048395
+[2025-08-25 23:01:12,079][training][INFO] - Epoch 4187, Batch 50/95, Loss: 0.047444
+[2025-08-25 23:01:13,122][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:13,123][training][INFO] - Epoch 4187 complete. Avg Loss: 0.045747
+[2025-08-25 23:01:13,162][training][INFO] - Epoch 4188, Batch 0/95, Loss: 0.045776
+[2025-08-25 23:01:14,353][training][INFO] - Epoch 4188, Batch 50/95, Loss: 0.047489
+[2025-08-25 23:01:15,387][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:15,387][training][INFO] - Epoch 4188 complete. Avg Loss: 0.044979
+[2025-08-25 23:01:15,426][training][INFO] - Epoch 4189, Batch 0/95, Loss: 0.045869
+[2025-08-25 23:01:16,629][training][INFO] - Epoch 4189, Batch 50/95, Loss: 0.042272
+[2025-08-25 23:01:17,686][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:17,686][training][INFO] - Epoch 4189 complete. Avg Loss: 0.045801
+[2025-08-25 23:01:17,725][training][INFO] - Epoch 4190, Batch 0/95, Loss: 0.046422
+[2025-08-25 23:01:18,917][training][INFO] - Epoch 4190, Batch 50/95, Loss: 0.041190
+[2025-08-25 23:01:19,968][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:19,968][training][INFO] - Epoch 4190 complete. Avg Loss: 0.045242
+[2025-08-25 23:01:20,009][training][INFO] - Epoch 4191, Batch 0/95, Loss: 0.051185
+[2025-08-25 23:01:21,201][training][INFO] - Epoch 4191, Batch 50/95, Loss: 0.043663
+[2025-08-25 23:01:22,264][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:22,264][training][INFO] - Epoch 4191 complete. Avg Loss: 0.045107
+[2025-08-25 23:01:22,305][training][INFO] - Epoch 4192, Batch 0/95, Loss: 0.043704
+[2025-08-25 23:01:23,485][training][INFO] - Epoch 4192, Batch 50/95, Loss: 0.043766
+[2025-08-25 23:01:24,526][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:24,527][training][INFO] - Epoch 4192 complete. Avg Loss: 0.044833
+[2025-08-25 23:01:24,566][training][INFO] - Epoch 4193, Batch 0/95, Loss: 0.045601
+[2025-08-25 23:01:25,774][training][INFO] - Epoch 4193, Batch 50/95, Loss: 0.044691
+[2025-08-25 23:01:26,826][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:26,826][training][INFO] - Epoch 4193 complete. Avg Loss: 0.044893
+[2025-08-25 23:01:26,864][training][INFO] - Epoch 4194, Batch 0/95, Loss: 0.049571
+[2025-08-25 23:01:28,057][training][INFO] - Epoch 4194, Batch 50/95, Loss: 0.046492
+[2025-08-25 23:01:29,108][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:29,109][training][INFO] - Epoch 4194 complete. Avg Loss: 0.044954
+[2025-08-25 23:01:29,148][training][INFO] - Epoch 4195, Batch 0/95, Loss: 0.042781
+[2025-08-25 23:01:30,357][training][INFO] - Epoch 4195, Batch 50/95, Loss: 0.045827
+[2025-08-25 23:01:31,406][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:31,406][training][INFO] - Epoch 4195 complete. Avg Loss: 0.045154
+[2025-08-25 23:01:31,445][training][INFO] - Epoch 4196, Batch 0/95, Loss: 0.042399
+[2025-08-25 23:01:32,642][training][INFO] - Epoch 4196, Batch 50/95, Loss: 0.044458
+[2025-08-25 23:01:33,678][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:33,679][training][INFO] - Epoch 4196 complete. Avg Loss: 0.044825
+[2025-08-25 23:01:33,717][training][INFO] - Epoch 4197, Batch 0/95, Loss: 0.045104
+[2025-08-25 23:01:34,912][training][INFO] - Epoch 4197, Batch 50/95, Loss: 0.049169
+[2025-08-25 23:01:35,944][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:35,944][training][INFO] - Epoch 4197 complete. Avg Loss: 0.045290
+[2025-08-25 23:01:35,981][training][INFO] - Epoch 4198, Batch 0/95, Loss: 0.045903
+[2025-08-25 23:01:37,173][training][INFO] - Epoch 4198, Batch 50/95, Loss: 0.048995
+[2025-08-25 23:01:38,220][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:38,220][training][INFO] - Epoch 4198 complete. Avg Loss: 0.044903
+[2025-08-25 23:01:38,258][training][INFO] - Epoch 4199, Batch 0/95, Loss: 0.048791
+[2025-08-25 23:01:39,455][training][INFO] - Epoch 4199, Batch 50/95, Loss: 0.043350
+[2025-08-25 23:01:40,503][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:40,503][training][INFO] - Epoch 4199 complete. Avg Loss: 0.045053
+[2025-08-25 23:01:40,542][training][INFO] - Epoch 4200, Batch 0/95, Loss: 0.044253
+[2025-08-25 23:01:41,735][training][INFO] - Epoch 4200, Batch 50/95, Loss: 0.045600
+[2025-08-25 23:01:42,778][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:42,779][training][INFO] - Epoch 4200 complete. Avg Loss: 0.045303
+[2025-08-25 23:01:42,802][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/tde_mfm/outputs/snapMMD_MFM_PBMC_6185a7840e1f3dab791245b6c5a393f3/checkpoint_epoch_4200.pt
+[2025-08-25 23:01:44,861][training][INFO] - Evaluation Loss: 0.045586
+[2025-08-25 23:01:44,861][training][INFO] - No improvement for 2 evaluations
+[2025-08-25 23:01:44,903][training][INFO] - Epoch 4201, Batch 0/95, Loss: 0.042130
+[2025-08-25 23:01:46,098][training][INFO] - Epoch 4201, Batch 50/95, Loss: 0.048429
+[2025-08-25 23:01:47,131][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:47,131][training][INFO] - Epoch 4201 complete. Avg Loss: 0.045564
+[2025-08-25 23:01:47,171][training][INFO] - Epoch 4202, Batch 0/95, Loss: 0.044726
+[2025-08-25 23:01:48,355][training][INFO] - Epoch 4202, Batch 50/95, Loss: 0.046770
+[2025-08-25 23:01:49,413][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:49,413][training][INFO] - Epoch 4202 complete. Avg Loss: 0.045010
+[2025-08-25 23:01:49,453][training][INFO] - Epoch 4203, Batch 0/95, Loss: 0.050429
+[2025-08-25 23:01:50,653][training][INFO] - Epoch 4203, Batch 50/95, Loss: 0.042976
+[2025-08-25 23:01:51,710][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:51,711][training][INFO] - Epoch 4203 complete. Avg Loss: 0.045030
+[2025-08-25 23:01:51,750][training][INFO] - Epoch 4204, Batch 0/95, Loss: 0.045764
+[2025-08-25 23:01:52,945][training][INFO] - Epoch 4204, Batch 50/95, Loss: 0.045351
+[2025-08-25 23:01:53,986][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:53,986][training][INFO] - Epoch 4204 complete. Avg Loss: 0.045392
+[2025-08-25 23:01:54,024][training][INFO] - Epoch 4205, Batch 0/95, Loss: 0.043933
+[2025-08-25 23:01:55,208][training][INFO] - Epoch 4205, Batch 50/95, Loss: 0.044105
+[2025-08-25 23:01:56,251][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:56,251][training][INFO] - Epoch 4205 complete. Avg Loss: 0.045664
+[2025-08-25 23:01:56,290][training][INFO] - Epoch 4206, Batch 0/95, Loss: 0.047779
+[2025-08-25 23:01:57,498][training][INFO] - Epoch 4206, Batch 50/95, Loss: 0.044602
+[2025-08-25 23:01:58,549][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:01:58,550][training][INFO] - Epoch 4206 complete. Avg Loss: 0.045182
+[2025-08-25 23:01:58,590][training][INFO] - Epoch 4207, Batch 0/95, Loss: 0.044709
+[2025-08-25 23:01:59,778][training][INFO] - Epoch 4207, Batch 50/95, Loss: 0.041126
+[2025-08-25 23:02:00,826][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:00,826][training][INFO] - Epoch 4207 complete. Avg Loss: 0.045140
+[2025-08-25 23:02:00,868][training][INFO] - Epoch 4208, Batch 0/95, Loss: 0.046991
+[2025-08-25 23:02:02,071][training][INFO] - Epoch 4208, Batch 50/95, Loss: 0.047981
+[2025-08-25 23:02:03,126][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:03,126][training][INFO] - Epoch 4208 complete. Avg Loss: 0.044942
+[2025-08-25 23:02:03,165][training][INFO] - Epoch 4209, Batch 0/95, Loss: 0.046315
+[2025-08-25 23:02:04,373][training][INFO] - Epoch 4209, Batch 50/95, Loss: 0.044886
+[2025-08-25 23:02:05,407][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:05,407][training][INFO] - Epoch 4209 complete. Avg Loss: 0.045475
+[2025-08-25 23:02:05,447][training][INFO] - Epoch 4210, Batch 0/95, Loss: 0.046478
+[2025-08-25 23:02:06,645][training][INFO] - Epoch 4210, Batch 50/95, Loss: 0.042298
+[2025-08-25 23:02:07,685][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:07,685][training][INFO] - Epoch 4210 complete. Avg Loss: 0.045502
+[2025-08-25 23:02:07,725][training][INFO] - Epoch 4211, Batch 0/95, Loss: 0.051108
+[2025-08-25 23:02:08,912][training][INFO] - Epoch 4211, Batch 50/95, Loss: 0.048053
+[2025-08-25 23:02:09,971][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:09,972][training][INFO] - Epoch 4211 complete. Avg Loss: 0.045990
+[2025-08-25 23:02:10,011][training][INFO] - Epoch 4212, Batch 0/95, Loss: 0.047594
+[2025-08-25 23:02:11,205][training][INFO] - Epoch 4212, Batch 50/95, Loss: 0.045117
+[2025-08-25 23:02:12,245][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:12,245][training][INFO] - Epoch 4212 complete. Avg Loss: 0.044992
+[2025-08-25 23:02:12,287][training][INFO] - Epoch 4213, Batch 0/95, Loss: 0.048804
+[2025-08-25 23:02:13,481][training][INFO] - Epoch 4213, Batch 50/95, Loss: 0.047935
+[2025-08-25 23:02:14,530][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:14,530][training][INFO] - Epoch 4213 complete. Avg Loss: 0.045567
+[2025-08-25 23:02:14,569][training][INFO] - Epoch 4214, Batch 0/95, Loss: 0.043604
+[2025-08-25 23:02:15,755][training][INFO] - Epoch 4214, Batch 50/95, Loss: 0.041645
+[2025-08-25 23:02:16,791][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:16,791][training][INFO] - Epoch 4214 complete. Avg Loss: 0.045493
+[2025-08-25 23:02:16,832][training][INFO] - Epoch 4215, Batch 0/95, Loss: 0.044057
+[2025-08-25 23:02:18,033][training][INFO] - Epoch 4215, Batch 50/95, Loss: 0.046108
+[2025-08-25 23:02:19,093][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:19,094][training][INFO] - Epoch 4215 complete. Avg Loss: 0.044434
+[2025-08-25 23:02:19,134][training][INFO] - Epoch 4216, Batch 0/95, Loss: 0.043673
+[2025-08-25 23:02:20,337][training][INFO] - Epoch 4216, Batch 50/95, Loss: 0.044970
+[2025-08-25 23:02:21,403][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:21,404][training][INFO] - Epoch 4216 complete. Avg Loss: 0.045166
+[2025-08-25 23:02:21,443][training][INFO] - Epoch 4217, Batch 0/95, Loss: 0.047780
+[2025-08-25 23:02:22,632][training][INFO] - Epoch 4217, Batch 50/95, Loss: 0.045651
+[2025-08-25 23:02:23,683][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:23,684][training][INFO] - Epoch 4217 complete. Avg Loss: 0.045116
+[2025-08-25 23:02:23,724][training][INFO] - Epoch 4218, Batch 0/95, Loss: 0.044206
+[2025-08-25 23:02:24,914][training][INFO] - Epoch 4218, Batch 50/95, Loss: 0.040390
+[2025-08-25 23:02:25,975][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:25,975][training][INFO] - Epoch 4218 complete. Avg Loss: 0.044806
+[2025-08-25 23:02:26,015][training][INFO] - Epoch 4219, Batch 0/95, Loss: 0.046298
+[2025-08-25 23:02:27,213][training][INFO] - Epoch 4219, Batch 50/95, Loss: 0.046426
+[2025-08-25 23:02:28,244][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:28,245][training][INFO] - Epoch 4219 complete. Avg Loss: 0.045229
+[2025-08-25 23:02:28,283][training][INFO] - Epoch 4220, Batch 0/95, Loss: 0.046884
+[2025-08-25 23:02:29,468][training][INFO] - Epoch 4220, Batch 50/95, Loss: 0.040849
+[2025-08-25 23:02:30,493][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:30,494][training][INFO] - Epoch 4220 complete. Avg Loss: 0.045428
+[2025-08-25 23:02:30,532][training][INFO] - Epoch 4221, Batch 0/95, Loss: 0.045277
+[2025-08-25 23:02:31,712][training][INFO] - Epoch 4221, Batch 50/95, Loss: 0.046113
+[2025-08-25 23:02:32,735][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:32,736][training][INFO] - Epoch 4221 complete. Avg Loss: 0.044963
+[2025-08-25 23:02:32,775][training][INFO] - Epoch 4222, Batch 0/95, Loss: 0.047021
+[2025-08-25 23:02:33,967][training][INFO] - Epoch 4222, Batch 50/95, Loss: 0.046455
+[2025-08-25 23:02:34,987][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:34,988][training][INFO] - Epoch 4222 complete. Avg Loss: 0.045690
+[2025-08-25 23:02:35,026][training][INFO] - Epoch 4223, Batch 0/95, Loss: 0.038427
+[2025-08-25 23:02:36,209][training][INFO] - Epoch 4223, Batch 50/95, Loss: 0.042542
+[2025-08-25 23:02:37,232][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:37,232][training][INFO] - Epoch 4223 complete. Avg Loss: 0.045317
+[2025-08-25 23:02:37,271][training][INFO] - Epoch 4224, Batch 0/95, Loss: 0.040395
+[2025-08-25 23:02:38,454][training][INFO] - Epoch 4224, Batch 50/95, Loss: 0.047797
+[2025-08-25 23:02:39,493][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:39,493][training][INFO] - Epoch 4224 complete. Avg Loss: 0.045478
+[2025-08-25 23:02:39,531][training][INFO] - Epoch 4225, Batch 0/95, Loss: 0.039910
+[2025-08-25 23:02:40,717][training][INFO] - Epoch 4225, Batch 50/95, Loss: 0.045231
+[2025-08-25 23:02:41,735][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:41,736][training][INFO] - Epoch 4225 complete. Avg Loss: 0.045342
+[2025-08-25 23:02:41,775][training][INFO] - Epoch 4226, Batch 0/95, Loss: 0.044270
+[2025-08-25 23:02:42,940][training][INFO] - Epoch 4226, Batch 50/95, Loss: 0.042555
+[2025-08-25 23:02:43,951][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:43,952][training][INFO] - Epoch 4226 complete. Avg Loss: 0.044881
+[2025-08-25 23:02:43,990][training][INFO] - Epoch 4227, Batch 0/95, Loss: 0.042004
+[2025-08-25 23:02:45,170][training][INFO] - Epoch 4227, Batch 50/95, Loss: 0.043362
+[2025-08-25 23:02:46,206][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:46,206][training][INFO] - Epoch 4227 complete. Avg Loss: 0.045156
+[2025-08-25 23:02:46,246][training][INFO] - Epoch 4228, Batch 0/95, Loss: 0.043787
+[2025-08-25 23:02:47,437][training][INFO] - Epoch 4228, Batch 50/95, Loss: 0.045066
+[2025-08-25 23:02:48,478][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:48,479][training][INFO] - Epoch 4228 complete. Avg Loss: 0.045328
+[2025-08-25 23:02:48,518][training][INFO] - Epoch 4229, Batch 0/95, Loss: 0.046588
+[2025-08-25 23:02:49,699][training][INFO] - Epoch 4229, Batch 50/95, Loss: 0.046223
+[2025-08-25 23:02:50,737][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:50,737][training][INFO] - Epoch 4229 complete. Avg Loss: 0.044361
+[2025-08-25 23:02:50,775][training][INFO] - Epoch 4230, Batch 0/95, Loss: 0.046738
+[2025-08-25 23:02:51,973][training][INFO] - Epoch 4230, Batch 50/95, Loss: 0.042553
+[2025-08-25 23:02:52,986][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:52,986][training][INFO] - Epoch 4230 complete. Avg Loss: 0.045368
+[2025-08-25 23:02:53,026][training][INFO] - Epoch 4231, Batch 0/95, Loss: 0.049235
+[2025-08-25 23:02:54,219][training][INFO] - Epoch 4231, Batch 50/95, Loss: 0.048687
+[2025-08-25 23:02:55,262][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:55,262][training][INFO] - Epoch 4231 complete. Avg Loss: 0.044792
+[2025-08-25 23:02:55,301][training][INFO] - Epoch 4232, Batch 0/95, Loss: 0.044179
+[2025-08-25 23:02:56,477][training][INFO] - Epoch 4232, Batch 50/95, Loss: 0.046095
+[2025-08-25 23:02:57,499][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:57,499][training][INFO] - Epoch 4232 complete. Avg Loss: 0.045192
+[2025-08-25 23:02:57,539][training][INFO] - Epoch 4233, Batch 0/95, Loss: 0.039167
+[2025-08-25 23:02:58,735][training][INFO] - Epoch 4233, Batch 50/95, Loss: 0.046768
+[2025-08-25 23:02:59,766][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:02:59,766][training][INFO] - Epoch 4233 complete. Avg Loss: 0.045411
+[2025-08-25 23:02:59,805][training][INFO] - Epoch 4234, Batch 0/95, Loss: 0.044865
+[2025-08-25 23:03:01,013][training][INFO] - Epoch 4234, Batch 50/95, Loss: 0.040995
+[2025-08-25 23:03:02,069][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:02,069][training][INFO] - Epoch 4234 complete. Avg Loss: 0.045123
+[2025-08-25 23:03:02,109][training][INFO] - Epoch 4235, Batch 0/95, Loss: 0.043744
+[2025-08-25 23:03:03,307][training][INFO] - Epoch 4235, Batch 50/95, Loss: 0.044731
+[2025-08-25 23:03:04,354][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:04,354][training][INFO] - Epoch 4235 complete. Avg Loss: 0.044719
+[2025-08-25 23:03:04,394][training][INFO] - Epoch 4236, Batch 0/95, Loss: 0.045373
+[2025-08-25 23:03:05,598][training][INFO] - Epoch 4236, Batch 50/95, Loss: 0.042227
+[2025-08-25 23:03:06,649][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:06,649][training][INFO] - Epoch 4236 complete. Avg Loss: 0.044950
+[2025-08-25 23:03:06,692][training][INFO] - Epoch 4237, Batch 0/95, Loss: 0.043293
+[2025-08-25 23:03:07,893][training][INFO] - Epoch 4237, Batch 50/95, Loss: 0.042725
+[2025-08-25 23:03:08,938][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:08,939][training][INFO] - Epoch 4237 complete. Avg Loss: 0.045110
+[2025-08-25 23:03:08,977][training][INFO] - Epoch 4238, Batch 0/95, Loss: 0.043749
+[2025-08-25 23:03:10,174][training][INFO] - Epoch 4238, Batch 50/95, Loss: 0.046974
+[2025-08-25 23:03:11,202][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:11,202][training][INFO] - Epoch 4238 complete. Avg Loss: 0.045275
+[2025-08-25 23:03:11,242][training][INFO] - Epoch 4239, Batch 0/95, Loss: 0.046640
+[2025-08-25 23:03:12,442][training][INFO] - Epoch 4239, Batch 50/95, Loss: 0.050000
+[2025-08-25 23:03:13,504][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:13,504][training][INFO] - Epoch 4239 complete. Avg Loss: 0.045944
+[2025-08-25 23:03:13,543][training][INFO] - Epoch 4240, Batch 0/95, Loss: 0.043965
+[2025-08-25 23:03:14,740][training][INFO] - Epoch 4240, Batch 50/95, Loss: 0.043966
+[2025-08-25 23:03:15,787][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:15,787][training][INFO] - Epoch 4240 complete. Avg Loss: 0.045781
+[2025-08-25 23:03:15,827][training][INFO] - Epoch 4241, Batch 0/95, Loss: 0.042874
+[2025-08-25 23:03:17,055][training][INFO] - Epoch 4241, Batch 50/95, Loss: 0.040314
+[2025-08-25 23:03:18,113][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:18,113][training][INFO] - Epoch 4241 complete. Avg Loss: 0.045387
+[2025-08-25 23:03:18,151][training][INFO] - Epoch 4242, Batch 0/95, Loss: 0.043302
+[2025-08-25 23:03:19,371][training][INFO] - Epoch 4242, Batch 50/95, Loss: 0.044115
+[2025-08-25 23:03:20,417][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:20,417][training][INFO] - Epoch 4242 complete. Avg Loss: 0.044952
+[2025-08-25 23:03:20,456][training][INFO] - Epoch 4243, Batch 0/95, Loss: 0.046053
+[2025-08-25 23:03:21,646][training][INFO] - Epoch 4243, Batch 50/95, Loss: 0.043107
+[2025-08-25 23:03:22,682][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:22,682][training][INFO] - Epoch 4243 complete. Avg Loss: 0.045008
+[2025-08-25 23:03:22,721][training][INFO] - Epoch 4244, Batch 0/95, Loss: 0.045712
+[2025-08-25 23:03:23,924][training][INFO] - Epoch 4244, Batch 50/95, Loss: 0.042904
+[2025-08-25 23:03:24,989][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:24,989][training][INFO] - Epoch 4244 complete. Avg Loss: 0.045464
+[2025-08-25 23:03:25,029][training][INFO] - Epoch 4245, Batch 0/95, Loss: 0.041432
+[2025-08-25 23:03:26,225][training][INFO] - Epoch 4245, Batch 50/95, Loss: 0.040594
+[2025-08-25 23:03:27,285][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:27,285][training][INFO] - Epoch 4245 complete. Avg Loss: 0.044896
+[2025-08-25 23:03:27,324][training][INFO] - Epoch 4246, Batch 0/95, Loss: 0.046085
+[2025-08-25 23:03:28,539][training][INFO] - Epoch 4246, Batch 50/95, Loss: 0.042995
+[2025-08-25 23:03:29,600][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:29,600][training][INFO] - Epoch 4246 complete. Avg Loss: 0.044831
+[2025-08-25 23:03:29,644][training][INFO] - Epoch 4247, Batch 0/95, Loss: 0.041527
+[2025-08-25 23:03:30,852][training][INFO] - Epoch 4247, Batch 50/95, Loss: 0.045307
+[2025-08-25 23:03:31,911][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:31,912][training][INFO] - Epoch 4247 complete. Avg Loss: 0.044828
+[2025-08-25 23:03:31,949][training][INFO] - Epoch 4248, Batch 0/95, Loss: 0.043184
+[2025-08-25 23:03:33,153][training][INFO] - Epoch 4248, Batch 50/95, Loss: 0.042732
+[2025-08-25 23:03:34,204][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:34,204][training][INFO] - Epoch 4248 complete. Avg Loss: 0.045310
+[2025-08-25 23:03:34,245][training][INFO] - Epoch 4249, Batch 0/95, Loss: 0.045496
+[2025-08-25 23:03:35,451][training][INFO] - Epoch 4249, Batch 50/95, Loss: 0.041169
+[2025-08-25 23:03:36,498][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:36,498][training][INFO] - Epoch 4249 complete. Avg Loss: 0.045044
+[2025-08-25 23:03:36,538][training][INFO] - Epoch 4250, Batch 0/95, Loss: 0.047754
+[2025-08-25 23:03:37,733][training][INFO] - Epoch 4250, Batch 50/95, Loss: 0.039315
+[2025-08-25 23:03:38,774][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:38,774][training][INFO] - Epoch 4250 complete. Avg Loss: 0.045051
+[2025-08-25 23:03:38,815][training][INFO] - Epoch 4251, Batch 0/95, Loss: 0.042706
+[2025-08-25 23:03:40,016][training][INFO] - Epoch 4251, Batch 50/95, Loss: 0.044407
+[2025-08-25 23:03:41,058][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:41,059][training][INFO] - Epoch 4251 complete. Avg Loss: 0.045584
+[2025-08-25 23:03:41,098][training][INFO] - Epoch 4252, Batch 0/95, Loss: 0.041378
+[2025-08-25 23:03:42,300][training][INFO] - Epoch 4252, Batch 50/95, Loss: 0.045582
+[2025-08-25 23:03:43,346][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:43,347][training][INFO] - Epoch 4252 complete. Avg Loss: 0.045253
+[2025-08-25 23:03:43,386][training][INFO] - Epoch 4253, Batch 0/95, Loss: 0.042298
+[2025-08-25 23:03:44,579][training][INFO] - Epoch 4253, Batch 50/95, Loss: 0.046387
+[2025-08-25 23:03:45,609][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:45,609][training][INFO] - Epoch 4253 complete. Avg Loss: 0.044890
+[2025-08-25 23:03:45,648][training][INFO] - Epoch 4254, Batch 0/95, Loss: 0.043054
+[2025-08-25 23:03:46,849][training][INFO] - Epoch 4254, Batch 50/95, Loss: 0.045955
+[2025-08-25 23:03:47,906][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:47,906][training][INFO] - Epoch 4254 complete. Avg Loss: 0.045010
+[2025-08-25 23:03:47,945][training][INFO] - Epoch 4255, Batch 0/95, Loss: 0.047536
+[2025-08-25 23:03:49,154][training][INFO] - Epoch 4255, Batch 50/95, Loss: 0.041774
+[2025-08-25 23:03:50,197][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:50,198][training][INFO] - Epoch 4255 complete. Avg Loss: 0.045323
+[2025-08-25 23:03:50,236][training][INFO] - Epoch 4256, Batch 0/95, Loss: 0.046235
+[2025-08-25 23:03:51,427][training][INFO] - Epoch 4256, Batch 50/95, Loss: 0.047169
+[2025-08-25 23:03:52,474][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:52,474][training][INFO] - Epoch 4256 complete. Avg Loss: 0.045153
+[2025-08-25 23:03:52,512][training][INFO] - Epoch 4257, Batch 0/95, Loss: 0.045842
+[2025-08-25 23:03:53,699][training][INFO] - Epoch 4257, Batch 50/95, Loss: 0.043514
+[2025-08-25 23:03:54,725][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:54,726][training][INFO] - Epoch 4257 complete. Avg Loss: 0.045425
+[2025-08-25 23:03:54,769][training][INFO] - Epoch 4258, Batch 0/95, Loss: 0.042798
+[2025-08-25 23:03:55,971][training][INFO] - Epoch 4258, Batch 50/95, Loss: 0.049592
+[2025-08-25 23:03:56,998][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:56,999][training][INFO] - Epoch 4258 complete. Avg Loss: 0.045094
+[2025-08-25 23:03:57,040][training][INFO] - Epoch 4259, Batch 0/95, Loss: 0.043674
+[2025-08-25 23:03:58,246][training][INFO] - Epoch 4259, Batch 50/95, Loss: 0.047923
+[2025-08-25 23:03:59,277][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:03:59,277][training][INFO] - Epoch 4259 complete. Avg Loss: 0.045021
+[2025-08-25 23:03:59,317][training][INFO] - Epoch 4260, Batch 0/95, Loss: 0.043546
+[2025-08-25 23:04:00,512][training][INFO] - Epoch 4260, Batch 50/95, Loss: 0.046046
+[2025-08-25 23:04:01,552][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:01,552][training][INFO] - Epoch 4260 complete. Avg Loss: 0.044618
+[2025-08-25 23:04:01,591][training][INFO] - Epoch 4261, Batch 0/95, Loss: 0.047342
+[2025-08-25 23:04:02,780][training][INFO] - Epoch 4261, Batch 50/95, Loss: 0.041028
+[2025-08-25 23:04:03,825][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:03,826][training][INFO] - Epoch 4261 complete. Avg Loss: 0.045136
+[2025-08-25 23:04:03,864][training][INFO] - Epoch 4262, Batch 0/95, Loss: 0.043542
+[2025-08-25 23:04:05,059][training][INFO] - Epoch 4262, Batch 50/95, Loss: 0.044639
+[2025-08-25 23:04:06,093][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:06,093][training][INFO] - Epoch 4262 complete. Avg Loss: 0.044856
+[2025-08-25 23:04:06,136][training][INFO] - Epoch 4263, Batch 0/95, Loss: 0.045730
+[2025-08-25 23:04:07,329][training][INFO] - Epoch 4263, Batch 50/95, Loss: 0.038485
+[2025-08-25 23:04:08,370][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:08,371][training][INFO] - Epoch 4263 complete. Avg Loss: 0.045573
+[2025-08-25 23:04:08,409][training][INFO] - Epoch 4264, Batch 0/95, Loss: 0.045585
+[2025-08-25 23:04:09,586][training][INFO] - Epoch 4264, Batch 50/95, Loss: 0.048799
+[2025-08-25 23:04:10,629][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:10,629][training][INFO] - Epoch 4264 complete. Avg Loss: 0.045169
+[2025-08-25 23:04:10,667][training][INFO] - Epoch 4265, Batch 0/95, Loss: 0.045251
+[2025-08-25 23:04:11,846][training][INFO] - Epoch 4265, Batch 50/95, Loss: 0.043587
+[2025-08-25 23:04:12,878][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:12,878][training][INFO] - Epoch 4265 complete. Avg Loss: 0.045231
+[2025-08-25 23:04:12,918][training][INFO] - Epoch 4266, Batch 0/95, Loss: 0.046263
+[2025-08-25 23:04:14,109][training][INFO] - Epoch 4266, Batch 50/95, Loss: 0.051754
+[2025-08-25 23:04:15,175][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:15,176][training][INFO] - Epoch 4266 complete. Avg Loss: 0.045514
+[2025-08-25 23:04:15,213][training][INFO] - Epoch 4267, Batch 0/95, Loss: 0.047169
+[2025-08-25 23:04:16,420][training][INFO] - Epoch 4267, Batch 50/95, Loss: 0.048638
+[2025-08-25 23:04:17,474][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:17,474][training][INFO] - Epoch 4267 complete. Avg Loss: 0.045173
+[2025-08-25 23:04:17,514][training][INFO] - Epoch 4268, Batch 0/95, Loss: 0.045929
+[2025-08-25 23:04:18,721][training][INFO] - Epoch 4268, Batch 50/95, Loss: 0.047641
+[2025-08-25 23:04:19,767][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:19,768][training][INFO] - Epoch 4268 complete. Avg Loss: 0.044558
+[2025-08-25 23:04:19,807][training][INFO] - Epoch 4269, Batch 0/95, Loss: 0.045252
+[2025-08-25 23:04:21,004][training][INFO] - Epoch 4269, Batch 50/95, Loss: 0.048564
+[2025-08-25 23:04:22,046][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:22,046][training][INFO] - Epoch 4269 complete. Avg Loss: 0.045433
+[2025-08-25 23:04:22,085][training][INFO] - Epoch 4270, Batch 0/95, Loss: 0.048210
+[2025-08-25 23:04:23,279][training][INFO] - Epoch 4270, Batch 50/95, Loss: 0.043329
+[2025-08-25 23:04:24,325][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:24,326][training][INFO] - Epoch 4270 complete. Avg Loss: 0.045425
+[2025-08-25 23:04:24,368][training][INFO] - Epoch 4271, Batch 0/95, Loss: 0.046905
+[2025-08-25 23:04:25,562][training][INFO] - Epoch 4271, Batch 50/95, Loss: 0.042590
+[2025-08-25 23:04:26,614][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:26,615][training][INFO] - Epoch 4271 complete. Avg Loss: 0.044733
+[2025-08-25 23:04:26,658][training][INFO] - Epoch 4272, Batch 0/95, Loss: 0.047009
+[2025-08-25 23:04:27,859][training][INFO] - Epoch 4272, Batch 50/95, Loss: 0.046824
+[2025-08-25 23:04:28,899][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:28,899][training][INFO] - Epoch 4272 complete. Avg Loss: 0.045461
+[2025-08-25 23:04:28,938][training][INFO] - Epoch 4273, Batch 0/95, Loss: 0.045675
+[2025-08-25 23:04:30,139][training][INFO] - Epoch 4273, Batch 50/95, Loss: 0.043335
+[2025-08-25 23:04:31,185][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:31,185][training][INFO] - Epoch 4273 complete. Avg Loss: 0.045390
+[2025-08-25 23:04:31,224][training][INFO] - Epoch 4274, Batch 0/95, Loss: 0.043317
+[2025-08-25 23:04:32,430][training][INFO] - Epoch 4274, Batch 50/95, Loss: 0.049341
+[2025-08-25 23:04:33,485][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:33,485][training][INFO] - Epoch 4274 complete. Avg Loss: 0.044959
+[2025-08-25 23:04:33,523][training][INFO] - Epoch 4275, Batch 0/95, Loss: 0.043157
+[2025-08-25 23:04:34,738][training][INFO] - Epoch 4275, Batch 50/95, Loss: 0.048687
+[2025-08-25 23:04:35,771][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:35,772][training][INFO] - Epoch 4275 complete. Avg Loss: 0.045343
+[2025-08-25 23:04:35,811][training][INFO] - Epoch 4276, Batch 0/95, Loss: 0.039969
+[2025-08-25 23:04:37,009][training][INFO] - Epoch 4276, Batch 50/95, Loss: 0.045029
+[2025-08-25 23:04:38,064][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:38,064][training][INFO] - Epoch 4276 complete. Avg Loss: 0.045597
+[2025-08-25 23:04:38,103][training][INFO] - Epoch 4277, Batch 0/95, Loss: 0.044401
+[2025-08-25 23:04:39,290][training][INFO] - Epoch 4277, Batch 50/95, Loss: 0.046402
+[2025-08-25 23:04:40,333][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:40,333][training][INFO] - Epoch 4277 complete. Avg Loss: 0.044961
+[2025-08-25 23:04:40,373][training][INFO] - Epoch 4278, Batch 0/95, Loss: 0.042737
+[2025-08-25 23:04:41,580][training][INFO] - Epoch 4278, Batch 50/95, Loss: 0.048995
+[2025-08-25 23:04:42,643][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:42,644][training][INFO] - Epoch 4278 complete. Avg Loss: 0.045073
+[2025-08-25 23:04:42,683][training][INFO] - Epoch 4279, Batch 0/95, Loss: 0.043283
+[2025-08-25 23:04:43,880][training][INFO] - Epoch 4279, Batch 50/95, Loss: 0.046598
+[2025-08-25 23:04:44,926][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:44,927][training][INFO] - Epoch 4279 complete. Avg Loss: 0.044795
+[2025-08-25 23:04:44,966][training][INFO] - Epoch 4280, Batch 0/95, Loss: 0.044536
+[2025-08-25 23:04:46,163][training][INFO] - Epoch 4280, Batch 50/95, Loss: 0.045873
+[2025-08-25 23:04:47,220][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:47,220][training][INFO] - Epoch 4280 complete. Avg Loss: 0.044628
+[2025-08-25 23:04:47,260][training][INFO] - Epoch 4281, Batch 0/95, Loss: 0.045628
+[2025-08-25 23:04:48,457][training][INFO] - Epoch 4281, Batch 50/95, Loss: 0.047488
+[2025-08-25 23:04:49,513][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:49,513][training][INFO] - Epoch 4281 complete. Avg Loss: 0.045092
+[2025-08-25 23:04:49,551][training][INFO] - Epoch 4282, Batch 0/95, Loss: 0.042994
+[2025-08-25 23:04:50,763][training][INFO] - Epoch 4282, Batch 50/95, Loss: 0.046027
+[2025-08-25 23:04:51,809][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:51,810][training][INFO] - Epoch 4282 complete. Avg Loss: 0.044978
+[2025-08-25 23:04:51,850][training][INFO] - Epoch 4283, Batch 0/95, Loss: 0.052395
+[2025-08-25 23:04:53,038][training][INFO] - Epoch 4283, Batch 50/95, Loss: 0.044658
+[2025-08-25 23:04:54,091][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:54,091][training][INFO] - Epoch 4283 complete. Avg Loss: 0.045089
+[2025-08-25 23:04:54,130][training][INFO] - Epoch 4284, Batch 0/95, Loss: 0.043176
+[2025-08-25 23:04:55,336][training][INFO] - Epoch 4284, Batch 50/95, Loss: 0.039770
+[2025-08-25 23:04:56,389][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:56,389][training][INFO] - Epoch 4284 complete. Avg Loss: 0.044838
+[2025-08-25 23:04:56,428][training][INFO] - Epoch 4285, Batch 0/95, Loss: 0.049212
+[2025-08-25 23:04:57,627][training][INFO] - Epoch 4285, Batch 50/95, Loss: 0.045017
+[2025-08-25 23:04:58,680][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:04:58,680][training][INFO] - Epoch 4285 complete. Avg Loss: 0.045277
+[2025-08-25 23:04:58,720][training][INFO] - Epoch 4286, Batch 0/95, Loss: 0.047050
+[2025-08-25 23:04:59,911][training][INFO] - Epoch 4286, Batch 50/95, Loss: 0.039739
+[2025-08-25 23:05:00,955][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:00,955][training][INFO] - Epoch 4286 complete. Avg Loss: 0.045269
+[2025-08-25 23:05:00,995][training][INFO] - Epoch 4287, Batch 0/95, Loss: 0.040591
+[2025-08-25 23:05:02,194][training][INFO] - Epoch 4287, Batch 50/95, Loss: 0.041190
+[2025-08-25 23:05:03,256][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:03,257][training][INFO] - Epoch 4287 complete. Avg Loss: 0.045243
+[2025-08-25 23:05:03,296][training][INFO] - Epoch 4288, Batch 0/95, Loss: 0.046809
+[2025-08-25 23:05:04,508][training][INFO] - Epoch 4288, Batch 50/95, Loss: 0.041162
+[2025-08-25 23:05:05,567][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:05,567][training][INFO] - Epoch 4288 complete. Avg Loss: 0.045668
+[2025-08-25 23:05:05,606][training][INFO] - Epoch 4289, Batch 0/95, Loss: 0.045808
+[2025-08-25 23:05:06,816][training][INFO] - Epoch 4289, Batch 50/95, Loss: 0.045250
+[2025-08-25 23:05:07,878][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:07,878][training][INFO] - Epoch 4289 complete. Avg Loss: 0.045104
+[2025-08-25 23:05:07,917][training][INFO] - Epoch 4290, Batch 0/95, Loss: 0.046577
+[2025-08-25 23:05:09,115][training][INFO] - Epoch 4290, Batch 50/95, Loss: 0.046043
+[2025-08-25 23:05:10,155][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:10,156][training][INFO] - Epoch 4290 complete. Avg Loss: 0.045060
+[2025-08-25 23:05:10,195][training][INFO] - Epoch 4291, Batch 0/95, Loss: 0.042427
+[2025-08-25 23:05:11,394][training][INFO] - Epoch 4291, Batch 50/95, Loss: 0.046827
+[2025-08-25 23:05:12,433][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:12,433][training][INFO] - Epoch 4291 complete. Avg Loss: 0.044780
+[2025-08-25 23:05:12,471][training][INFO] - Epoch 4292, Batch 0/95, Loss: 0.041470
+[2025-08-25 23:05:13,660][training][INFO] - Epoch 4292, Batch 50/95, Loss: 0.042951
+[2025-08-25 23:05:14,705][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:14,705][training][INFO] - Epoch 4292 complete. Avg Loss: 0.045581
+[2025-08-25 23:05:14,744][training][INFO] - Epoch 4293, Batch 0/95, Loss: 0.043061
+[2025-08-25 23:05:15,934][training][INFO] - Epoch 4293, Batch 50/95, Loss: 0.045255
+[2025-08-25 23:05:16,964][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:16,965][training][INFO] - Epoch 4293 complete. Avg Loss: 0.045386
+[2025-08-25 23:05:17,003][training][INFO] - Epoch 4294, Batch 0/95, Loss: 0.047072
+[2025-08-25 23:05:18,216][training][INFO] - Epoch 4294, Batch 50/95, Loss: 0.046273
+[2025-08-25 23:05:19,274][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:19,274][training][INFO] - Epoch 4294 complete. Avg Loss: 0.045061
+[2025-08-25 23:05:19,312][training][INFO] - Epoch 4295, Batch 0/95, Loss: 0.045158
+[2025-08-25 23:05:20,497][training][INFO] - Epoch 4295, Batch 50/95, Loss: 0.048465
+[2025-08-25 23:05:21,544][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:21,545][training][INFO] - Epoch 4295 complete. Avg Loss: 0.045414
+[2025-08-25 23:05:21,585][training][INFO] - Epoch 4296, Batch 0/95, Loss: 0.046989
+[2025-08-25 23:05:22,776][training][INFO] - Epoch 4296, Batch 50/95, Loss: 0.042163
+[2025-08-25 23:05:23,825][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:23,825][training][INFO] - Epoch 4296 complete. Avg Loss: 0.045076
+[2025-08-25 23:05:23,865][training][INFO] - Epoch 4297, Batch 0/95, Loss: 0.048136
+[2025-08-25 23:05:25,059][training][INFO] - Epoch 4297, Batch 50/95, Loss: 0.043823
+[2025-08-25 23:05:26,091][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:26,092][training][INFO] - Epoch 4297 complete. Avg Loss: 0.044666
+[2025-08-25 23:05:26,130][training][INFO] - Epoch 4298, Batch 0/95, Loss: 0.050739
+[2025-08-25 23:05:27,318][training][INFO] - Epoch 4298, Batch 50/95, Loss: 0.045958
+[2025-08-25 23:05:28,346][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:28,346][training][INFO] - Epoch 4298 complete. Avg Loss: 0.045552
+[2025-08-25 23:05:28,388][training][INFO] - Epoch 4299, Batch 0/95, Loss: 0.045080
+[2025-08-25 23:05:29,614][training][INFO] - Epoch 4299, Batch 50/95, Loss: 0.043560
+[2025-08-25 23:05:30,672][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:30,672][training][INFO] - Epoch 4299 complete. Avg Loss: 0.045226
+[2025-08-25 23:05:30,711][training][INFO] - Epoch 4300, Batch 0/95, Loss: 0.044687
+[2025-08-25 23:05:31,908][training][INFO] - Epoch 4300, Batch 50/95, Loss: 0.042089
+[2025-08-25 23:05:32,957][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:32,957][training][INFO] - Epoch 4300 complete. Avg Loss: 0.044639
+[2025-08-25 23:05:32,997][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/tde_mfm/outputs/snapMMD_MFM_PBMC_6185a7840e1f3dab791245b6c5a393f3/checkpoint_epoch_4300.pt
+[2025-08-25 23:05:35,064][training][INFO] - Evaluation Loss: 0.044377
+[2025-08-25 23:05:35,088][training][INFO] - New best model saved to /orcd/archive/abugoot/001/Projects/paolo/tde_mfm/outputs/snapMMD_MFM_PBMC_6185a7840e1f3dab791245b6c5a393f3/best_model.pt
+[2025-08-25 23:05:35,128][training][INFO] - Epoch 4301, Batch 0/95, Loss: 0.046189
+[2025-08-25 23:05:36,353][training][INFO] - Epoch 4301, Batch 50/95, Loss: 0.042314
+[2025-08-25 23:05:37,396][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:37,396][training][INFO] - Epoch 4301 complete. Avg Loss: 0.045167
+[2025-08-25 23:05:37,434][training][INFO] - Epoch 4302, Batch 0/95, Loss: 0.046208
+[2025-08-25 23:05:38,629][training][INFO] - Epoch 4302, Batch 50/95, Loss: 0.043959
+[2025-08-25 23:05:39,658][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:39,659][training][INFO] - Epoch 4302 complete. Avg Loss: 0.045161
+[2025-08-25 23:05:39,698][training][INFO] - Epoch 4303, Batch 0/95, Loss: 0.048512
+[2025-08-25 23:05:40,895][training][INFO] - Epoch 4303, Batch 50/95, Loss: 0.046474
+[2025-08-25 23:05:41,942][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:41,942][training][INFO] - Epoch 4303 complete. Avg Loss: 0.044559
+[2025-08-25 23:05:41,980][training][INFO] - Epoch 4304, Batch 0/95, Loss: 0.043472
+[2025-08-25 23:05:43,176][training][INFO] - Epoch 4304, Batch 50/95, Loss: 0.041431
+[2025-08-25 23:05:44,240][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:44,241][training][INFO] - Epoch 4304 complete. Avg Loss: 0.044969
+[2025-08-25 23:05:44,280][training][INFO] - Epoch 4305, Batch 0/95, Loss: 0.042604
+[2025-08-25 23:05:45,486][training][INFO] - Epoch 4305, Batch 50/95, Loss: 0.045287
+[2025-08-25 23:05:46,539][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:46,539][training][INFO] - Epoch 4305 complete. Avg Loss: 0.045173
+[2025-08-25 23:05:46,578][training][INFO] - Epoch 4306, Batch 0/95, Loss: 0.046344
+[2025-08-25 23:05:47,783][training][INFO] - Epoch 4306, Batch 50/95, Loss: 0.039434
+[2025-08-25 23:05:48,828][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:48,828][training][INFO] - Epoch 4306 complete. Avg Loss: 0.045218
+[2025-08-25 23:05:48,866][training][INFO] - Epoch 4307, Batch 0/95, Loss: 0.046019
+[2025-08-25 23:05:50,068][training][INFO] - Epoch 4307, Batch 50/95, Loss: 0.043480
+[2025-08-25 23:05:51,096][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:51,096][training][INFO] - Epoch 4307 complete. Avg Loss: 0.045490
+[2025-08-25 23:05:51,137][training][INFO] - Epoch 4308, Batch 0/95, Loss: 0.045472
+[2025-08-25 23:05:52,331][training][INFO] - Epoch 4308, Batch 50/95, Loss: 0.044709
+[2025-08-25 23:05:53,358][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:53,358][training][INFO] - Epoch 4308 complete. Avg Loss: 0.045515
+[2025-08-25 23:05:53,398][training][INFO] - Epoch 4309, Batch 0/95, Loss: 0.046761
+[2025-08-25 23:05:54,600][training][INFO] - Epoch 4309, Batch 50/95, Loss: 0.046673
+[2025-08-25 23:05:55,657][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:55,657][training][INFO] - Epoch 4309 complete. Avg Loss: 0.045665
+[2025-08-25 23:05:55,696][training][INFO] - Epoch 4310, Batch 0/95, Loss: 0.044943
+[2025-08-25 23:05:56,902][training][INFO] - Epoch 4310, Batch 50/95, Loss: 0.046056
+[2025-08-25 23:05:57,953][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:05:57,953][training][INFO] - Epoch 4310 complete. Avg Loss: 0.045408
+[2025-08-25 23:05:57,991][training][INFO] - Epoch 4311, Batch 0/95, Loss: 0.044616
+[2025-08-25 23:05:59,201][training][INFO] - Epoch 4311, Batch 50/95, Loss: 0.046125
+[2025-08-25 23:06:00,250][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:00,250][training][INFO] - Epoch 4311 complete. Avg Loss: 0.045356
+[2025-08-25 23:06:00,288][training][INFO] - Epoch 4312, Batch 0/95, Loss: 0.043834
+[2025-08-25 23:06:01,491][training][INFO] - Epoch 4312, Batch 50/95, Loss: 0.043233
+[2025-08-25 23:06:02,545][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:02,545][training][INFO] - Epoch 4312 complete. Avg Loss: 0.045183
+[2025-08-25 23:06:02,585][training][INFO] - Epoch 4313, Batch 0/95, Loss: 0.044266
+[2025-08-25 23:06:03,781][training][INFO] - Epoch 4313, Batch 50/95, Loss: 0.048402
+[2025-08-25 23:06:04,831][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:04,831][training][INFO] - Epoch 4313 complete. Avg Loss: 0.044682
+[2025-08-25 23:06:04,870][training][INFO] - Epoch 4314, Batch 0/95, Loss: 0.046432
+[2025-08-25 23:06:06,081][training][INFO] - Epoch 4314, Batch 50/95, Loss: 0.044421
+[2025-08-25 23:06:07,137][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:07,137][training][INFO] - Epoch 4314 complete. Avg Loss: 0.045169
+[2025-08-25 23:06:07,178][training][INFO] - Epoch 4315, Batch 0/95, Loss: 0.044703
+[2025-08-25 23:06:08,369][training][INFO] - Epoch 4315, Batch 50/95, Loss: 0.045107
+[2025-08-25 23:06:09,430][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:09,431][training][INFO] - Epoch 4315 complete. Avg Loss: 0.045174
+[2025-08-25 23:06:09,470][training][INFO] - Epoch 4316, Batch 0/95, Loss: 0.041175
+[2025-08-25 23:06:10,676][training][INFO] - Epoch 4316, Batch 50/95, Loss: 0.042751
+[2025-08-25 23:06:11,719][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:11,719][training][INFO] - Epoch 4316 complete. Avg Loss: 0.044675
+[2025-08-25 23:06:11,757][training][INFO] - Epoch 4317, Batch 0/95, Loss: 0.042692
+[2025-08-25 23:06:12,947][training][INFO] - Epoch 4317, Batch 50/95, Loss: 0.042411
+[2025-08-25 23:06:13,986][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:13,986][training][INFO] - Epoch 4317 complete. Avg Loss: 0.044778
+[2025-08-25 23:06:14,024][training][INFO] - Epoch 4318, Batch 0/95, Loss: 0.046591
+[2025-08-25 23:06:15,238][training][INFO] - Epoch 4318, Batch 50/95, Loss: 0.045033
+[2025-08-25 23:06:16,288][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:16,288][training][INFO] - Epoch 4318 complete. Avg Loss: 0.044921
+[2025-08-25 23:06:16,327][training][INFO] - Epoch 4319, Batch 0/95, Loss: 0.044641
+[2025-08-25 23:06:17,542][training][INFO] - Epoch 4319, Batch 50/95, Loss: 0.043363
+[2025-08-25 23:06:18,596][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:18,596][training][INFO] - Epoch 4319 complete. Avg Loss: 0.045288
+[2025-08-25 23:06:18,634][training][INFO] - Epoch 4320, Batch 0/95, Loss: 0.047736
+[2025-08-25 23:06:19,837][training][INFO] - Epoch 4320, Batch 50/95, Loss: 0.045476
+[2025-08-25 23:06:20,897][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:20,897][training][INFO] - Epoch 4320 complete. Avg Loss: 0.044830
+[2025-08-25 23:06:20,937][training][INFO] - Epoch 4321, Batch 0/95, Loss: 0.044857
+[2025-08-25 23:06:22,148][training][INFO] - Epoch 4321, Batch 50/95, Loss: 0.052811
+[2025-08-25 23:06:23,202][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:23,203][training][INFO] - Epoch 4321 complete. Avg Loss: 0.045578
+[2025-08-25 23:06:23,242][training][INFO] - Epoch 4322, Batch 0/95, Loss: 0.042905
+[2025-08-25 23:06:24,425][training][INFO] - Epoch 4322, Batch 50/95, Loss: 0.048189
+[2025-08-25 23:06:25,478][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:25,478][training][INFO] - Epoch 4322 complete. Avg Loss: 0.045142
+[2025-08-25 23:06:25,517][training][INFO] - Epoch 4323, Batch 0/95, Loss: 0.044415
+[2025-08-25 23:06:26,713][training][INFO] - Epoch 4323, Batch 50/95, Loss: 0.049857
+[2025-08-25 23:06:27,770][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:27,770][training][INFO] - Epoch 4323 complete. Avg Loss: 0.044642
+[2025-08-25 23:06:27,809][training][INFO] - Epoch 4324, Batch 0/95, Loss: 0.049002
+[2025-08-25 23:06:29,006][training][INFO] - Epoch 4324, Batch 50/95, Loss: 0.043371
+[2025-08-25 23:06:30,044][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:30,044][training][INFO] - Epoch 4324 complete. Avg Loss: 0.045399
+[2025-08-25 23:06:30,084][training][INFO] - Epoch 4325, Batch 0/95, Loss: 0.050403
+[2025-08-25 23:06:31,289][training][INFO] - Epoch 4325, Batch 50/95, Loss: 0.044894
+[2025-08-25 23:06:32,340][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:32,340][training][INFO] - Epoch 4325 complete. Avg Loss: 0.044951
+[2025-08-25 23:06:32,378][training][INFO] - Epoch 4326, Batch 0/95, Loss: 0.041395
+[2025-08-25 23:06:33,592][training][INFO] - Epoch 4326, Batch 50/95, Loss: 0.043515
+[2025-08-25 23:06:34,650][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:34,650][training][INFO] - Epoch 4326 complete. Avg Loss: 0.044975
+[2025-08-25 23:06:34,689][training][INFO] - Epoch 4327, Batch 0/95, Loss: 0.049192
+[2025-08-25 23:06:35,895][training][INFO] - Epoch 4327, Batch 50/95, Loss: 0.047027
+[2025-08-25 23:06:36,957][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:36,957][training][INFO] - Epoch 4327 complete. Avg Loss: 0.045125
+[2025-08-25 23:06:36,995][training][INFO] - Epoch 4328, Batch 0/95, Loss: 0.040106
+[2025-08-25 23:06:38,194][training][INFO] - Epoch 4328, Batch 50/95, Loss: 0.046862
+[2025-08-25 23:06:39,252][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:39,252][training][INFO] - Epoch 4328 complete. Avg Loss: 0.044824
+[2025-08-25 23:06:39,291][training][INFO] - Epoch 4329, Batch 0/95, Loss: 0.049071
+[2025-08-25 23:06:40,473][training][INFO] - Epoch 4329, Batch 50/95, Loss: 0.047495
+[2025-08-25 23:06:41,515][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:41,515][training][INFO] - Epoch 4329 complete. Avg Loss: 0.044824
+[2025-08-25 23:06:41,553][training][INFO] - Epoch 4330, Batch 0/95, Loss: 0.046404
+[2025-08-25 23:06:42,761][training][INFO] - Epoch 4330, Batch 50/95, Loss: 0.046408
+[2025-08-25 23:06:43,811][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:43,811][training][INFO] - Epoch 4330 complete. Avg Loss: 0.045153
+[2025-08-25 23:06:43,851][training][INFO] - Epoch 4331, Batch 0/95, Loss: 0.044080
+[2025-08-25 23:06:45,056][training][INFO] - Epoch 4331, Batch 50/95, Loss: 0.044124
+[2025-08-25 23:06:46,080][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:46,080][training][INFO] - Epoch 4331 complete. Avg Loss: 0.045433
+[2025-08-25 23:06:46,118][training][INFO] - Epoch 4332, Batch 0/95, Loss: 0.046124
+[2025-08-25 23:06:47,307][training][INFO] - Epoch 4332, Batch 50/95, Loss: 0.042883
+[2025-08-25 23:06:48,357][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:48,357][training][INFO] - Epoch 4332 complete. Avg Loss: 0.045051
+[2025-08-25 23:06:48,397][training][INFO] - Epoch 4333, Batch 0/95, Loss: 0.045006
+[2025-08-25 23:06:49,575][training][INFO] - Epoch 4333, Batch 50/95, Loss: 0.044698
+[2025-08-25 23:06:50,590][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:50,591][training][INFO] - Epoch 4333 complete. Avg Loss: 0.044425
+[2025-08-25 23:06:50,630][training][INFO] - Epoch 4334, Batch 0/95, Loss: 0.048208
+[2025-08-25 23:06:51,824][training][INFO] - Epoch 4334, Batch 50/95, Loss: 0.043312
+[2025-08-25 23:06:52,866][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:52,866][training][INFO] - Epoch 4334 complete. Avg Loss: 0.044931
+[2025-08-25 23:06:52,905][training][INFO] - Epoch 4335, Batch 0/95, Loss: 0.049470
+[2025-08-25 23:06:54,105][training][INFO] - Epoch 4335, Batch 50/95, Loss: 0.038046
+[2025-08-25 23:06:55,144][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:55,144][training][INFO] - Epoch 4335 complete. Avg Loss: 0.044895
+[2025-08-25 23:06:55,183][training][INFO] - Epoch 4336, Batch 0/95, Loss: 0.040316
+[2025-08-25 23:06:56,376][training][INFO] - Epoch 4336, Batch 50/95, Loss: 0.045497
+[2025-08-25 23:06:57,404][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:57,405][training][INFO] - Epoch 4336 complete. Avg Loss: 0.045565
+[2025-08-25 23:06:57,443][training][INFO] - Epoch 4337, Batch 0/95, Loss: 0.045288
+[2025-08-25 23:06:58,633][training][INFO] - Epoch 4337, Batch 50/95, Loss: 0.043275
+[2025-08-25 23:06:59,661][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:06:59,661][training][INFO] - Epoch 4337 complete. Avg Loss: 0.045048
+[2025-08-25 23:06:59,699][training][INFO] - Epoch 4338, Batch 0/95, Loss: 0.046754
+[2025-08-25 23:07:00,898][training][INFO] - Epoch 4338, Batch 50/95, Loss: 0.043710
+[2025-08-25 23:07:01,930][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:01,930][training][INFO] - Epoch 4338 complete. Avg Loss: 0.045247
+[2025-08-25 23:07:01,968][training][INFO] - Epoch 4339, Batch 0/95, Loss: 0.046221
+[2025-08-25 23:07:03,174][training][INFO] - Epoch 4339, Batch 50/95, Loss: 0.043635
+[2025-08-25 23:07:04,222][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:04,222][training][INFO] - Epoch 4339 complete. Avg Loss: 0.044909
+[2025-08-25 23:07:04,262][training][INFO] - Epoch 4340, Batch 0/95, Loss: 0.047280
+[2025-08-25 23:07:05,450][training][INFO] - Epoch 4340, Batch 50/95, Loss: 0.048744
+[2025-08-25 23:07:06,470][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:06,471][training][INFO] - Epoch 4340 complete. Avg Loss: 0.045144
+[2025-08-25 23:07:06,508][training][INFO] - Epoch 4341, Batch 0/95, Loss: 0.045253
+[2025-08-25 23:07:07,694][training][INFO] - Epoch 4341, Batch 50/95, Loss: 0.044856
+[2025-08-25 23:07:08,735][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:08,735][training][INFO] - Epoch 4341 complete. Avg Loss: 0.044922
+[2025-08-25 23:07:08,773][training][INFO] - Epoch 4342, Batch 0/95, Loss: 0.047069
+[2025-08-25 23:07:09,958][training][INFO] - Epoch 4342, Batch 50/95, Loss: 0.042258
+[2025-08-25 23:07:10,988][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:10,989][training][INFO] - Epoch 4342 complete. Avg Loss: 0.044753
+[2025-08-25 23:07:11,028][training][INFO] - Epoch 4343, Batch 0/95, Loss: 0.045943
+[2025-08-25 23:07:12,207][training][INFO] - Epoch 4343, Batch 50/95, Loss: 0.048440
+[2025-08-25 23:07:13,236][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:13,236][training][INFO] - Epoch 4343 complete. Avg Loss: 0.045130
+[2025-08-25 23:07:13,278][training][INFO] - Epoch 4344, Batch 0/95, Loss: 0.044391
+[2025-08-25 23:07:14,456][training][INFO] - Epoch 4344, Batch 50/95, Loss: 0.050005
+[2025-08-25 23:07:15,480][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:15,481][training][INFO] - Epoch 4344 complete. Avg Loss: 0.045152
+[2025-08-25 23:07:15,521][training][INFO] - Epoch 4345, Batch 0/95, Loss: 0.041562
+[2025-08-25 23:07:16,699][training][INFO] - Epoch 4345, Batch 50/95, Loss: 0.042059
+[2025-08-25 23:07:17,725][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:17,725][training][INFO] - Epoch 4345 complete. Avg Loss: 0.045454
+[2025-08-25 23:07:17,763][training][INFO] - Epoch 4346, Batch 0/95, Loss: 0.044720
+[2025-08-25 23:07:18,975][training][INFO] - Epoch 4346, Batch 50/95, Loss: 0.046342
+[2025-08-25 23:07:20,033][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:20,033][training][INFO] - Epoch 4346 complete. Avg Loss: 0.044873
+[2025-08-25 23:07:20,072][training][INFO] - Epoch 4347, Batch 0/95, Loss: 0.044271
+[2025-08-25 23:07:21,277][training][INFO] - Epoch 4347, Batch 50/95, Loss: 0.044103
+[2025-08-25 23:07:22,293][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:22,293][training][INFO] - Epoch 4347 complete. Avg Loss: 0.044548
+[2025-08-25 23:07:22,332][training][INFO] - Epoch 4348, Batch 0/95, Loss: 0.039442
+[2025-08-25 23:07:23,544][training][INFO] - Epoch 4348, Batch 50/95, Loss: 0.049195
+[2025-08-25 23:07:24,566][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:24,567][training][INFO] - Epoch 4348 complete. Avg Loss: 0.044809
+[2025-08-25 23:07:24,605][training][INFO] - Epoch 4349, Batch 0/95, Loss: 0.048080
+[2025-08-25 23:07:25,734][training][INFO] - Epoch 4349, Batch 50/95, Loss: 0.051246
+[2025-08-25 23:07:26,716][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:26,717][training][INFO] - Epoch 4349 complete. Avg Loss: 0.045268
+[2025-08-25 23:07:26,752][training][INFO] - Epoch 4350, Batch 0/95, Loss: 0.042984
+[2025-08-25 23:07:27,877][training][INFO] - Epoch 4350, Batch 50/95, Loss: 0.044078
+[2025-08-25 23:07:28,856][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:28,856][training][INFO] - Epoch 4350 complete. Avg Loss: 0.044761
+[2025-08-25 23:07:28,893][training][INFO] - Epoch 4351, Batch 0/95, Loss: 0.051402
+[2025-08-25 23:07:30,022][training][INFO] - Epoch 4351, Batch 50/95, Loss: 0.042214
+[2025-08-25 23:07:31,002][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:31,002][training][INFO] - Epoch 4351 complete. Avg Loss: 0.045182
+[2025-08-25 23:07:31,039][training][INFO] - Epoch 4352, Batch 0/95, Loss: 0.044365
+[2025-08-25 23:07:32,167][training][INFO] - Epoch 4352, Batch 50/95, Loss: 0.041774
+[2025-08-25 23:07:33,152][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:33,152][training][INFO] - Epoch 4352 complete. Avg Loss: 0.044932
+[2025-08-25 23:07:33,188][training][INFO] - Epoch 4353, Batch 0/95, Loss: 0.040569
+[2025-08-25 23:07:34,321][training][INFO] - Epoch 4353, Batch 50/95, Loss: 0.042298
+[2025-08-25 23:07:35,306][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:35,306][training][INFO] - Epoch 4353 complete. Avg Loss: 0.044679
+[2025-08-25 23:07:35,345][training][INFO] - Epoch 4354, Batch 0/95, Loss: 0.043785
+[2025-08-25 23:07:36,469][training][INFO] - Epoch 4354, Batch 50/95, Loss: 0.042054
+[2025-08-25 23:07:37,450][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:37,450][training][INFO] - Epoch 4354 complete. Avg Loss: 0.045184
+[2025-08-25 23:07:37,486][training][INFO] - Epoch 4355, Batch 0/95, Loss: 0.045336
+[2025-08-25 23:07:38,615][training][INFO] - Epoch 4355, Batch 50/95, Loss: 0.047944
+[2025-08-25 23:07:39,599][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:39,599][training][INFO] - Epoch 4355 complete. Avg Loss: 0.045392
+[2025-08-25 23:07:39,636][training][INFO] - Epoch 4356, Batch 0/95, Loss: 0.043319
+[2025-08-25 23:07:40,760][training][INFO] - Epoch 4356, Batch 50/95, Loss: 0.045424
+[2025-08-25 23:07:41,747][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:41,748][training][INFO] - Epoch 4356 complete. Avg Loss: 0.044655
+[2025-08-25 23:07:41,784][training][INFO] - Epoch 4357, Batch 0/95, Loss: 0.045061
+[2025-08-25 23:07:42,909][training][INFO] - Epoch 4357, Batch 50/95, Loss: 0.051809
+[2025-08-25 23:07:43,892][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:43,892][training][INFO] - Epoch 4357 complete. Avg Loss: 0.045505
+[2025-08-25 23:07:43,929][training][INFO] - Epoch 4358, Batch 0/95, Loss: 0.044815
+[2025-08-25 23:07:45,059][training][INFO] - Epoch 4358, Batch 50/95, Loss: 0.042971
+[2025-08-25 23:07:46,039][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:46,040][training][INFO] - Epoch 4358 complete. Avg Loss: 0.044798
+[2025-08-25 23:07:46,077][training][INFO] - Epoch 4359, Batch 0/95, Loss: 0.041067
+[2025-08-25 23:07:47,203][training][INFO] - Epoch 4359, Batch 50/95, Loss: 0.050431
+[2025-08-25 23:07:48,183][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:48,183][training][INFO] - Epoch 4359 complete. Avg Loss: 0.044416
+[2025-08-25 23:07:48,219][training][INFO] - Epoch 4360, Batch 0/95, Loss: 0.042118
+[2025-08-25 23:07:49,350][training][INFO] - Epoch 4360, Batch 50/95, Loss: 0.042961
+[2025-08-25 23:07:50,334][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:50,334][training][INFO] - Epoch 4360 complete. Avg Loss: 0.044408
+[2025-08-25 23:07:50,371][training][INFO] - Epoch 4361, Batch 0/95, Loss: 0.041193
+[2025-08-25 23:07:51,502][training][INFO] - Epoch 4361, Batch 50/95, Loss: 0.043938
+[2025-08-25 23:07:52,489][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:52,489][training][INFO] - Epoch 4361 complete. Avg Loss: 0.045062
+[2025-08-25 23:07:52,524][training][INFO] - Epoch 4362, Batch 0/95, Loss: 0.042885
+[2025-08-25 23:07:53,649][training][INFO] - Epoch 4362, Batch 50/95, Loss: 0.047207
+[2025-08-25 23:07:54,632][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:54,632][training][INFO] - Epoch 4362 complete. Avg Loss: 0.045073
+[2025-08-25 23:07:54,668][training][INFO] - Epoch 4363, Batch 0/95, Loss: 0.046224
+[2025-08-25 23:07:55,801][training][INFO] - Epoch 4363, Batch 50/95, Loss: 0.047772
+[2025-08-25 23:07:56,785][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:56,785][training][INFO] - Epoch 4363 complete. Avg Loss: 0.045103
+[2025-08-25 23:07:56,821][training][INFO] - Epoch 4364, Batch 0/95, Loss: 0.051478
+[2025-08-25 23:07:57,950][training][INFO] - Epoch 4364, Batch 50/95, Loss: 0.049399
+[2025-08-25 23:07:58,935][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:07:58,936][training][INFO] - Epoch 4364 complete. Avg Loss: 0.045203
+[2025-08-25 23:07:58,977][training][INFO] - Epoch 4365, Batch 0/95, Loss: 0.040754
+[2025-08-25 23:08:00,106][training][INFO] - Epoch 4365, Batch 50/95, Loss: 0.042894
+[2025-08-25 23:08:01,090][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:01,091][training][INFO] - Epoch 4365 complete. Avg Loss: 0.044674
+[2025-08-25 23:08:01,127][training][INFO] - Epoch 4366, Batch 0/95, Loss: 0.047653
+[2025-08-25 23:08:02,254][training][INFO] - Epoch 4366, Batch 50/95, Loss: 0.046825
+[2025-08-25 23:08:03,237][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:03,237][training][INFO] - Epoch 4366 complete. Avg Loss: 0.044925
+[2025-08-25 23:08:03,272][training][INFO] - Epoch 4367, Batch 0/95, Loss: 0.042473
+[2025-08-25 23:08:04,407][training][INFO] - Epoch 4367, Batch 50/95, Loss: 0.042745
+[2025-08-25 23:08:05,388][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:05,389][training][INFO] - Epoch 4367 complete. Avg Loss: 0.044724
+[2025-08-25 23:08:05,428][training][INFO] - Epoch 4368, Batch 0/95, Loss: 0.050144
+[2025-08-25 23:08:06,554][training][INFO] - Epoch 4368, Batch 50/95, Loss: 0.043787
+[2025-08-25 23:08:07,532][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:07,532][training][INFO] - Epoch 4368 complete. Avg Loss: 0.044978
+[2025-08-25 23:08:07,568][training][INFO] - Epoch 4369, Batch 0/95, Loss: 0.045345
+[2025-08-25 23:08:08,694][training][INFO] - Epoch 4369, Batch 50/95, Loss: 0.042559
+[2025-08-25 23:08:09,680][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:09,681][training][INFO] - Epoch 4369 complete. Avg Loss: 0.044910
+[2025-08-25 23:08:09,716][training][INFO] - Epoch 4370, Batch 0/95, Loss: 0.045039
+[2025-08-25 23:08:10,844][training][INFO] - Epoch 4370, Batch 50/95, Loss: 0.041367
+[2025-08-25 23:08:11,825][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:11,825][training][INFO] - Epoch 4370 complete. Avg Loss: 0.044701
+[2025-08-25 23:08:11,862][training][INFO] - Epoch 4371, Batch 0/95, Loss: 0.043182
+[2025-08-25 23:08:12,984][training][INFO] - Epoch 4371, Batch 50/95, Loss: 0.045380
+[2025-08-25 23:08:13,962][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:13,963][training][INFO] - Epoch 4371 complete. Avg Loss: 0.045691
+[2025-08-25 23:08:13,999][training][INFO] - Epoch 4372, Batch 0/95, Loss: 0.048852
+[2025-08-25 23:08:15,122][training][INFO] - Epoch 4372, Batch 50/95, Loss: 0.047336
+[2025-08-25 23:08:16,102][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:16,102][training][INFO] - Epoch 4372 complete. Avg Loss: 0.045004
+[2025-08-25 23:08:16,141][training][INFO] - Epoch 4373, Batch 0/95, Loss: 0.043605
+[2025-08-25 23:08:17,264][training][INFO] - Epoch 4373, Batch 50/95, Loss: 0.045698
+[2025-08-25 23:08:18,245][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:18,245][training][INFO] - Epoch 4373 complete. Avg Loss: 0.045337
+[2025-08-25 23:08:18,283][training][INFO] - Epoch 4374, Batch 0/95, Loss: 0.044726
+[2025-08-25 23:08:19,416][training][INFO] - Epoch 4374, Batch 50/95, Loss: 0.043641
+[2025-08-25 23:08:20,400][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:20,400][training][INFO] - Epoch 4374 complete. Avg Loss: 0.044840
+[2025-08-25 23:08:20,436][training][INFO] - Epoch 4375, Batch 0/95, Loss: 0.046130
+[2025-08-25 23:08:21,565][training][INFO] - Epoch 4375, Batch 50/95, Loss: 0.041216
+[2025-08-25 23:08:22,544][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:22,545][training][INFO] - Epoch 4375 complete. Avg Loss: 0.044843
+[2025-08-25 23:08:22,581][training][INFO] - Epoch 4376, Batch 0/95, Loss: 0.047720
+[2025-08-25 23:08:23,704][training][INFO] - Epoch 4376, Batch 50/95, Loss: 0.044960
+[2025-08-25 23:08:24,684][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:24,685][training][INFO] - Epoch 4376 complete. Avg Loss: 0.044503
+[2025-08-25 23:08:24,722][training][INFO] - Epoch 4377, Batch 0/95, Loss: 0.047630
+[2025-08-25 23:08:25,844][training][INFO] - Epoch 4377, Batch 50/95, Loss: 0.045163
+[2025-08-25 23:08:26,824][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:26,824][training][INFO] - Epoch 4377 complete. Avg Loss: 0.044750
+[2025-08-25 23:08:26,860][training][INFO] - Epoch 4378, Batch 0/95, Loss: 0.047152
+[2025-08-25 23:08:27,981][training][INFO] - Epoch 4378, Batch 50/95, Loss: 0.044215
+[2025-08-25 23:08:28,974][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:28,974][training][INFO] - Epoch 4378 complete. Avg Loss: 0.045176
+[2025-08-25 23:08:29,010][training][INFO] - Epoch 4379, Batch 0/95, Loss: 0.045278
+[2025-08-25 23:08:30,136][training][INFO] - Epoch 4379, Batch 50/95, Loss: 0.040138
+[2025-08-25 23:08:31,120][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:31,120][training][INFO] - Epoch 4379 complete. Avg Loss: 0.045271
+[2025-08-25 23:08:31,156][training][INFO] - Epoch 4380, Batch 0/95, Loss: 0.044141
+[2025-08-25 23:08:32,281][training][INFO] - Epoch 4380, Batch 50/95, Loss: 0.047718
+[2025-08-25 23:08:33,265][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:33,265][training][INFO] - Epoch 4380 complete. Avg Loss: 0.045343
+[2025-08-25 23:08:33,301][training][INFO] - Epoch 4381, Batch 0/95, Loss: 0.042332
+[2025-08-25 23:08:34,432][training][INFO] - Epoch 4381, Batch 50/95, Loss: 0.042200
+[2025-08-25 23:08:35,414][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:35,414][training][INFO] - Epoch 4381 complete. Avg Loss: 0.045153
+[2025-08-25 23:08:35,451][training][INFO] - Epoch 4382, Batch 0/95, Loss: 0.044695
+[2025-08-25 23:08:36,575][training][INFO] - Epoch 4382, Batch 50/95, Loss: 0.045322
+[2025-08-25 23:08:37,557][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:37,557][training][INFO] - Epoch 4382 complete. Avg Loss: 0.044829
+[2025-08-25 23:08:37,599][training][INFO] - Epoch 4383, Batch 0/95, Loss: 0.042285
+[2025-08-25 23:08:38,727][training][INFO] - Epoch 4383, Batch 50/95, Loss: 0.044573
+[2025-08-25 23:08:39,710][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:39,710][training][INFO] - Epoch 4383 complete. Avg Loss: 0.045067
+[2025-08-25 23:08:39,746][training][INFO] - Epoch 4384, Batch 0/95, Loss: 0.042731
+[2025-08-25 23:08:40,876][training][INFO] - Epoch 4384, Batch 50/95, Loss: 0.046235
+[2025-08-25 23:08:41,858][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:41,859][training][INFO] - Epoch 4384 complete. Avg Loss: 0.045005
+[2025-08-25 23:08:41,896][training][INFO] - Epoch 4385, Batch 0/95, Loss: 0.044517
+[2025-08-25 23:08:43,021][training][INFO] - Epoch 4385, Batch 50/95, Loss: 0.045748
+[2025-08-25 23:08:44,002][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:44,002][training][INFO] - Epoch 4385 complete. Avg Loss: 0.045098
+[2025-08-25 23:08:44,039][training][INFO] - Epoch 4386, Batch 0/95, Loss: 0.049217
+[2025-08-25 23:08:45,163][training][INFO] - Epoch 4386, Batch 50/95, Loss: 0.048160
+[2025-08-25 23:08:46,147][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:46,147][training][INFO] - Epoch 4386 complete. Avg Loss: 0.045211
+[2025-08-25 23:08:46,183][training][INFO] - Epoch 4387, Batch 0/95, Loss: 0.042719
+[2025-08-25 23:08:47,304][training][INFO] - Epoch 4387, Batch 50/95, Loss: 0.041047
+[2025-08-25 23:08:48,285][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:48,285][training][INFO] - Epoch 4387 complete. Avg Loss: 0.044737
+[2025-08-25 23:08:48,322][training][INFO] - Epoch 4388, Batch 0/95, Loss: 0.044226
+[2025-08-25 23:08:49,455][training][INFO] - Epoch 4388, Batch 50/95, Loss: 0.045406
+[2025-08-25 23:08:50,440][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:50,440][training][INFO] - Epoch 4388 complete. Avg Loss: 0.044881
+[2025-08-25 23:08:50,476][training][INFO] - Epoch 4389, Batch 0/95, Loss: 0.042858
+[2025-08-25 23:08:51,602][training][INFO] - Epoch 4389, Batch 50/95, Loss: 0.041209
+[2025-08-25 23:08:52,579][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:52,579][training][INFO] - Epoch 4389 complete. Avg Loss: 0.045471
+[2025-08-25 23:08:52,620][training][INFO] - Epoch 4390, Batch 0/95, Loss: 0.047248
+[2025-08-25 23:08:53,745][training][INFO] - Epoch 4390, Batch 50/95, Loss: 0.044596
+[2025-08-25 23:08:54,726][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:54,727][training][INFO] - Epoch 4390 complete. Avg Loss: 0.044866
+[2025-08-25 23:08:54,762][training][INFO] - Epoch 4391, Batch 0/95, Loss: 0.047741
+[2025-08-25 23:08:55,891][training][INFO] - Epoch 4391, Batch 50/95, Loss: 0.043604
+[2025-08-25 23:08:56,870][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:56,870][training][INFO] - Epoch 4391 complete. Avg Loss: 0.045141
+[2025-08-25 23:08:56,908][training][INFO] - Epoch 4392, Batch 0/95, Loss: 0.041629
+[2025-08-25 23:08:58,035][training][INFO] - Epoch 4392, Batch 50/95, Loss: 0.044595
+[2025-08-25 23:08:59,016][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:08:59,016][training][INFO] - Epoch 4392 complete. Avg Loss: 0.045039
+[2025-08-25 23:08:59,057][training][INFO] - Epoch 4393, Batch 0/95, Loss: 0.047124
+[2025-08-25 23:09:00,182][training][INFO] - Epoch 4393, Batch 50/95, Loss: 0.043732
+[2025-08-25 23:09:01,164][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:01,164][training][INFO] - Epoch 4393 complete. Avg Loss: 0.045371
+[2025-08-25 23:09:01,201][training][INFO] - Epoch 4394, Batch 0/95, Loss: 0.043495
+[2025-08-25 23:09:02,326][training][INFO] - Epoch 4394, Batch 50/95, Loss: 0.040994
+[2025-08-25 23:09:03,306][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:03,306][training][INFO] - Epoch 4394 complete. Avg Loss: 0.044963
+[2025-08-25 23:09:03,345][training][INFO] - Epoch 4395, Batch 0/95, Loss: 0.046110
+[2025-08-25 23:09:04,476][training][INFO] - Epoch 4395, Batch 50/95, Loss: 0.044191
+[2025-08-25 23:09:05,458][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:05,458][training][INFO] - Epoch 4395 complete. Avg Loss: 0.044899
+[2025-08-25 23:09:05,494][training][INFO] - Epoch 4396, Batch 0/95, Loss: 0.040840
+[2025-08-25 23:09:06,616][training][INFO] - Epoch 4396, Batch 50/95, Loss: 0.041865
+[2025-08-25 23:09:07,596][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:07,596][training][INFO] - Epoch 4396 complete. Avg Loss: 0.045021
+[2025-08-25 23:09:07,633][training][INFO] - Epoch 4397, Batch 0/95, Loss: 0.045917
+[2025-08-25 23:09:08,756][training][INFO] - Epoch 4397, Batch 50/95, Loss: 0.048039
+[2025-08-25 23:09:09,734][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:09,734][training][INFO] - Epoch 4397 complete. Avg Loss: 0.045187
+[2025-08-25 23:09:09,770][training][INFO] - Epoch 4398, Batch 0/95, Loss: 0.043053
+[2025-08-25 23:09:10,896][training][INFO] - Epoch 4398, Batch 50/95, Loss: 0.044561
+[2025-08-25 23:09:11,878][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:11,878][training][INFO] - Epoch 4398 complete. Avg Loss: 0.045170
+[2025-08-25 23:09:11,914][training][INFO] - Epoch 4399, Batch 0/95, Loss: 0.045457
+[2025-08-25 23:09:13,040][training][INFO] - Epoch 4399, Batch 50/95, Loss: 0.045648
+[2025-08-25 23:09:14,019][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:14,019][training][INFO] - Epoch 4399 complete. Avg Loss: 0.044528
+[2025-08-25 23:09:14,056][training][INFO] - Epoch 4400, Batch 0/95, Loss: 0.039961
+[2025-08-25 23:09:15,181][training][INFO] - Epoch 4400, Batch 50/95, Loss: 0.045706
+[2025-08-25 23:09:16,159][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:16,159][training][INFO] - Epoch 4400 complete. Avg Loss: 0.044996
+[2025-08-25 23:09:16,165][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/tde_mfm/outputs/snapMMD_MFM_PBMC_6185a7840e1f3dab791245b6c5a393f3/checkpoint_epoch_4400.pt
+[2025-08-25 23:09:18,134][training][INFO] - Evaluation Loss: 0.044658
+[2025-08-25 23:09:18,135][training][INFO] - No improvement for 1 evaluations
+[2025-08-25 23:09:18,174][training][INFO] - Epoch 4401, Batch 0/95, Loss: 0.049452
+[2025-08-25 23:09:19,306][training][INFO] - Epoch 4401, Batch 50/95, Loss: 0.047481
+[2025-08-25 23:09:20,292][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:20,292][training][INFO] - Epoch 4401 complete. Avg Loss: 0.045348
+[2025-08-25 23:09:20,328][training][INFO] - Epoch 4402, Batch 0/95, Loss: 0.048775
+[2025-08-25 23:09:21,452][training][INFO] - Epoch 4402, Batch 50/95, Loss: 0.046591
+[2025-08-25 23:09:22,440][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:22,440][training][INFO] - Epoch 4402 complete. Avg Loss: 0.044790
+[2025-08-25 23:09:22,479][training][INFO] - Epoch 4403, Batch 0/95, Loss: 0.046203
+[2025-08-25 23:09:23,606][training][INFO] - Epoch 4403, Batch 50/95, Loss: 0.045390
+[2025-08-25 23:09:24,586][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:24,586][training][INFO] - Epoch 4403 complete. Avg Loss: 0.044537
+[2025-08-25 23:09:24,623][training][INFO] - Epoch 4404, Batch 0/95, Loss: 0.042570
+[2025-08-25 23:09:25,754][training][INFO] - Epoch 4404, Batch 50/95, Loss: 0.044931
+[2025-08-25 23:09:26,736][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:26,736][training][INFO] - Epoch 4404 complete. Avg Loss: 0.044570
+[2025-08-25 23:09:26,774][training][INFO] - Epoch 4405, Batch 0/95, Loss: 0.043304
+[2025-08-25 23:09:27,900][training][INFO] - Epoch 4405, Batch 50/95, Loss: 0.044171
+[2025-08-25 23:09:28,879][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:28,880][training][INFO] - Epoch 4405 complete. Avg Loss: 0.045094
+[2025-08-25 23:09:28,917][training][INFO] - Epoch 4406, Batch 0/95, Loss: 0.045562
+[2025-08-25 23:09:30,040][training][INFO] - Epoch 4406, Batch 50/95, Loss: 0.045928
+[2025-08-25 23:09:31,021][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:31,022][training][INFO] - Epoch 4406 complete. Avg Loss: 0.045400
+[2025-08-25 23:09:31,057][training][INFO] - Epoch 4407, Batch 0/95, Loss: 0.042706
+[2025-08-25 23:09:32,181][training][INFO] - Epoch 4407, Batch 50/95, Loss: 0.044821
+[2025-08-25 23:09:33,163][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:33,164][training][INFO] - Epoch 4407 complete. Avg Loss: 0.044642
+[2025-08-25 23:09:33,202][training][INFO] - Epoch 4408, Batch 0/95, Loss: 0.046624
+[2025-08-25 23:09:34,335][training][INFO] - Epoch 4408, Batch 50/95, Loss: 0.046261
+[2025-08-25 23:09:35,316][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:35,316][training][INFO] - Epoch 4408 complete. Avg Loss: 0.045385
+[2025-08-25 23:09:35,355][training][INFO] - Epoch 4409, Batch 0/95, Loss: 0.045719
+[2025-08-25 23:09:36,480][training][INFO] - Epoch 4409, Batch 50/95, Loss: 0.045169
+[2025-08-25 23:09:37,466][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:37,466][training][INFO] - Epoch 4409 complete. Avg Loss: 0.044387
+[2025-08-25 23:09:37,502][training][INFO] - Epoch 4410, Batch 0/95, Loss: 0.044933
+[2025-08-25 23:09:38,627][training][INFO] - Epoch 4410, Batch 50/95, Loss: 0.043655
+[2025-08-25 23:09:39,608][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:39,608][training][INFO] - Epoch 4410 complete. Avg Loss: 0.044713
+[2025-08-25 23:09:39,643][training][INFO] - Epoch 4411, Batch 0/95, Loss: 0.044428
+[2025-08-25 23:09:40,768][training][INFO] - Epoch 4411, Batch 50/95, Loss: 0.045109
+[2025-08-25 23:09:41,751][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:41,751][training][INFO] - Epoch 4411 complete. Avg Loss: 0.045133
+[2025-08-25 23:09:41,788][training][INFO] - Epoch 4412, Batch 0/95, Loss: 0.043956
+[2025-08-25 23:09:42,915][training][INFO] - Epoch 4412, Batch 50/95, Loss: 0.050553
+[2025-08-25 23:09:43,896][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:43,896][training][INFO] - Epoch 4412 complete. Avg Loss: 0.045275
+[2025-08-25 23:09:43,937][training][INFO] - Epoch 4413, Batch 0/95, Loss: 0.040877
+[2025-08-25 23:09:45,064][training][INFO] - Epoch 4413, Batch 50/95, Loss: 0.045689
+[2025-08-25 23:09:46,043][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:46,043][training][INFO] - Epoch 4413 complete. Avg Loss: 0.044839
+[2025-08-25 23:09:46,080][training][INFO] - Epoch 4414, Batch 0/95, Loss: 0.044040
+[2025-08-25 23:09:47,205][training][INFO] - Epoch 4414, Batch 50/95, Loss: 0.046210
+[2025-08-25 23:09:48,184][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:48,184][training][INFO] - Epoch 4414 complete. Avg Loss: 0.044865
+[2025-08-25 23:09:48,220][training][INFO] - Epoch 4415, Batch 0/95, Loss: 0.043373
+[2025-08-25 23:09:49,349][training][INFO] - Epoch 4415, Batch 50/95, Loss: 0.045024
+[2025-08-25 23:09:50,328][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:50,328][training][INFO] - Epoch 4415 complete. Avg Loss: 0.045309
+[2025-08-25 23:09:50,364][training][INFO] - Epoch 4416, Batch 0/95, Loss: 0.051200
+[2025-08-25 23:09:51,490][training][INFO] - Epoch 4416, Batch 50/95, Loss: 0.043682
+[2025-08-25 23:09:52,475][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:52,476][training][INFO] - Epoch 4416 complete. Avg Loss: 0.045311
+[2025-08-25 23:09:52,513][training][INFO] - Epoch 4417, Batch 0/95, Loss: 0.043118
+[2025-08-25 23:09:53,637][training][INFO] - Epoch 4417, Batch 50/95, Loss: 0.043949
+[2025-08-25 23:09:54,616][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:54,616][training][INFO] - Epoch 4417 complete. Avg Loss: 0.044740
+[2025-08-25 23:09:54,653][training][INFO] - Epoch 4418, Batch 0/95, Loss: 0.046682
+[2025-08-25 23:09:55,778][training][INFO] - Epoch 4418, Batch 50/95, Loss: 0.046280
+[2025-08-25 23:09:56,761][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:56,761][training][INFO] - Epoch 4418 complete. Avg Loss: 0.044861
+[2025-08-25 23:09:56,797][training][INFO] - Epoch 4419, Batch 0/95, Loss: 0.044099
+[2025-08-25 23:09:57,926][training][INFO] - Epoch 4419, Batch 50/95, Loss: 0.037967
+[2025-08-25 23:09:58,905][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:09:58,906][training][INFO] - Epoch 4419 complete. Avg Loss: 0.044617
+[2025-08-25 23:09:58,942][training][INFO] - Epoch 4420, Batch 0/95, Loss: 0.050681
+[2025-08-25 23:10:00,065][training][INFO] - Epoch 4420, Batch 50/95, Loss: 0.041751
+[2025-08-25 23:10:01,047][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:01,047][training][INFO] - Epoch 4420 complete. Avg Loss: 0.045424
+[2025-08-25 23:10:01,083][training][INFO] - Epoch 4421, Batch 0/95, Loss: 0.045674
+[2025-08-25 23:10:02,213][training][INFO] - Epoch 4421, Batch 50/95, Loss: 0.046686
+[2025-08-25 23:10:03,193][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:03,193][training][INFO] - Epoch 4421 complete. Avg Loss: 0.045058
+[2025-08-25 23:10:03,229][training][INFO] - Epoch 4422, Batch 0/95, Loss: 0.042485
+[2025-08-25 23:10:04,359][training][INFO] - Epoch 4422, Batch 50/95, Loss: 0.044497
+[2025-08-25 23:10:05,339][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:05,340][training][INFO] - Epoch 4422 complete. Avg Loss: 0.045362
+[2025-08-25 23:10:05,376][training][INFO] - Epoch 4423, Batch 0/95, Loss: 0.044132
+[2025-08-25 23:10:06,502][training][INFO] - Epoch 4423, Batch 50/95, Loss: 0.045864
+[2025-08-25 23:10:07,484][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:07,484][training][INFO] - Epoch 4423 complete. Avg Loss: 0.045406
+[2025-08-25 23:10:07,521][training][INFO] - Epoch 4424, Batch 0/95, Loss: 0.048221
+[2025-08-25 23:10:08,642][training][INFO] - Epoch 4424, Batch 50/95, Loss: 0.046382
+[2025-08-25 23:10:09,626][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:09,626][training][INFO] - Epoch 4424 complete. Avg Loss: 0.045381
+[2025-08-25 23:10:09,662][training][INFO] - Epoch 4425, Batch 0/95, Loss: 0.047923
+[2025-08-25 23:10:10,786][training][INFO] - Epoch 4425, Batch 50/95, Loss: 0.053358
+[2025-08-25 23:10:11,768][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:11,768][training][INFO] - Epoch 4425 complete. Avg Loss: 0.044843
+[2025-08-25 23:10:11,805][training][INFO] - Epoch 4426, Batch 0/95, Loss: 0.045046
+[2025-08-25 23:10:12,929][training][INFO] - Epoch 4426, Batch 50/95, Loss: 0.044889
+[2025-08-25 23:10:13,917][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:13,917][training][INFO] - Epoch 4426 complete. Avg Loss: 0.044694
+[2025-08-25 23:10:13,953][training][INFO] - Epoch 4427, Batch 0/95, Loss: 0.047716
+[2025-08-25 23:10:15,075][training][INFO] - Epoch 4427, Batch 50/95, Loss: 0.045412
+[2025-08-25 23:10:16,054][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:16,054][training][INFO] - Epoch 4427 complete. Avg Loss: 0.045297
+[2025-08-25 23:10:16,093][training][INFO] - Epoch 4428, Batch 0/95, Loss: 0.043497
+[2025-08-25 23:10:17,217][training][INFO] - Epoch 4428, Batch 50/95, Loss: 0.041508
+[2025-08-25 23:10:18,195][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:18,196][training][INFO] - Epoch 4428 complete. Avg Loss: 0.044637
+[2025-08-25 23:10:18,234][training][INFO] - Epoch 4429, Batch 0/95, Loss: 0.043222
+[2025-08-25 23:10:19,369][training][INFO] - Epoch 4429, Batch 50/95, Loss: 0.044492
+[2025-08-25 23:10:20,350][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:20,350][training][INFO] - Epoch 4429 complete. Avg Loss: 0.044889
+[2025-08-25 23:10:20,386][training][INFO] - Epoch 4430, Batch 0/95, Loss: 0.043430
+[2025-08-25 23:10:21,511][training][INFO] - Epoch 4430, Batch 50/95, Loss: 0.048530
+[2025-08-25 23:10:22,491][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:22,492][training][INFO] - Epoch 4430 complete. Avg Loss: 0.045394
+[2025-08-25 23:10:22,530][training][INFO] - Epoch 4431, Batch 0/95, Loss: 0.043354
+[2025-08-25 23:10:23,654][training][INFO] - Epoch 4431, Batch 50/95, Loss: 0.044924
+[2025-08-25 23:10:24,632][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:24,632][training][INFO] - Epoch 4431 complete. Avg Loss: 0.044711
+[2025-08-25 23:10:24,669][training][INFO] - Epoch 4432, Batch 0/95, Loss: 0.043159
+[2025-08-25 23:10:25,799][training][INFO] - Epoch 4432, Batch 50/95, Loss: 0.041889
+[2025-08-25 23:10:26,780][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:26,780][training][INFO] - Epoch 4432 complete. Avg Loss: 0.045050
+[2025-08-25 23:10:26,816][training][INFO] - Epoch 4433, Batch 0/95, Loss: 0.045153
+[2025-08-25 23:10:27,941][training][INFO] - Epoch 4433, Batch 50/95, Loss: 0.047264
+[2025-08-25 23:10:28,922][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:28,922][training][INFO] - Epoch 4433 complete. Avg Loss: 0.045241
+[2025-08-25 23:10:28,960][training][INFO] - Epoch 4434, Batch 0/95, Loss: 0.046661
+[2025-08-25 23:10:30,088][training][INFO] - Epoch 4434, Batch 50/95, Loss: 0.040687
+[2025-08-25 23:10:31,068][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:31,068][training][INFO] - Epoch 4434 complete. Avg Loss: 0.045416
+[2025-08-25 23:10:31,104][training][INFO] - Epoch 4435, Batch 0/95, Loss: 0.043582
+[2025-08-25 23:10:32,230][training][INFO] - Epoch 4435, Batch 50/95, Loss: 0.042994
+[2025-08-25 23:10:33,212][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:33,213][training][INFO] - Epoch 4435 complete. Avg Loss: 0.045094
+[2025-08-25 23:10:33,249][training][INFO] - Epoch 4436, Batch 0/95, Loss: 0.045200
+[2025-08-25 23:10:34,379][training][INFO] - Epoch 4436, Batch 50/95, Loss: 0.049833
+[2025-08-25 23:10:35,359][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:35,360][training][INFO] - Epoch 4436 complete. Avg Loss: 0.044974
+[2025-08-25 23:10:35,396][training][INFO] - Epoch 4437, Batch 0/95, Loss: 0.044717
+[2025-08-25 23:10:36,520][training][INFO] - Epoch 4437, Batch 50/95, Loss: 0.044769
+[2025-08-25 23:10:37,504][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:37,505][training][INFO] - Epoch 4437 complete. Avg Loss: 0.044679
+[2025-08-25 23:10:37,541][training][INFO] - Epoch 4438, Batch 0/95, Loss: 0.044436
+[2025-08-25 23:10:38,668][training][INFO] - Epoch 4438, Batch 50/95, Loss: 0.046273
+[2025-08-25 23:10:39,648][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:39,648][training][INFO] - Epoch 4438 complete. Avg Loss: 0.045115
+[2025-08-25 23:10:39,685][training][INFO] - Epoch 4439, Batch 0/95, Loss: 0.046874
+[2025-08-25 23:10:40,810][training][INFO] - Epoch 4439, Batch 50/95, Loss: 0.046845
+[2025-08-25 23:10:41,789][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:41,789][training][INFO] - Epoch 4439 complete. Avg Loss: 0.044892
+[2025-08-25 23:10:41,825][training][INFO] - Epoch 4440, Batch 0/95, Loss: 0.045235
+[2025-08-25 23:10:42,952][training][INFO] - Epoch 4440, Batch 50/95, Loss: 0.043913
+[2025-08-25 23:10:43,934][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:43,934][training][INFO] - Epoch 4440 complete. Avg Loss: 0.045337
+[2025-08-25 23:10:43,971][training][INFO] - Epoch 4441, Batch 0/95, Loss: 0.045876
+[2025-08-25 23:10:45,096][training][INFO] - Epoch 4441, Batch 50/95, Loss: 0.042077
+[2025-08-25 23:10:46,075][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:46,075][training][INFO] - Epoch 4441 complete. Avg Loss: 0.044867
+[2025-08-25 23:10:46,112][training][INFO] - Epoch 4442, Batch 0/95, Loss: 0.042301
+[2025-08-25 23:10:47,235][training][INFO] - Epoch 4442, Batch 50/95, Loss: 0.042161
+[2025-08-25 23:10:48,214][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:48,214][training][INFO] - Epoch 4442 complete. Avg Loss: 0.044294
+[2025-08-25 23:10:48,253][training][INFO] - Epoch 4443, Batch 0/95, Loss: 0.047879
+[2025-08-25 23:10:49,382][training][INFO] - Epoch 4443, Batch 50/95, Loss: 0.041219
+[2025-08-25 23:10:50,366][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:50,366][training][INFO] - Epoch 4443 complete. Avg Loss: 0.044818
+[2025-08-25 23:10:50,403][training][INFO] - Epoch 4444, Batch 0/95, Loss: 0.047249
+[2025-08-25 23:10:51,530][training][INFO] - Epoch 4444, Batch 50/95, Loss: 0.043225
+[2025-08-25 23:10:52,512][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:52,512][training][INFO] - Epoch 4444 complete. Avg Loss: 0.044998
+[2025-08-25 23:10:52,548][training][INFO] - Epoch 4445, Batch 0/95, Loss: 0.043001
+[2025-08-25 23:10:53,675][training][INFO] - Epoch 4445, Batch 50/95, Loss: 0.048157
+[2025-08-25 23:10:54,656][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:54,656][training][INFO] - Epoch 4445 complete. Avg Loss: 0.045465
+[2025-08-25 23:10:54,694][training][INFO] - Epoch 4446, Batch 0/95, Loss: 0.050490
+[2025-08-25 23:10:55,818][training][INFO] - Epoch 4446, Batch 50/95, Loss: 0.042254
+[2025-08-25 23:10:56,796][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:56,796][training][INFO] - Epoch 4446 complete. Avg Loss: 0.045299
+[2025-08-25 23:10:56,833][training][INFO] - Epoch 4447, Batch 0/95, Loss: 0.046404
+[2025-08-25 23:10:57,960][training][INFO] - Epoch 4447, Batch 50/95, Loss: 0.044203
+[2025-08-25 23:10:58,940][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:10:58,941][training][INFO] - Epoch 4447 complete. Avg Loss: 0.045008
+[2025-08-25 23:10:58,978][training][INFO] - Epoch 4448, Batch 0/95, Loss: 0.042259
+[2025-08-25 23:11:00,104][training][INFO] - Epoch 4448, Batch 50/95, Loss: 0.041747
+[2025-08-25 23:11:01,085][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:01,085][training][INFO] - Epoch 4448 complete. Avg Loss: 0.044980
+[2025-08-25 23:11:01,123][training][INFO] - Epoch 4449, Batch 0/95, Loss: 0.047106
+[2025-08-25 23:11:02,255][training][INFO] - Epoch 4449, Batch 50/95, Loss: 0.042594
+[2025-08-25 23:11:03,233][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:03,233][training][INFO] - Epoch 4449 complete. Avg Loss: 0.045061
+[2025-08-25 23:11:03,271][training][INFO] - Epoch 4450, Batch 0/95, Loss: 0.042001
+[2025-08-25 23:11:04,410][training][INFO] - Epoch 4450, Batch 50/95, Loss: 0.046268
+[2025-08-25 23:11:05,394][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:05,395][training][INFO] - Epoch 4450 complete. Avg Loss: 0.044909
+[2025-08-25 23:11:05,432][training][INFO] - Epoch 4451, Batch 0/95, Loss: 0.043311
+[2025-08-25 23:11:06,554][training][INFO] - Epoch 4451, Batch 50/95, Loss: 0.040740
+[2025-08-25 23:11:07,534][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:07,534][training][INFO] - Epoch 4451 complete. Avg Loss: 0.044104
+[2025-08-25 23:11:07,569][training][INFO] - Epoch 4452, Batch 0/95, Loss: 0.044783
+[2025-08-25 23:11:08,696][training][INFO] - Epoch 4452, Batch 50/95, Loss: 0.049128
+[2025-08-25 23:11:09,677][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:09,677][training][INFO] - Epoch 4452 complete. Avg Loss: 0.044608
+[2025-08-25 23:11:09,716][training][INFO] - Epoch 4453, Batch 0/95, Loss: 0.043213
+[2025-08-25 23:11:10,840][training][INFO] - Epoch 4453, Batch 50/95, Loss: 0.043503
+[2025-08-25 23:11:11,824][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:11,824][training][INFO] - Epoch 4453 complete. Avg Loss: 0.044883
+[2025-08-25 23:11:11,861][training][INFO] - Epoch 4454, Batch 0/95, Loss: 0.044974
+[2025-08-25 23:11:12,988][training][INFO] - Epoch 4454, Batch 50/95, Loss: 0.041578
+[2025-08-25 23:11:13,967][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:13,967][training][INFO] - Epoch 4454 complete. Avg Loss: 0.044363
+[2025-08-25 23:11:14,005][training][INFO] - Epoch 4455, Batch 0/95, Loss: 0.043856
+[2025-08-25 23:11:15,130][training][INFO] - Epoch 4455, Batch 50/95, Loss: 0.042039
+[2025-08-25 23:11:16,110][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:16,110][training][INFO] - Epoch 4455 complete. Avg Loss: 0.044767
+[2025-08-25 23:11:16,149][training][INFO] - Epoch 4456, Batch 0/95, Loss: 0.043283
+[2025-08-25 23:11:17,277][training][INFO] - Epoch 4456, Batch 50/95, Loss: 0.042125
+[2025-08-25 23:11:18,261][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:18,261][training][INFO] - Epoch 4456 complete. Avg Loss: 0.044619
+[2025-08-25 23:11:18,297][training][INFO] - Epoch 4457, Batch 0/95, Loss: 0.046091
+[2025-08-25 23:11:19,433][training][INFO] - Epoch 4457, Batch 50/95, Loss: 0.044524
+[2025-08-25 23:11:20,412][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:20,412][training][INFO] - Epoch 4457 complete. Avg Loss: 0.044976
+[2025-08-25 23:11:20,449][training][INFO] - Epoch 4458, Batch 0/95, Loss: 0.045694
+[2025-08-25 23:11:21,574][training][INFO] - Epoch 4458, Batch 50/95, Loss: 0.038450
+[2025-08-25 23:11:22,553][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:22,553][training][INFO] - Epoch 4458 complete. Avg Loss: 0.044917
+[2025-08-25 23:11:22,589][training][INFO] - Epoch 4459, Batch 0/95, Loss: 0.044522
+[2025-08-25 23:11:23,721][training][INFO] - Epoch 4459, Batch 50/95, Loss: 0.043588
+[2025-08-25 23:11:24,700][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:24,700][training][INFO] - Epoch 4459 complete. Avg Loss: 0.044905
+[2025-08-25 23:11:24,736][training][INFO] - Epoch 4460, Batch 0/95, Loss: 0.047885
+[2025-08-25 23:11:25,862][training][INFO] - Epoch 4460, Batch 50/95, Loss: 0.047945
+[2025-08-25 23:11:26,843][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:26,843][training][INFO] - Epoch 4460 complete. Avg Loss: 0.045163
+[2025-08-25 23:11:26,879][training][INFO] - Epoch 4461, Batch 0/95, Loss: 0.045693
+[2025-08-25 23:11:28,002][training][INFO] - Epoch 4461, Batch 50/95, Loss: 0.047123
+[2025-08-25 23:11:28,986][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:28,986][training][INFO] - Epoch 4461 complete. Avg Loss: 0.044710
+[2025-08-25 23:11:29,023][training][INFO] - Epoch 4462, Batch 0/95, Loss: 0.046417
+[2025-08-25 23:11:30,147][training][INFO] - Epoch 4462, Batch 50/95, Loss: 0.047163
+[2025-08-25 23:11:31,131][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:31,131][training][INFO] - Epoch 4462 complete. Avg Loss: 0.044703
+[2025-08-25 23:11:31,167][training][INFO] - Epoch 4463, Batch 0/95, Loss: 0.044928
+[2025-08-25 23:11:32,290][training][INFO] - Epoch 4463, Batch 50/95, Loss: 0.047692
+[2025-08-25 23:11:33,271][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:33,271][training][INFO] - Epoch 4463 complete. Avg Loss: 0.045699
+[2025-08-25 23:11:33,307][training][INFO] - Epoch 4464, Batch 0/95, Loss: 0.045204
+[2025-08-25 23:11:34,438][training][INFO] - Epoch 4464, Batch 50/95, Loss: 0.041955
+[2025-08-25 23:11:35,418][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:35,418][training][INFO] - Epoch 4464 complete. Avg Loss: 0.045355
+[2025-08-25 23:11:35,454][training][INFO] - Epoch 4465, Batch 0/95, Loss: 0.043484
+[2025-08-25 23:11:36,582][training][INFO] - Epoch 4465, Batch 50/95, Loss: 0.047788
+[2025-08-25 23:11:37,566][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:37,566][training][INFO] - Epoch 4465 complete. Avg Loss: 0.044821
+[2025-08-25 23:11:37,602][training][INFO] - Epoch 4466, Batch 0/95, Loss: 0.047323
+[2025-08-25 23:11:38,726][training][INFO] - Epoch 4466, Batch 50/95, Loss: 0.047249
+[2025-08-25 23:11:39,708][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:39,709][training][INFO] - Epoch 4466 complete. Avg Loss: 0.045014
+[2025-08-25 23:11:39,748][training][INFO] - Epoch 4467, Batch 0/95, Loss: 0.040145
+[2025-08-25 23:11:40,875][training][INFO] - Epoch 4467, Batch 50/95, Loss: 0.047207
+[2025-08-25 23:11:41,852][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:41,852][training][INFO] - Epoch 4467 complete. Avg Loss: 0.044531
+[2025-08-25 23:11:41,888][training][INFO] - Epoch 4468, Batch 0/95, Loss: 0.042813
+[2025-08-25 23:11:43,015][training][INFO] - Epoch 4468, Batch 50/95, Loss: 0.042415
+[2025-08-25 23:11:44,003][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:44,003][training][INFO] - Epoch 4468 complete. Avg Loss: 0.044715
+[2025-08-25 23:11:44,038][training][INFO] - Epoch 4469, Batch 0/95, Loss: 0.043552
+[2025-08-25 23:11:45,166][training][INFO] - Epoch 4469, Batch 50/95, Loss: 0.046542
+[2025-08-25 23:11:46,145][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:46,145][training][INFO] - Epoch 4469 complete. Avg Loss: 0.044438
+[2025-08-25 23:11:46,187][training][INFO] - Epoch 4470, Batch 0/95, Loss: 0.046760
+[2025-08-25 23:11:47,315][training][INFO] - Epoch 4470, Batch 50/95, Loss: 0.043286
+[2025-08-25 23:11:48,297][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:48,298][training][INFO] - Epoch 4470 complete. Avg Loss: 0.044114
+[2025-08-25 23:11:48,333][training][INFO] - Epoch 4471, Batch 0/95, Loss: 0.046050
+[2025-08-25 23:11:49,468][training][INFO] - Epoch 4471, Batch 50/95, Loss: 0.044508
+[2025-08-25 23:11:50,449][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:50,449][training][INFO] - Epoch 4471 complete. Avg Loss: 0.044594
+[2025-08-25 23:11:50,484][training][INFO] - Epoch 4472, Batch 0/95, Loss: 0.048446
+[2025-08-25 23:11:51,611][training][INFO] - Epoch 4472, Batch 50/95, Loss: 0.040258
+[2025-08-25 23:11:52,588][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:52,589][training][INFO] - Epoch 4472 complete. Avg Loss: 0.044430
+[2025-08-25 23:11:52,627][training][INFO] - Epoch 4473, Batch 0/95, Loss: 0.048228
+[2025-08-25 23:11:53,751][training][INFO] - Epoch 4473, Batch 50/95, Loss: 0.050306
+[2025-08-25 23:11:54,732][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:54,733][training][INFO] - Epoch 4473 complete. Avg Loss: 0.045431
+[2025-08-25 23:11:54,770][training][INFO] - Epoch 4474, Batch 0/95, Loss: 0.046328
+[2025-08-25 23:11:55,893][training][INFO] - Epoch 4474, Batch 50/95, Loss: 0.042527
+[2025-08-25 23:11:56,872][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:56,872][training][INFO] - Epoch 4474 complete. Avg Loss: 0.045672
+[2025-08-25 23:11:56,908][training][INFO] - Epoch 4475, Batch 0/95, Loss: 0.044535
+[2025-08-25 23:11:58,032][training][INFO] - Epoch 4475, Batch 50/95, Loss: 0.044873
+[2025-08-25 23:11:59,011][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:11:59,012][training][INFO] - Epoch 4475 complete. Avg Loss: 0.044609
+[2025-08-25 23:11:59,049][training][INFO] - Epoch 4476, Batch 0/95, Loss: 0.043672
+[2025-08-25 23:12:00,176][training][INFO] - Epoch 4476, Batch 50/95, Loss: 0.040019
+[2025-08-25 23:12:01,160][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:01,160][training][INFO] - Epoch 4476 complete. Avg Loss: 0.044830
+[2025-08-25 23:12:01,196][training][INFO] - Epoch 4477, Batch 0/95, Loss: 0.042810
+[2025-08-25 23:12:02,319][training][INFO] - Epoch 4477, Batch 50/95, Loss: 0.041849
+[2025-08-25 23:12:03,297][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:03,297][training][INFO] - Epoch 4477 complete. Avg Loss: 0.044837
+[2025-08-25 23:12:03,332][training][INFO] - Epoch 4478, Batch 0/95, Loss: 0.044665
+[2025-08-25 23:12:04,464][training][INFO] - Epoch 4478, Batch 50/95, Loss: 0.045750
+[2025-08-25 23:12:05,443][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:05,443][training][INFO] - Epoch 4478 complete. Avg Loss: 0.045267
+[2025-08-25 23:12:05,479][training][INFO] - Epoch 4479, Batch 0/95, Loss: 0.044710
+[2025-08-25 23:12:06,605][training][INFO] - Epoch 4479, Batch 50/95, Loss: 0.046740
+[2025-08-25 23:12:07,581][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:07,581][training][INFO] - Epoch 4479 complete. Avg Loss: 0.045024
+[2025-08-25 23:12:07,618][training][INFO] - Epoch 4480, Batch 0/95, Loss: 0.039847
+[2025-08-25 23:12:08,743][training][INFO] - Epoch 4480, Batch 50/95, Loss: 0.043457
+[2025-08-25 23:12:09,725][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:09,725][training][INFO] - Epoch 4480 complete. Avg Loss: 0.045198
+[2025-08-25 23:12:09,761][training][INFO] - Epoch 4481, Batch 0/95, Loss: 0.045112
+[2025-08-25 23:12:10,892][training][INFO] - Epoch 4481, Batch 50/95, Loss: 0.043885
+[2025-08-25 23:12:11,871][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:11,872][training][INFO] - Epoch 4481 complete. Avg Loss: 0.045115
+[2025-08-25 23:12:11,909][training][INFO] - Epoch 4482, Batch 0/95, Loss: 0.045414
+[2025-08-25 23:12:13,033][training][INFO] - Epoch 4482, Batch 50/95, Loss: 0.046456
+[2025-08-25 23:12:14,013][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:14,014][training][INFO] - Epoch 4482 complete. Avg Loss: 0.044403
+[2025-08-25 23:12:14,051][training][INFO] - Epoch 4483, Batch 0/95, Loss: 0.043210
+[2025-08-25 23:12:15,178][training][INFO] - Epoch 4483, Batch 50/95, Loss: 0.042193
+[2025-08-25 23:12:16,158][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:16,159][training][INFO] - Epoch 4483 complete. Avg Loss: 0.044801
+[2025-08-25 23:12:16,197][training][INFO] - Epoch 4484, Batch 0/95, Loss: 0.047373
+[2025-08-25 23:12:17,320][training][INFO] - Epoch 4484, Batch 50/95, Loss: 0.039008
+[2025-08-25 23:12:18,297][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:18,297][training][INFO] - Epoch 4484 complete. Avg Loss: 0.045159
+[2025-08-25 23:12:18,334][training][INFO] - Epoch 4485, Batch 0/95, Loss: 0.039208
+[2025-08-25 23:12:19,464][training][INFO] - Epoch 4485, Batch 50/95, Loss: 0.044529
+[2025-08-25 23:12:20,449][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:20,450][training][INFO] - Epoch 4485 complete. Avg Loss: 0.044961
+[2025-08-25 23:12:20,486][training][INFO] - Epoch 4486, Batch 0/95, Loss: 0.049556
+[2025-08-25 23:12:21,607][training][INFO] - Epoch 4486, Batch 50/95, Loss: 0.050201
+[2025-08-25 23:12:22,586][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:22,587][training][INFO] - Epoch 4486 complete. Avg Loss: 0.045191
+[2025-08-25 23:12:22,622][training][INFO] - Epoch 4487, Batch 0/95, Loss: 0.048403
+[2025-08-25 23:12:23,746][training][INFO] - Epoch 4487, Batch 50/95, Loss: 0.050141
+[2025-08-25 23:12:24,724][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:24,724][training][INFO] - Epoch 4487 complete. Avg Loss: 0.045571
+[2025-08-25 23:12:24,763][training][INFO] - Epoch 4488, Batch 0/95, Loss: 0.044231
+[2025-08-25 23:12:25,891][training][INFO] - Epoch 4488, Batch 50/95, Loss: 0.047034
+[2025-08-25 23:12:26,875][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:26,876][training][INFO] - Epoch 4488 complete. Avg Loss: 0.045411
+[2025-08-25 23:12:26,914][training][INFO] - Epoch 4489, Batch 0/95, Loss: 0.045693
+[2025-08-25 23:12:28,042][training][INFO] - Epoch 4489, Batch 50/95, Loss: 0.045339
+[2025-08-25 23:12:29,026][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:29,026][training][INFO] - Epoch 4489 complete. Avg Loss: 0.044898
+[2025-08-25 23:12:29,063][training][INFO] - Epoch 4490, Batch 0/95, Loss: 0.043307
+[2025-08-25 23:12:30,199][training][INFO] - Epoch 4490, Batch 50/95, Loss: 0.043845
+[2025-08-25 23:12:31,185][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:31,185][training][INFO] - Epoch 4490 complete. Avg Loss: 0.044667
+[2025-08-25 23:12:31,224][training][INFO] - Epoch 4491, Batch 0/95, Loss: 0.047658
+[2025-08-25 23:12:32,357][training][INFO] - Epoch 4491, Batch 50/95, Loss: 0.048425
+[2025-08-25 23:12:33,344][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:33,344][training][INFO] - Epoch 4491 complete. Avg Loss: 0.045047
+[2025-08-25 23:12:33,384][training][INFO] - Epoch 4492, Batch 0/95, Loss: 0.047405
+[2025-08-25 23:12:34,527][training][INFO] - Epoch 4492, Batch 50/95, Loss: 0.050544
+[2025-08-25 23:12:35,510][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:35,510][training][INFO] - Epoch 4492 complete. Avg Loss: 0.045073
+[2025-08-25 23:12:35,547][training][INFO] - Epoch 4493, Batch 0/95, Loss: 0.041305
+[2025-08-25 23:12:36,674][training][INFO] - Epoch 4493, Batch 50/95, Loss: 0.044072
+[2025-08-25 23:12:37,661][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:37,661][training][INFO] - Epoch 4493 complete. Avg Loss: 0.045004
+[2025-08-25 23:12:37,698][training][INFO] - Epoch 4494, Batch 0/95, Loss: 0.048215
+[2025-08-25 23:12:38,831][training][INFO] - Epoch 4494, Batch 50/95, Loss: 0.043081
+[2025-08-25 23:12:39,816][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:39,817][training][INFO] - Epoch 4494 complete. Avg Loss: 0.044916
+[2025-08-25 23:12:39,854][training][INFO] - Epoch 4495, Batch 0/95, Loss: 0.047310
+[2025-08-25 23:12:40,984][training][INFO] - Epoch 4495, Batch 50/95, Loss: 0.046213
+[2025-08-25 23:12:41,969][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:41,970][training][INFO] - Epoch 4495 complete. Avg Loss: 0.045291
+[2025-08-25 23:12:42,005][training][INFO] - Epoch 4496, Batch 0/95, Loss: 0.047429
+[2025-08-25 23:12:43,139][training][INFO] - Epoch 4496, Batch 50/95, Loss: 0.041678
+[2025-08-25 23:12:44,124][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:44,124][training][INFO] - Epoch 4496 complete. Avg Loss: 0.045251
+[2025-08-25 23:12:44,160][training][INFO] - Epoch 4497, Batch 0/95, Loss: 0.038079
+[2025-08-25 23:12:45,295][training][INFO] - Epoch 4497, Batch 50/95, Loss: 0.045791
+[2025-08-25 23:12:46,276][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:46,276][training][INFO] - Epoch 4497 complete. Avg Loss: 0.044284
+[2025-08-25 23:12:46,312][training][INFO] - Epoch 4498, Batch 0/95, Loss: 0.041515
+[2025-08-25 23:12:47,444][training][INFO] - Epoch 4498, Batch 50/95, Loss: 0.046238
+[2025-08-25 23:12:48,433][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:48,433][training][INFO] - Epoch 4498 complete. Avg Loss: 0.044686
+[2025-08-25 23:12:48,469][training][INFO] - Epoch 4499, Batch 0/95, Loss: 0.045263
+[2025-08-25 23:12:49,606][training][INFO] - Epoch 4499, Batch 50/95, Loss: 0.042156
+[2025-08-25 23:12:50,588][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:50,588][training][INFO] - Epoch 4499 complete. Avg Loss: 0.044600
+[2025-08-25 23:12:50,626][training][INFO] - Epoch 4500, Batch 0/95, Loss: 0.041978
+[2025-08-25 23:12:51,759][training][INFO] - Epoch 4500, Batch 50/95, Loss: 0.039789
+[2025-08-25 23:12:52,753][training][INFO] - Learning rate: 0.000200
+[2025-08-25 23:12:52,753][training][INFO] - Epoch 4500 complete. Avg Loss: 0.044538
+[2025-08-25 23:12:52,808][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/tde_mfm/outputs/snapMMD_MFM_PBMC_6185a7840e1f3dab791245b6c5a393f3/checkpoint_epoch_4500.pt

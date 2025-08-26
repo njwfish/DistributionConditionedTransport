@@ -4,9 +4,6 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
-import hydra
-from transformers import AutoTokenizer
-from utils.hf_local import resolve_local_or_repo
 
 from virus_eval.utils import (
     setup_file_logger,
@@ -65,18 +62,6 @@ def main():
 
     encoder, predictor = instantiate_models(cfg, device, logger)
     load_weights(encoder, predictor, run_dir, device, logger, require_predictor=True)
-
-    # Instantiate generator and load weights
-    generator = hydra.utils.instantiate(cfg.generator)
-    ckpt_path = os.path.join(run_dir, "best_model.pt")
-    if not os.path.exists(ckpt_path):
-        raise FileNotFoundError(f"best_model.pt not found in {run_dir}")
-    state = torch.load(ckpt_path, map_location=device, weights_only=False)
-    if "generator_state_dict" not in state:
-        raise KeyError("Checkpoint missing 'generator_state_dict'")
-    generator.load_state_dict(state["generator_state_dict"])
-    generator.to(device)
-    generator.eval()
 
     # Load timepoint models trained in script 2 (latent -> index)
     mlp_path = os.path.join(args.models_dir, "mlp_sourceidx.pt")
@@ -204,129 +189,13 @@ def main():
         f"expected_target_idx={tgt_idx_last + 1}"
     )
 
-    # ------------------------------------------------------------
-    # Generator-based forecasting: generate sequences for held-out idx using
-    # source samples from second-to-last timepoint and predicted target latent
-    # ------------------------------------------------------------
-    esm_name = getattr(cfg.dataset, "esm_name", "facebook/esm2_t6_8M_UR50D")
-    max_len_esm = int(getattr(cfg.dataset, "max_length", 1200))
-    esm_tokenizer = AutoTokenizer.from_pretrained(resolve_local_or_repo(esm_name), trust_remote_code=True)
-
-    tokenized = torch.load(args.heldout_path)
-    m = len(tokenized)
-    src_time_idx = m - 2
-    tgt_time_idx = m - 1
-    src_item = tokenized[src_time_idx]
-    if "samples" not in src_item:
-        raise KeyError("Source item missing 'samples'.")
-    src_samples_all = src_item["samples"]
-
-    gen_mlp_preds: List[float] = []
-    gen_ridge_preds: List[float] = []
-
-    rng2 = np.random.RandomState(123)
-    for _ in range(args.num_control_sets):
-        # Sample a set from source timepoint (-2)
-        total_src = int(src_samples_all["progen_input_ids"].shape[0])
-        sel_idx = torch.from_numpy(rng2.permutation(total_src)[: args.set_size])
-
-        # Progen tokens for generator prompt
-        src_progen_ids = src_samples_all["progen_input_ids"][sel_idx]
-        src_progen_mask = src_samples_all["progen_attention_mask"][sel_idx]
-        x_source = {
-            "progen_input_ids": src_progen_ids.unsqueeze(0).to(device),
-            "progen_attention_mask": src_progen_mask.unsqueeze(0).to(device),
-        }
-
-        # ESM tokens for encoder latent of the source set
-        src_esm_ids = src_samples_all["esm_input_ids"][sel_idx]
-        src_esm_mask = src_samples_all["esm_attention_mask"][sel_idx]
-        sample_entry = {
-            "source_samples": {
-                "esm_input_ids": src_esm_ids,
-                "esm_attention_mask": src_esm_mask,
-            }
-        }
-        with torch.no_grad():
-            src_lat = encode_source_samples(
-                encoder=encoder,
-                sample_entry=sample_entry,
-                device=device,
-                target_set_size=args.set_size,
-            )  # [D]
-        src_lat_2d = src_lat.unsqueeze(0).to(device)
-        d1 = torch.tensor([float(src_time_idx)], device=device, dtype=torch.float32)
-        d2 = torch.tensor([float(tgt_time_idx)], device=device, dtype=torch.float32)
-        with torch.no_grad():
-            if getattr(predictor, "requires_condition", False):
-                tgt_lat_pred = predictor(src_lat_2d, condition_scalars=(d1, d2))
-            else:
-                tgt_lat_pred = predictor(src_lat_2d)
-
-        # Generate 16 sequences conditioned on (src_lat, tgt_lat_pred)
-        with torch.no_grad():
-            gen_ids, gen_texts = generator.sample(
-                x_source=x_source,
-                latent_source=src_lat_2d,
-                latent_target=tgt_lat_pred,
-                num_samples=args.set_size,
-                return_texts=True,
-            )
-        texts = gen_texts[0]
-        # Tokenize generated texts with ESM tokenizer
-        enc = esm_tokenizer(
-            texts,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=max_len_esm,
-        )
-        gen_esm_ids = enc["input_ids"].to(torch.long)
-        gen_esm_mask = enc["attention_mask"].to(torch.long)
-
-        gen_entry = {
-            "source_samples": {
-                "esm_input_ids": gen_esm_ids,
-                "esm_attention_mask": gen_esm_mask,
-            }
-        }
-        with torch.no_grad():
-            gen_lat = encode_source_samples(
-                encoder=encoder,
-                sample_entry=gen_entry,
-                device=device,
-                target_set_size=args.set_size,
-            )  # [D]
-
-        # Map generated latent to index
-        with torch.no_grad():
-            mlp_val = mlp(gen_lat.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
-        ridge_val = ridge_predict(gen_lat.unsqueeze(0).cpu().numpy())[0]
-        gen_mlp_preds.append(float(mlp_val))
-        gen_ridge_preds.append(float(ridge_val))
-
-    gen_mlp_mean = float(np.mean(gen_mlp_preds))
-    gen_mlp_std = float(np.std(gen_mlp_preds))
-    gen_mlp_round = int(np.rint(gen_mlp_mean))
-    gen_ridge_mean = float(np.mean(gen_ridge_preds))
-    gen_ridge_std = float(np.std(gen_ridge_preds))
-    gen_ridge_round = int(np.rint(gen_ridge_mean))
-
-    logger.info(
-        f"Generator forecast -> index: MLP mean±std={gen_mlp_mean:.2f}±{gen_mlp_std:.2f} (rounded={gen_mlp_round}), "
-        f"Ridge mean±std={gen_ridge_mean:.2f}±{gen_ridge_std:.2f} (rounded={gen_ridge_round}) | "
-        f"ground_truth_target_idx={tgt_time_idx}"
-    )
-
     # Side-by-side summary
     logger.info(
         f"Summary | ground_truth_target_idx={tgt_idx_last + 1} | "
-        f"Latent Forecast: MLP {mlp_forecast_mean:.2f}±{mlp_forecast_std:.2f} (rnd={mlp_forecast_round}), "
+        f"Forecast: MLP {mlp_forecast_mean:.2f}±{mlp_forecast_std:.2f} (rnd={mlp_forecast_round}), "
         f"Ridge {ridge_forecast_mean:.2f}±{ridge_forecast_std:.2f} (rnd={ridge_forecast_round}) | "
-        f"Control (held-out encoded): MLP {mlp_control_mean:.2f}±{mlp_control_std:.2f} (rnd={mlp_control_round}), "
-        f"Ridge {ridge_control_mean:.2f}±{ridge_control_std:.2f} (rnd={ridge_control_round}) | "
-        f"Generator Forecast: MLP {gen_mlp_mean:.2f}±{gen_mlp_std:.2f} (rnd={gen_mlp_round}), "
-        f"Ridge {gen_ridge_mean:.2f}±{gen_ridge_std:.2f} (rnd={gen_ridge_round})"
+        f"Control: MLP {mlp_control_mean:.2f}±{mlp_control_std:.2f} (rnd={mlp_control_round}), "
+        f"Ridge {ridge_control_mean:.2f}±{ridge_control_std:.2f} (rnd={ridge_control_round})"
     )
 
 

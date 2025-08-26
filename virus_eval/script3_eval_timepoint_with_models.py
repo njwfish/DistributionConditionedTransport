@@ -121,6 +121,42 @@ def main():
     mse_ridge_on_pred = float(mean_squared_error(target_indices, ridge_preds_on_pred))
     logger.info(f"F(p(x_source)) vs target_idx MSE | MLP={mse_mlp_on_pred:.4f} | Ridge={mse_ridge_on_pred:.4f}")
 
+    # Compute Spearman correlations (rho and p-value) vs target indices for predicted and true target latents
+    def spearman_corr(a: np.ndarray, b: np.ndarray):
+        try:
+            from scipy.stats import spearmanr  # type: ignore
+            rho, p = spearmanr(a.reshape(-1), b.reshape(-1))
+            return float(rho), float(p)
+        except Exception:
+            # Fallback: rho via rank-Pearson, p-value unavailable
+            ra = np.argsort(np.argsort(a.reshape(-1)))
+            rb = np.argsort(np.argsort(b.reshape(-1)))
+            ra = ra - ra.mean()
+            rb = rb - rb.mean()
+            denom = float(np.sqrt(np.sum(ra ** 2) * np.sum(rb ** 2)) + 1e-12)
+            rho = float(np.sum(ra * rb) / denom)
+            logger.warning("scipy not available; reporting Spearman rho without p-value (NaN).")
+            return rho, float("nan")
+
+    # Prepare flat predictions for true target latents
+    with torch.no_grad():
+        mlp_preds_on_true = mlp(torch.from_numpy(true_target_latents).to(device)).detach().cpu().numpy()
+    ridge_preds_on_true = ridge_predict(true_target_latents)
+
+    rho_mlp_pred, p_mlp_pred = spearman_corr(mlp_preds_on_pred, target_indices)
+    rho_mlp_true, p_mlp_true = spearman_corr(mlp_preds_on_true, target_indices)
+    rho_ridge_pred, p_ridge_pred = spearman_corr(ridge_preds_on_pred, target_indices)
+    rho_ridge_true, p_ridge_true = spearman_corr(ridge_preds_on_true, target_indices)
+
+    logger.info(
+        f"Spearman (MLP) | F(p(x_src)) vs tgt_idx: rho={rho_mlp_pred:.4f}, p={p_mlp_pred:.3e}  "
+        f"| control F(x_tgt_true) vs tgt_idx: rho={rho_mlp_true:.4f}, p={p_mlp_true:.3e}"
+    )
+    logger.info(
+        f"Spearman (Ridge) | F(p(x_src)) vs tgt_idx: rho={rho_ridge_pred:.4f}, p={p_ridge_pred:.3e}  "
+        f"| control F(x_tgt_true) vs tgt_idx: rho={rho_ridge_true:.4f}, p={p_ridge_true:.3e}"
+    )
+
     # Group predictions by (source_idx, target_idx) and report mean±std and rounded means
     pair_to_pred_latents: Dict[Tuple[int, int], List[np.ndarray]] = defaultdict(list)
     for i in range(n):

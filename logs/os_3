@@ -1,0 +1,27 @@
+Analyzing dataset=Repressilator, weight_mode=uniform, selective_pairing_mode=single_step across all seeds
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (1, 1, 200, 3) (1, 200, 3) torch.Size([200, 3])
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (1, 1, 200, 3) (1, 200, 3) torch.Size([200, 3])
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (1, 1, 200, 3) (1, 200, 3) torch.Size([200, 3])
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (1, 1, 200, 3) (1, 200, 3) torch.Size([200, 3])
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (1, 1, 200, 3) (1, 200, 3) torch.Size([200, 3])
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (1, 1, 200, 3) (1, 200, 3) torch.Size([200, 3])
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (1, 1, 200, 3) (1, 200, 3) torch.Size([200, 3])
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (1, 1, 200, 3) (1, 200, 3) torch.Size([200, 3])
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (1, 1, 200, 3) (1, 200, 3) torch.Size([200, 3])
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (1, 1, 200, 3) (1, 200, 3) torch.Size([200, 3])
+Individual results (by seed):
+  Seed 0: MMD = 2.539734, MMD^2 = 6.450247, EMD = n/a
+  Seed 1: MMD = 2.611927, MMD^2 = 6.822165, EMD = n/a
+  Seed 2: MMD = 2.648705, MMD^2 = 7.015637, EMD = n/a
+  Seed 3: MMD = 2.592532, MMD^2 = 6.721222, EMD = n/a
+  Seed 4: MMD = 2.576722, MMD^2 = 6.639499, EMD = n/a
+  Seed 5: MMD = 2.764350, MMD^2 = 7.641632, EMD = n/a
+  Seed 6: MMD = 2.571164, MMD^2 = 6.610886, EMD = n/a
+  Seed 7: MMD = 2.802429, MMD^2 = 7.853610, EMD = n/a
+  Seed 8: MMD = 2.719160, MMD^2 = 7.393828, EMD = n/a
+  Seed 9: MMD = 2.709101, MMD^2 = 7.339231, EMD = n/a
+MMD: 2.653582 ± 0.085414
+MMD^2: 7.048796 ± 0.456059
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (1, 1, 200, 3) (200, 3)
+
+✓ Analysis complete. Figures and logs saved to: figures/snapMMD_MFM_Repressilator_Repressilator_uniform_single_step_1/

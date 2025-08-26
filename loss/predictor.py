@@ -2,9 +2,10 @@ import torch
     
 
 class PredictorLossManager:
-    def __init__(self, use_predicted_latent=False, predictor_loss_weight=1.0):
+    def __init__(self, use_predicted_latent=False, predictor_loss_weight=1.0, generator_source_only=False):
         self.use_predicted_latent = use_predicted_latent
         self.predictor_loss_weight = predictor_loss_weight
+        self.generator_source_only = generator_source_only
 
     def loss(self, encoder, generator, predictor, batch, device):
         losses = {}
@@ -29,6 +30,8 @@ class PredictorLossManager:
 
             # compute generator loss
             target_latent_for_generator = target_latent if not self.use_predicted_latent else pred_target_latent
+            if self.generator_source_only:
+                target_latent_for_generator = None
 
             recon_loss = generator.loss(
                 source_samples.view(-1, *source_samples.shape[2:]), 
@@ -67,6 +70,8 @@ class PredictorLossManager:
                 predictor_loss, pred_target_latent = predictor.loss(source_latent, target_latent)
 
             target_latent_for_generator = target_latent if not self.use_predicted_latent else pred_target_latent
+            if self.generator_source_only:
+                target_latent_for_generator = None
 
             recon_loss = generator.loss(source_samples, target_samples, source_latent, target_latent_for_generator)
 

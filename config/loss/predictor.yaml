@@ -2,3 +2,4 @@
 _target_: loss.predictor.PredictorLossManager
 use_predicted_latent: ${experiment.use_predicted_latent}
 predictor_loss_weight: ${experiment.predictor_loss_weight}
+generator_source_only: ${experiment.generator_source_only}

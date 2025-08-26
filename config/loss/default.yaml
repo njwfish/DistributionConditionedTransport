@@ -1,2 +1,3 @@
 # @package _global_.loss
 _target_: loss.default.LossManager
+generator_source_only: ${experiment.generator_source_only}

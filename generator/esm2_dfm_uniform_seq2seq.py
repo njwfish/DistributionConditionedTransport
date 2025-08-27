@@ -221,9 +221,12 @@ class ESM2_DFM_Generator(nn.Module):
         labels = input_ids_target.clone()
         if attention_mask_target is not None:
             labels[attention_mask_target == 0] = -100
+        # TODO: why are we transposing here?
         loss = F.cross_entropy(logits.transpose(1, 2), labels, ignore_index=-100, reduction='mean')
         return loss
 
+    # TODO: force the last token to always be the EOS token.
+    
     @torch.no_grad()
     def sample(self, x_source, latent_source: torch.Tensor, latent_target: torch.Tensor, num_samples: int = 1, return_texts: bool = False):
         """Mutational sampling starting from source sequences with discrete flow steps.

@@ -51,7 +51,7 @@ freeze_esm2: false
 
 # ProGen2 settings
 progen2_model_name: 'hugohrban/progen2-base'
-max_length: 1000
+seq_length: 1000
 tokenize: false 
 condition_dim: 32
 freeze_progen2: false

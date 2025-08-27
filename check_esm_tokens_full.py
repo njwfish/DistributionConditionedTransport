@@ -147,7 +147,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Check tokens across dataset for ESM2 and ProGen2 and detect non-standard AA tokens (ignoring attention mask)")
-    parser.add_argument("--data", default="data/spikeprot0430/virus_tokenized_data_for_tde_downsampled100.pt", help="Path to aggregated dataset .pt")
+    parser.add_argument("--data", default="data/spikeprot0430/virus_tokenized_data_for_tde_downsampled100_filtered_test.pt", help="Path to aggregated dataset .pt")
     parser.add_argument("--esm_name", default="facebook/esm2_t6_8M_UR50D", help="ESM model id or local path")
     parser.add_argument("--progen_name", default="hugohrban/progen2-base", help="ProGen2 model id or local path")
     parser.add_argument("--sort", choices=["id", "count"], default="id", help="Sort token table by id or by count")

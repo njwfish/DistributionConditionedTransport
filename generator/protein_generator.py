@@ -361,14 +361,17 @@ class Progen2Generator(nn.Module):
         
         target_ids = x_target['progen_input_ids']
         target_attention_mask = x_target['progen_attention_mask']
+        # Remove BOS from target for conditioning and loss; predict only amino acids
+        target_ids_wo_bos = target_ids[..., 1:]
+        target_attention_mask_wo_bos = target_attention_mask[..., 1:]
         
         # Concatenate source + <|endoftext|> + target for conditioning on source content
         sep_shape = list(source_ids.shape[:-1]) + [1]
         sep_ids = torch.full(sep_shape, fill_value=self.sep_token_id, dtype=source_ids.dtype, device=source_ids.device)
         sep_mask = torch.ones_like(sep_ids, dtype=source_attention_mask.dtype)
         
-        concat_ids = torch.cat([source_ids, sep_ids, target_ids], dim=-1)
-        concat_attention_mask = torch.cat([source_attention_mask, sep_mask, target_attention_mask], dim=-1)
+        concat_ids = torch.cat([source_ids, sep_ids, target_ids_wo_bos], dim=-1)
+        concat_attention_mask = torch.cat([source_attention_mask, sep_mask, target_attention_mask_wo_bos], dim=-1)
         
         # Forward pass on concatenated input
         logits = self.model(concat_ids, concat_attention_mask, latent_source, latent_target)
@@ -377,13 +380,12 @@ class Progen2Generator(nn.Module):
         # Prepare labels: only compute loss on the target portion
         shift_labels_pre = concat_ids[..., 1:]
         source_len = source_ids.shape[-1]
-        target_len = target_ids.shape[-1]
+        target_len_wo_bos = target_ids_wo_bos.shape[-1]
         
-        # Build a mask that selects only the target amino-acid tokens (exclude target BOS)
+        # Build a mask that selects only the target amino-acid tokens (target without BOS)
+        # TODO: still, make sure this should be source_len + 1?
         labels_mask = torch.zeros_like(shift_labels_pre, dtype=target_attention_mask.dtype)
-        # TODO: shouldn't it be source_len + 1?
-        # TODO: IIIIIIIIIIIIIIIIIISSSSSSSSSSSSSSSSSSSSSSSSUUUUUUUUUUUUUUUUUUUUUUUUUUEEEEEEEEEEEEEEEEEEEEEEEEEEE
-        labels_mask[..., source_len:] = target_attention_mask
+        labels_mask[..., -target_len_wo_bos:] = target_attention_mask_wo_bos
         
         # TODO: are we sure that -100 is the correct ignore index?
         # Apply mask using ignore_index=-100

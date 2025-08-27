@@ -282,7 +282,7 @@ class Progen2Generator(nn.Module):
         freeze_progen2=False,
         condition_method="prefix",
         temperature=1.0,
-        max_length=512,
+        seq_length=1000,
         use_gradient_checkpointing: bool = False,
         precision: Optional[str] = None,
         forward_microbatch_size: Optional[int] = None,
@@ -297,7 +297,7 @@ class Progen2Generator(nn.Module):
             freeze_progen2: Whether to freeze the Progen2 parameters
             condition_method: How to condition Progen2
             temperature: Sampling temperature
-            max_length: Maximum length for generation
+            seq_length: sequence length (constant for all sequences)
         """
         super().__init__()
 
@@ -313,7 +313,7 @@ class Progen2Generator(nn.Module):
         )
         
         self.temperature = temperature
-        self.max_length = max_length
+        self.seq_length = seq_length
         
         # Initialize tokenizer (for generation)
         self.tokenizer = AutoTokenizer.from_pretrained(resolve_local_or_repo(progen2_name), trust_remote_code=True)
@@ -333,6 +333,8 @@ class Progen2Generator(nn.Module):
         # TODO: is this correct?
         self.pad_token_id = self.tokenizer.pad_token_id if (hasattr(self.tokenizer, 'pad_token_id') and self.tokenizer.pad_token_id is not None) else 0        
     
+    # TODO: why does the ESM-DFM model do all this reshaping work, while the Progen2 code doesn't?
+    # TODO: throughout this code, make sure the attention mask is actually both correct (as loaded from the dataset) and used correctly.
     def loss(self, x_source, x_target, latent_source, latent_target):
         """
         Calculate the loss for the generator.
@@ -377,9 +379,10 @@ class Progen2Generator(nn.Module):
         source_len = source_ids.shape[-1]
         target_len = target_ids.shape[-1]
         
-        # Build a mask that selects only the target tokens in the shifted labels
+        # Build a mask that selects only the target amino-acid tokens (exclude target BOS)
         labels_mask = torch.zeros_like(shift_labels_pre, dtype=target_attention_mask.dtype)
         # TODO: shouldn't it be source_len + 1?
+        # TODO: IIIIIIIIIIIIIIIIIISSSSSSSSSSSSSSSSSSSSSSSSUUUUUUUUUUUUUUUUUUUUUUUUUUEEEEEEEEEEEEEEEEEEEEEEEEEEE
         labels_mask[..., source_len:] = target_attention_mask
         
         # TODO: are we sure that -100 is the correct ignore index?
@@ -434,8 +437,7 @@ class Progen2Generator(nn.Module):
         batch_size = latent_source.size(0)
         
         # Get BOS token ID for start of generation
-        # TODO: do we really want to default to bos_token_id = 1here?
-
+        # TODO: do we really want to default to bos_token_id = 1 here?
         if hasattr(self.tokenizer, 'bos_token_id') and self.tokenizer.bos_token_id is not None:
             bos_token_id = self.tokenizer.bos_token_id
         else:
@@ -456,7 +458,7 @@ class Progen2Generator(nn.Module):
                 noisy_latent_source = latent_source
                 noisy_latent_target = latent_target
             
-            # TODO: I might be wrong but I think this will lead to weird behavior if we flatten the inputs beforehand (which is done in training.py during microbatching for example).
+            # TODO: remove because unnecessary because I already throw an error when inputs were flattened?
             # Build prompt for this sample: choose different source sequences if available
             if src_ids_all.dim() == 3:
                 set_size = src_ids_all.shape[1]
@@ -467,32 +469,28 @@ class Progen2Generator(nn.Module):
                 src_ids = src_ids_all
                 src_mask = src_mask_all
             
-            # TODO: maybe overhaul everything below, I feel like it is unnecessarily convoluted.
-            src_lengths = src_mask.sum(dim=-1).to(torch.long)
-            max_src_len = int(src_lengths.max().item() if src_lengths.numel() > 0 else 0)
-            max_prompt_len = max_src_len + 1  # +1 for separator
-            
-            # TODO: make sure we really want to fill with pad token here.
-            start_ids = torch.full((batch_size, max_prompt_len), fill_value=self.pad_token_id, dtype=src_ids.dtype, device=device)
-            start_mask = torch.zeros((batch_size, max_prompt_len), dtype=src_mask.dtype, device=device)
-            
-            for i in range(batch_size):
-                L = int(src_lengths[i].item())
-                if L > 0:
-                    start_ids[i, :L] = src_ids[i, :L]
-                start_ids[i, L] = self.sep_token_id
-                start_mask[i, : L + 1] = 1
+            # Simplified: all source sequences have fixed length equal to self.seq_length
+            if src_ids.size(-1) != self.seq_length:
+                raise ValueError(
+                    f"Expected source sequence length {self.seq_length}, got {src_ids.size(-1)}"
+                )
+            sep_ids = torch.full((batch_size, 1), fill_value=self.sep_token_id, dtype=src_ids.dtype, device=device)
+            start_ids = torch.cat([src_ids, sep_ids], dim=-1)
+            start_mask = torch.ones((batch_size, start_ids.size(1)), dtype=src_mask.dtype, device=device)
                 
             with torch.no_grad():
-                out = self._generate_text(
+                generated_target = self._generate_text(
                     start_ids.clone(),
                     start_mask.clone(),
                     noisy_latent_source,
                     noisy_latent_target,
-                    self.max_length,
+                    self.seq_length - 1,
                     self.temperature
                 )
-            all_samples.append(out)
+            # Prepend BOS to match input format [BOS + target_amino_acids]
+            bos_ids_batch = torch.full((batch_size, 1), fill_value=bos_token_id, dtype=generated_target.dtype, device=device)
+            full_target = torch.cat([bos_ids_batch, generated_target], dim=-1)
+            all_samples.append(full_target)
         
         # Combine samples 
         result = torch.stack(all_samples, dim=1)  # [batch_size, num_samples, seq_len]
@@ -517,7 +515,7 @@ class Progen2Generator(nn.Module):
 
     # TODO: will the generated sequences always be exactly 1000 amino acids long?
     # TODO: in general, I need to go over this method in more detail to make sure everything is correct.
-    def _generate_text(self, input_ids, attention_mask, latent_source, latent_target, max_length, temperature=1.0):
+    def _generate_text(self, input_ids, attention_mask, latent_source, latent_target, target_length, temperature=1.0):
         """
         Helper method for text generation using the conditioned Progen2 model.
         
@@ -525,11 +523,11 @@ class Progen2Generator(nn.Module):
             input_ids: Starting token IDs
             attention_mask: Attention mask
             latent: Latent distribution embedding
-            max_length: Maximum sequence length
+            target_length: number of target tokens to generate (excluding BOS)
             temperature: Sampling temperature
             
         Returns:
-            Generated token IDs
+            Generated target token IDs (length == target_length)
         """
         batch_size = input_ids.shape[0]
         device = input_ids.device
@@ -538,20 +536,39 @@ class Progen2Generator(nn.Module):
         cur_input_ids = input_ids
         cur_attention_mask = attention_mask
         
-        # Get EOS token ID for stopping generation
-        eos_token_id = self.tokenizer.eos_token_id if hasattr(self.tokenizer, 'eos_token_id') else None
-        
-        # Track which sequences are finished
-        finished = torch.zeros(batch_size, dtype=torch.bool, device=device)
-        
-        # Generate tokens up to max_length or until all sequences have EOS
-        for _ in range(max_length - cur_input_ids.size(1)):
+        # Build list of allowed amino acid token ids (20 standard AAs)
+        standard_amino_acids = [
+            'A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K',
+            'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y'
+        ]
+        allowed_token_ids = [self.tokenizer.convert_tokens_to_ids(t) for t in standard_amino_acids]
+        # Filter out any invalid ids
+        allowed_token_ids = [tid for tid in allowed_token_ids if isinstance(tid, int) and tid >= 0]
+        if len(allowed_token_ids) != 20:
+            raise ValueError("Tokenizer did not return valid ids for standard amino acids; cannot sample.")
+
+        allowed_mask = None  # lazily initialized with correct vocab size
+
+        # Generate exactly target_length tokens for the target sequence
+        for _ in range(target_length):
             # Forward pass
             with torch.no_grad():
                 logits = self.model(cur_input_ids, cur_attention_mask, latent_source, latent_target)
             
             # Get logits for next token prediction (last position)
             next_token_logits = logits[:, -1, :] / temperature
+
+            # Initialize allowed mask on first step (depends on vocab size)
+            if allowed_mask is None:
+                vocab_size = next_token_logits.size(-1)
+                # Keep only ids within vocab range
+                allowed_mask = torch.zeros(vocab_size, dtype=torch.bool, device=next_token_logits.device)
+                allowed_mask[torch.tensor(allowed_token_ids, dtype=torch.long, device=next_token_logits.device)] = True
+
+            # Restrict sampling strictly to allowed amino acids
+            disallowed = ~allowed_mask
+            # TODO: make sure reshaping/expanding is correct here.
+            next_token_logits = next_token_logits.masked_fill(disallowed.unsqueeze(0).expand_as(next_token_logits), float('-inf'))
             
             # Apply softmax to get probabilities
             probs = F.softmax(next_token_logits, dim=-1)
@@ -559,27 +576,12 @@ class Progen2Generator(nn.Module):
             # Sample next token
             next_token = torch.multinomial(probs, 1)
             
-            # If a sequence is finished, use EOS token
-            if eos_token_id is not None:
-                next_token = torch.where(
-                    finished.unsqueeze(1),
-                    torch.full_like(next_token, eos_token_id),
-                    next_token
-                )
-            
             # Append next token to sequence
             cur_input_ids = torch.cat([cur_input_ids, next_token], dim=1)
             
             # Update attention mask
             next_mask = torch.ones_like(next_token)
             cur_attention_mask = torch.cat([cur_attention_mask, next_mask], dim=1)
-            
-            # Mark sequences as finished if EOS token is generated
-            if eos_token_id is not None:
-                finished = finished | (next_token.squeeze(-1) == eos_token_id)
-                
-                # If all sequences are finished, stop generation
-                if finished.all():
-                    break
         
-        return cur_input_ids
+        # Return only the newly generated target tokens
+        return cur_input_ids[:, -target_length:]

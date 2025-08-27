@@ -73,11 +73,15 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
             time_embed = transformer_timestep_embedding(t, self.hidden_size)[:, None, :]
         else:
             time_embed = transformer_timestep_embedding(t * 1000, self.hidden_size)[:, None, :]
+        # Ensure time embedding matches hidden_states dtype for safe addition
+        time_embed = time_embed.to(hidden_states.dtype)
         hidden_states = hidden_states + time_embed
 
         # TODO: currently the conditioning here is only done in the additive mode. I have code for all cases, just need to add it back in.
         # Latent conditioning
         combined_latent = torch.cat([latent_source, latent_target], dim=-1)
+        # Match conditioning input dtype to model/hidden dtype to avoid Linear dtype mismatch
+        combined_latent = combined_latent.to(hidden_states.dtype)
         cond = self.condition_proj(combined_latent).to(hidden_states.dtype)  # (B, D)
         hidden_states = hidden_states + cond.unsqueeze(1)
 
@@ -103,7 +107,7 @@ class ESM2_DFM_Generator(nn.Module):
         condition_method: str = "additive",
         scale_time: bool = False,
         temperature: float = 1.0,
-        max_length: Optional[int] = None,
+        seq_length: Optional[int] = 1000,
         use_gradient_checkpointing: bool = False,
         precision: Optional[str] = None,
     ):
@@ -154,7 +158,14 @@ class ESM2_DFM_Generator(nn.Module):
         self.aa_ids = [self.tokenizer.convert_tokens_to_ids(a) for a in aa_tokens]
 
         self.temperature = temperature
-        self.max_length = max_length
+        self.seq_length = seq_length
+
+        # TODO: make sure X token ID is really correct.
+        # Token id for ambiguous residue 'X' to optionally ignore in loss
+        try:
+            self.x_id = self.tokenizer.convert_tokens_to_ids('X')
+        except Exception:
+            self.x_id = None
 
     # TODO: make sure the attention mask of the dataset is actually correct (I think it should basically be all 1s).
     def loss(self, x_source, x_target, latent_source: torch.Tensor, latent_target: torch.Tensor) -> torch.Tensor:
@@ -188,25 +199,48 @@ class ESM2_DFM_Generator(nn.Module):
         device = input_ids_target.device
         B, L = input_ids_target.shape
 
-        # Sample times and build corrupted xt by uniform amino acid noise on source sequence
+        # Sample times and build xt by mixing source/target only on differing positions (no random AA noise)
         t = torch.rand((B,), device=device)
-        xt = input_ids_source.clone()
 
-        # Build uniform noise across AA tokens only
-        aa_ids_tensor = torch.tensor(self.aa_ids, device=device)
-        uniform_idx = torch.randint(0, aa_ids_tensor.numel(), (B, L), device=device)
-        uniform_noise = aa_ids_tensor[uniform_idx]
+        # Start from target; as t -> 0 move differing positions towards source
+        xt = input_ids_target.clone()
 
-        corrupt_mask = (torch.rand((B, L), device=device) < (1 - t[:, None]))
-        # Keep BOS/EOS fixed
+        # TODO: unnecessary, I already preprocssed the data to have no padding.
+        # Valid (non-padded) positions
+        if attention_mask_source is not None and attention_mask_target is not None:
+            valid_mask = (attention_mask_source > 0) & (attention_mask_target > 0)
+        elif attention_mask_target is not None:
+            valid_mask = (attention_mask_target > 0)
+        elif attention_mask_source is not None:
+            valid_mask = (attention_mask_source > 0)
+        else:
+            valid_mask = torch.ones((B, L), dtype=torch.bool, device=device)
+
+        # Positions where source and target differ (within valid positions), excluding BOS/EOS
+        diff_mask = (input_ids_source != input_ids_target) & valid_mask
         if self.bos_id is not None:
-            corrupt_mask[:, 0] = False
+            diff_mask[:, 0] = False
         if self.eos_id is not None:
-            corrupt_mask[:, -1] = False
-        # Respect attention mask of source sequence
-        if attention_mask_source is not None:
-            corrupt_mask = corrupt_mask & (attention_mask_source > 0)
-        xt[corrupt_mask] = uniform_noise[corrupt_mask]
+            diff_mask[:, -1] = False
+
+        # Flip differing positions to source with probability (1 - t)
+        flip_to_source = (torch.rand((B, L), device=device) < (1 - t[:, None])) & diff_mask
+        xt[flip_to_source] = input_ids_source[flip_to_source]
+
+        # Enforce BOS/EOS tokens at boundaries
+        if self.bos_id is not None:
+            xt[:, 0] = self.bos_id
+        if self.eos_id is not None:
+            xt[:, -1] = self.eos_id
+
+        # Ensure latent dtypes match the model parameters (handles BF16/FP16 vs FP32)
+        try:
+            model_dtype = next(self.model.parameters()).dtype
+        except StopIteration:
+            model_dtype = None
+        if model_dtype is not None:
+            latent_source = latent_source.to(model_dtype)
+            latent_target = latent_target.to(model_dtype)
 
         # Forward through conditioned ESM
         logits = self.model(
@@ -221,6 +255,10 @@ class ESM2_DFM_Generator(nn.Module):
         labels = input_ids_target.clone()
         if attention_mask_target is not None:
             labels[attention_mask_target == 0] = -100
+        # Ignore ambiguous 'X' residues in target
+
+        labels[labels == self.x_id] = -100
+        
         # TODO: why are we transposing here?
         loss = F.cross_entropy(logits.transpose(1, 2), labels, ignore_index=-100, reduction='mean')
         return loss
@@ -273,7 +311,13 @@ class ESM2_DFM_Generator(nn.Module):
             if self.bos_id is not None:
                 xt[:, 0] = self.bos_id
             if self.eos_id is not None:
+                xt[:, -1] = self.eos_id
                 attention_mask[:, -1] = 1
+
+            # Enforce expected sequence length
+            expected_len = self.seq_length
+            if xt.size(1) != expected_len:
+                raise ValueError(f"Source sequence length {xt.size(1)} does not match expected seq_length {expected_len}")
 
             # Discrete flow stepping from t=0 to 1
             t = 0.0
@@ -284,8 +328,8 @@ class ESM2_DFM_Generator(nn.Module):
                     input_ids=xt,
                     attention_mask=attention_mask,
                     t=torch.full((B,), t, device=device),
-                    latent_source=latent_source,
-                    latent_target=latent_target,
+                    latent_source=latent_source.to(next(self.model.parameters()).dtype),
+                    latent_target=latent_target.to(next(self.model.parameters()).dtype),
                 )
                 # Temperature scaling
                 logits = logits / max(self.temperature, 1e-8)

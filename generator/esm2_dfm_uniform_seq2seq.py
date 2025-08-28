@@ -73,16 +73,12 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
             time_embed = transformer_timestep_embedding(t, self.hidden_size)[:, None, :]
         else:
             time_embed = transformer_timestep_embedding(t * 1000, self.hidden_size)[:, None, :]
-        # Ensure time embedding matches hidden_states dtype for safe addition
-        time_embed = time_embed.to(hidden_states.dtype)
         hidden_states = hidden_states + time_embed
 
         # TODO: currently the conditioning here is only done in the additive mode. I have code for all cases, just need to add it back in.
         # Latent conditioning
         combined_latent = torch.cat([latent_source, latent_target], dim=-1)
-        # Match conditioning input dtype to model/hidden dtype to avoid Linear dtype mismatch
-        combined_latent = combined_latent.to(hidden_states.dtype)
-        cond = self.condition_proj(combined_latent).to(hidden_states.dtype)  # (B, D)
+        cond = self.condition_proj(combined_latent)  # (B, D)
         hidden_states = hidden_states + cond.unsqueeze(1)
 
         # Project to vocabulary logits
@@ -108,8 +104,6 @@ class ESM2_DFM_Generator(nn.Module):
         scale_time: bool = False,
         temperature: float = 1.0,
         seq_length: Optional[int] = 1000,
-        use_gradient_checkpointing: bool = False,
-        precision: Optional[str] = None,
         sample_dt: float = 0.1,
     ):
         super().__init__()
@@ -127,15 +121,7 @@ class ESM2_DFM_Generator(nn.Module):
             scale_time=scale_time,
         )
 
-        # Precision setup (optional)
-        if precision is not None:
-            p = precision.lower()
-            if p in ("fp16", "half"):
-                self.model = self.model.to(dtype=torch.float16)
-            elif p in ("bf16", "bfloat16"):
-                self.model = self.model.to(dtype=torch.bfloat16)
-            elif p in ("fp32", "float32"):
-                self.model = self.model.to(dtype=torch.float32)
+        # Precision setup removed; model runs in default dtype
 
         # TODO: I think this is freezing all parameters including the language model head, right? Or wrong? If right, change.
         # TODO: in any case it would be good to have the option to only un-freeze the language model head.
@@ -224,14 +210,7 @@ class ESM2_DFM_Generator(nn.Module):
         if self.eos_id is not None:
             xt[:, -1] = self.eos_id
 
-        # Ensure latent dtypes match the model parameters (handles BF16/FP16 vs FP32)
-        try:
-            model_dtype = next(self.model.parameters()).dtype
-        except StopIteration:
-            model_dtype = None
-        if model_dtype is not None:
-            latent_source = latent_source.to(model_dtype)
-            latent_target = latent_target.to(model_dtype)
+        # Removed latent dtype alignment to model parameters
 
         # Forward through conditioned ESM
         logits = self.model(
@@ -318,8 +297,8 @@ class ESM2_DFM_Generator(nn.Module):
                     input_ids=xt,
                     attention_mask=attention_mask,
                     t=torch.full((B,), t, device=device),
-                    latent_source=latent_source.to(next(self.model.parameters()).dtype),
-                    latent_target=latent_target.to(next(self.model.parameters()).dtype),
+                    latent_source=latent_source,
+                    latent_target=latent_target,
                 )
                 # Temperature scaling
                 logits = logits / max(self.temperature, 1e-8)

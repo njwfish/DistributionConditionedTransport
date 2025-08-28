@@ -52,11 +52,8 @@ max_length: 1000
 tokenize: false 
 condition_dim: 32
 freeze_progen2: false
-# Memory optimization settings  
-use_gradient_checkpointing: true
-precision: bf16
-gradient_accumulation_steps: 4  # Accumulate gradients to reduce memory per step
-set_microbatch_size: 2  # microbatch size over set dimension in trainer (>=1)
+gradient_accumulation_steps: 1
+set_microbatch_size: 1
 debug_memory_logging: false  # enable/disable GPU debug memory logger
 condition_method: prefix
 temperature: 1.0

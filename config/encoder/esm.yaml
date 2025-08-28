@@ -8,4 +8,3 @@ freeze: false
 dist_type: 'tx'
 layers: 2
 heads: 4
-use_gradient_checkpointing: ${experiment.use_gradient_checkpointing}

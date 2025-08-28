@@ -22,7 +22,7 @@ class Trainer:
         mask_context_prob=0.0,
         sub_epoch=None,
         gradient_accumulation_steps=1,
-        use_amp=True,
+        use_amp=False,
         use_esm_tokens=False,
     ):
         """
@@ -52,7 +52,7 @@ class Trainer:
         self.mask_context_prob = mask_context_prob
         self.gradient_accumulation_steps = gradient_accumulation_steps
         self.use_amp = use_amp
-        
+        self.use_esm_tokens = use_esm_tokens
         self.logger = logging.getLogger(__name__)
         self.best_loss = float('inf')
         self.no_improve_count = 0
@@ -303,22 +303,10 @@ class Trainer:
         start_time = time.time()
         self.logger.info(f"Starting training on {device}...")
         
-        # AMP autocast and GradScaler setup (single, minimal OOM mitigation)
-        autocast_enabled = bool(self.use_amp and isinstance(device, torch.device) and device.type == "cuda")
-        # Determine precision from config (if provided) to set autocast dtype and scaler usage
+        # Disable AMP/mixed precision
+        autocast_enabled = False
         amp_dtype = None
-        if autocast_enabled:
-            try:
-                precision_str = str(config.experiment.precision).lower() if (config is not None and hasattr(config, "experiment") and hasattr(config.experiment, "precision")) else ""
-            except Exception:
-                precision_str = ""
-            if precision_str in ("bf16", "bfloat16"):
-                amp_dtype = torch.bfloat16
-            elif precision_str in ("fp16", "half"):
-                amp_dtype = torch.float16
-        # GradScaler should only be enabled for FP16, not BF16
-        use_scaler = bool(autocast_enabled and amp_dtype == torch.float16)
-        scaler = torch.cuda.amp.GradScaler(enabled=use_scaler)
+        use_scaler = False
 
         # Main training loop
         for epoch in range(start_epoch, self.num_epochs):
@@ -343,21 +331,11 @@ class Trainer:
                 optimizer.zero_grad(set_to_none=True)
 
                 # Single-graph forward/backward path (microbatching removed)
-                _autocast_kwargs = {"enabled": autocast_enabled}
-                if amp_dtype is not None:
-                    _autocast_kwargs["dtype"] = amp_dtype
-                with torch.cuda.amp.autocast(**_autocast_kwargs):
-                    loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
+                loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
 
                 # Backward + step with optional gradient scaling
-
-                if use_scaler:
-                    scaler.scale(loss).backward()
-                    scaler.step(optimizer)
-                    scaler.update()
-                else:
-                    loss.backward()
-                    optimizer.step()
+                loss.backward()
+                optimizer.step()
 
                 
                 
@@ -617,29 +595,15 @@ class Trainer:
         total_loss = 0
         num_batches = 0
         
-        # Use autocast during evaluation as well to reduce memory footprint
-        autocast_enabled = bool(self.use_amp and isinstance(device, torch.device) and device.type == "cuda")
-        # Match train-time precision selection
+        # No autocast in evaluation
+        autocast_enabled = False
         amp_dtype = None
-        if autocast_enabled:
-            try:
-                precision_str = str(config.experiment.precision).lower() if (config is not None and hasattr(config, "experiment") and hasattr(config.experiment, "precision")) else ""
-            except Exception:
-                precision_str = ""
-            if precision_str in ("bf16", "bfloat16"):
-                amp_dtype = torch.bfloat16
-            elif precision_str in ("fp16", "half"):
-                amp_dtype = torch.float16
         with torch.no_grad():
             for batch in dataloader:
                 # TODO: legacy code was not using loss manager here, is there any specific reason for this?
                 # Use loss manager for consistent loss computation
 
-                _autocast_kwargs = {"enabled": autocast_enabled}
-                if amp_dtype is not None:
-                    _autocast_kwargs["dtype"] = amp_dtype
-                with torch.cuda.amp.autocast(**_autocast_kwargs):
-                    loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
+                loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 total_loss += loss.item()
                 num_batches += 1
         
@@ -713,13 +677,7 @@ class Trainer:
                     target_latent = encoder(target_samples)
                     
                     # Determine how many samples per example to generate (use set size if available)
-                    set_size = 1
-                    try:
-                        ids = source_samples.get('progen_input_ids', None)
-                        if isinstance(ids, torch.Tensor) and ids.dim() == 3:
-                            set_size = ids.shape[1]
-                    except Exception:
-                        set_size = 1
+                    set_size = 6
                     
                     # Generate sequences, leveraging multiple prompts from the set if available
                     generated = generator.sample(
@@ -735,38 +693,25 @@ class Trainer:
                     else:
                         generated_ids, generated_texts = generated, None
                     
-                    # Decode source/target token ids to texts for logging if possible
-                    source_texts = None
-                    target_texts = None
-                    try:
-                        if hasattr(generator, 'tokenizer'):
-                            # Select correct token ids based on generator type/available keys
-                            # ESM2-based generator works with ESM ids; Progen2-based with Progen ids
 
-                            if self.use_esm_tokens:
-                                src_ids = source_samples.get('esm_input_ids', None)
-                                tgt_ids = target_samples.get('esm_input_ids', None)
-                            else:
-                                src_ids = source_samples.get('progen_input_ids', None)
-                                tgt_ids = target_samples.get('progen_input_ids', None)
 
-                            if isinstance(src_ids, torch.Tensor):
-                                source_texts = _decode_token_ids_to_texts(src_ids, generator.tokenizer)
-                            if isinstance(tgt_ids, torch.Tensor):
-                                target_texts = _decode_token_ids_to_texts(tgt_ids, generator.tokenizer)
-                    except Exception:
-                        source_texts = None
-                        target_texts = None
+                    src_ids = source_samples.get('esm_input_ids', None)
+                    tgt_ids = target_samples.get('esm_input_ids', None)
+                    # Prefer dataset's ESM tokenizer when available
+                    dataset_tok = getattr(getattr(dataloader, 'dataset'), 'esm_tokenizer')
+                    decode_tokenizer = dataset_tok
+
+                    source_texts = _decode_token_ids_to_texts(src_ids, decode_tokenizer)
+                    target_texts = _decode_token_ids_to_texts(tgt_ids, decode_tokenizer)
+
                     
                     result = {
                         'source': source_samples,
                         'target': target_samples,
                         'generated': generated_ids.cpu() if isinstance(generated_ids, torch.Tensor) else generated_ids,
                     }
-                    if generated_texts is not None:
-                        result['generated_texts'] = generated_texts
-                    if source_texts is not None:
-                        result['source_texts'] = source_texts
-                    if target_texts is not None:
-                        result['target_texts'] = target_texts
+                    result['generated_texts'] = generated_texts
+                    result['source_texts'] = source_texts
+                    print("!!!!!!!!!!!", source_texts)
+                    result['target_texts'] = target_texts
                     return result

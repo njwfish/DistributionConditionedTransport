@@ -32,9 +32,6 @@ class ConditionedProgen2(nn.Module):
         condition_dim=256,
         freeze_progen2=False,
         condition_method="prefix",
-        use_gradient_checkpointing: bool = False,
-        precision: Optional[str] = None,
-        forward_microbatch_size: Optional[int] = None,
     ):
         """
         Initialize a conditioned Progen2 model.
@@ -53,23 +50,13 @@ class ConditionedProgen2(nn.Module):
         super().__init__()
         
         # Initialize Progen2 model
-        # Determine requested dtype early to load weights in that dtype
-        requested_dtype = None
-        if precision:
-            p = precision.lower()
-            if p in ("fp16", "half"):
-                requested_dtype = torch.float16
-            elif p in ("bf16", "bfloat16"):
-                requested_dtype = torch.bfloat16
-            elif p in ("fp32", "float32"):
-                requested_dtype = torch.float32
         
         # Load the ProGen2 model
         try:
             self.progen2 = AutoModelForCausalLM.from_pretrained(
                 resolve_local_or_repo(progen2_name),
                 trust_remote_code=True,
-                torch_dtype=requested_dtype,
+                torch_dtype=None,
                 device_map=None,  # Don't automatically place on GPU yet
                 local_files_only=False,  # Allow downloading if needed
                 resume_download=True,  # Resume interrupted downloads
@@ -81,19 +68,11 @@ class ConditionedProgen2(nn.Module):
                 trust_remote_code=True,
             )
 
-        # Minimal memory optimizations
-        # Keep only the essentials: disable use_cache (safe given our training path)
+        # Minimal settings
         if hasattr(self.progen2, 'config') and hasattr(self.progen2.config, 'use_cache'):
             self.progen2.config.use_cache = False
-        if use_gradient_checkpointing and hasattr(self.progen2, 'gradient_checkpointing_enable'):
-            try:
-                self.progen2.gradient_checkpointing_enable()
-            except Exception:
-                pass
 
-        # Set model dtype if requested
-        if requested_dtype is not None:
-            self.progen2.to(dtype=requested_dtype)
+        # Always use model's default dtype
         
         # TODO: make really sure that progen2 is not frozen for virus task.
         # Freeze Progen2 if specified
@@ -141,9 +120,7 @@ class ConditionedProgen2(nn.Module):
         else:
             raise ValueError(f"Unknown conditioning method: {condition_method}")
 
-        # Align dtype of conditioning projection with model
-        if requested_dtype is not None:
-            self.condition_proj.to(dtype=requested_dtype)        
+        # Align dtype of conditioning projection with model (default)
 
     def forward(self, input_ids, attention_mask, latent_source, latent_target):
         """
@@ -283,9 +260,6 @@ class Progen2Generator(nn.Module):
         condition_method="prefix",
         temperature=1.0,
         seq_length=1000,
-        use_gradient_checkpointing: bool = False,
-        precision: Optional[str] = None,
-        forward_microbatch_size: Optional[int] = None,
     ):
         """
         Initialize the Progen2 generator.
@@ -307,9 +281,7 @@ class Progen2Generator(nn.Module):
             condition_dim=condition_dim,
             freeze_progen2=freeze_progen2,
             condition_method=condition_method,
-            use_gradient_checkpointing=use_gradient_checkpointing,
-            precision=precision,
-            forward_microbatch_size=forward_microbatch_size,
+            
         )
         
         self.temperature = temperature

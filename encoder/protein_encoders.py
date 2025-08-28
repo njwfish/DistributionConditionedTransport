@@ -6,18 +6,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class ESMFeatureExtractor(nn.Module):
-    def __init__(self, esm_model_name="facebook/esm2_t6_8M_UR50D", output_dim=320, pooling="mean", freeze=False, use_gradient_checkpointing: bool = False):
+    def __init__(self, esm_model_name="facebook/esm2_t6_8M_UR50D", output_dim=320, pooling="mean", freeze=False):
         super().__init__()
         local_or_repo = resolve_local_or_repo(esm_model_name)
         self.esm = EsmModel.from_pretrained(local_or_repo)
-        # Optionally enable gradient checkpointing to reduce activation memory
-        if use_gradient_checkpointing and hasattr(self.esm, 'gradient_checkpointing_enable'):
-            try:
-                self.esm.gradient_checkpointing_enable()
-                if hasattr(self.esm.config, 'use_cache'):
-                    self.esm.config.use_cache = False
-            except Exception:
-                pass
         if freeze:
             for p in self.esm.parameters(): p.requires_grad = False
         self.pooling = pooling
@@ -46,10 +38,9 @@ class ESMFeatureExtractor(nn.Module):
 class ProteinSetEncoder(nn.Module):
     def __init__(self, esm_model_name="facebook/esm2_t6_8M_UR50D", 
                  esm_dim=320, latent_dim=32, hidden_dim=128,
-                 pooling="mean", freeze=False, dist_type="tx", layers=2, heads=4,
-                 use_gradient_checkpointing: bool = False):
+                 pooling="mean", freeze=False, dist_type="tx", layers=2, heads=4):
         super().__init__()
-        self.esm_extractor = ESMFeatureExtractor(esm_model_name, esm_dim, pooling, freeze, use_gradient_checkpointing)
+        self.esm_extractor = ESMFeatureExtractor(esm_model_name, esm_dim, pooling, freeze)
         if dist_type == "tx":
             from encoder.encoders import DistributionEncoderTx as DE
             self.dist = DE(esm_dim, latent_dim, hidden_dim, None, layers, heads)

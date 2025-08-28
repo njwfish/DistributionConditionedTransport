@@ -110,6 +110,7 @@ class ESM2_DFM_Generator(nn.Module):
         seq_length: Optional[int] = 1000,
         use_gradient_checkpointing: bool = False,
         precision: Optional[str] = None,
+        sample_dt: float = 0.1,
     ):
         super().__init__()
 
@@ -159,6 +160,7 @@ class ESM2_DFM_Generator(nn.Module):
 
         self.temperature = temperature
         self.seq_length = seq_length
+        self.sample_dt = sample_dt
 
         # TODO: make sure X token ID is really correct.
         # Token id for ambiguous residue 'X' to optionally ignore in loss
@@ -199,13 +201,10 @@ class ESM2_DFM_Generator(nn.Module):
         device = input_ids_target.device
         B, L = input_ids_target.shape
 
-        # Sample times and build xt by mixing source/target only on differing positions (no random AA noise)
+        # Sample times and build x_t by mixing source/target across all valid positions
+        # Following the discrete flow-matching interpolation: x_t = where(Bernoulli(t), x_1, x_0)
         t = torch.rand((B,), device=device)
 
-        # Start from target; as t -> 0 move differing positions towards source
-        xt = input_ids_target.clone()
-
-        # TODO: unnecessary, I already preprocssed the data to have no padding.
         # Valid (non-padded) positions
         if attention_mask_source is not None and attention_mask_target is not None:
             valid_mask = (attention_mask_source > 0) & (attention_mask_target > 0)
@@ -216,16 +215,8 @@ class ESM2_DFM_Generator(nn.Module):
         else:
             valid_mask = torch.ones((B, L), dtype=torch.bool, device=device)
 
-        # Positions where source and target differ (within valid positions), excluding BOS/EOS
-        diff_mask = (input_ids_source != input_ids_target) & valid_mask
-        if self.bos_id is not None:
-            diff_mask[:, 0] = False
-        if self.eos_id is not None:
-            diff_mask[:, -1] = False
-
-        # Flip differing positions to source with probability (1 - t)
-        flip_to_source = (torch.rand((B, L), device=device) < (1 - t[:, None])) & diff_mask
-        xt[flip_to_source] = input_ids_source[flip_to_source]
+        bern = torch.rand((B, L), device=device) < t[:, None]
+        xt = torch.where(valid_mask, torch.where(bern, input_ids_target, input_ids_source), input_ids_target)
 
         # Enforce BOS/EOS tokens at boundaries
         if self.bos_id is not None:
@@ -319,11 +310,10 @@ class ESM2_DFM_Generator(nn.Module):
             if xt.size(1) != expected_len:
                 raise ValueError(f"Source sequence length {xt.size(1)} does not match expected seq_length {expected_len}")
 
-            # Discrete flow stepping from t=0 to 1
+            # Discrete flow stepping from t=0 to 1 using mixture update
             t = 0.0
-            dt = 0.01
             # TODO: you might want to implement a check at the end of the loop to ensure that there are no t = 1 effects (although I think that is just specific for mask-based DFM).
-            while t < 1.0:
+            while t < 1.0 - 1e-6:
                 logits = self.model(
                     input_ids=xt,
                     attention_mask=attention_mask,
@@ -333,31 +323,41 @@ class ESM2_DFM_Generator(nn.Module):
                 )
                 # Temperature scaling
                 logits = logits / max(self.temperature, 1e-8)
-                x1_probs = F.softmax(logits, dim=-1)  # (B, L, V)
 
-                # Constrain vocabulary to AA tokens at inner positions, BOS/EOS at ends
-                mask = torch.full_like(x1_probs, -float('inf'))
-                mask[:, 1:-1, self.aa_ids] = 0.0
+                # Constrain vocabulary to AA tokens at inner positions, BOS/EOS at ends by masking logits
+                mask_logits = torch.full_like(logits, -float('inf'))
+                mask_logits[:, 1:-1, self.aa_ids] = 0.0
                 if self.bos_id is not None:
-                    mask[:, 0, self.bos_id] = 0.0
+                    mask_logits[:, 0, :] = -float('inf')
+                    mask_logits[:, 0, self.bos_id] = 0.0
                 if self.eos_id is not None:
-                    mask[:, -1, self.eos_id] = 0.0
-                logits_masked = torch.log(x1_probs + 1e-9) + mask
-                x1_probs = F.softmax(logits_masked, dim=-1)
+                    mask_logits[:, -1, :] = -float('inf')
+                    mask_logits[:, -1, self.eos_id] = 0.0
 
-                # Step probabilities from uniform corruption scheme
-                step_probs = ((dt / max(1.0 - t, 1e-6)) * x1_probs).clamp(max=1.0)
+                p1 = F.softmax(logits + mask_logits, dim=-1)  # (B, L, V)
 
-                # Zero out diagonal, then set diagonal to keep-prob so rows sum to 1
-                step_probs = step_probs.clone()
-                step_probs.scatter_(-1, xt[:, :, None], 0.0)
-                stay_prob = (1.0 - step_probs.sum(dim=-1, keepdim=True)).clamp(min=0.0)
-                step_probs.scatter_(-1, xt[:, :, None], stay_prob)
+                # Mixture update: probs = one_hot(xt) + h * (p1 - one_hot(xt)) / (1 - t)
+                # with h = min(self.sample_dt, 1 - t)
+                h = min(self.sample_dt, 1.0 - t)
+                denom = max(1.0 - t, 1e-8)
+
+                one_hot_x_t = F.one_hot(xt, num_classes=p1.size(-1)).to(dtype=torch.float32)
+                p1_f32 = p1.to(dtype=torch.float32)
+                step_probs = one_hot_x_t + (h / denom) * (p1_f32 - one_hot_x_t)
+                # Numerical safety: clamp small negatives and renormalize
+                step_probs = step_probs.clamp(min=0.0)
+                step_probs = step_probs / step_probs.sum(dim=-1, keepdim=True).clamp_min(1e-12)
 
                 # Sample next xt
-                xt = torch.distributions.Categorical(step_probs).sample()
+                xt = torch.distributions.Categorical(probs=step_probs).sample()
 
-                t += dt
+                # Enforce BOS/EOS tokens at boundaries after sampling
+                if self.bos_id is not None:
+                    xt[:, 0] = self.bos_id
+                if self.eos_id is not None:
+                    xt[:, -1] = self.eos_id
+
+                t += h
 
             results.append(xt)
 

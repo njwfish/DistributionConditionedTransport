@@ -1,6 +1,7 @@
 import torch
 import os
 import time
+import shutil
 from tqdm import tqdm
 import logging
 import wandb
@@ -330,11 +331,8 @@ class Trainer:
                 
                 optimizer.zero_grad(set_to_none=True)
 
-                # Single-graph forward/backward path (microbatching removed)
+                # Always delegate backward to the loss manager (it handles both microbatch and standard cases)
                 loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
-
-                # Backward + step with optional gradient scaling
-                loss.backward()
                 optimizer.step()
 
                 
@@ -351,11 +349,24 @@ class Trainer:
                     
                     # Log batch metrics to W&B
                     if wandb.run is not None:
+                        # Convert any tensor values in losses to floats
+                        def _to_float(x):
+                            try:
+                                import torch as _t
+                                if isinstance(x, _t.Tensor):
+                                    return float(x.detach().item())
+                            except Exception:
+                                pass
+                            try:
+                                return float(x)
+                            except Exception:
+                                return x
+                        losses_float = {f'batch/{k}': _to_float(v) for k, v in losses.items()}
                         wandb.log({
                             "batch/loss": current_loss,
                             "batch/step": step,
                             "batch/epoch": epoch + 1,
-                        } | {f'batch/{k}': v for k, v in losses.items()}, step=step)
+                        } | losses_float, step=step)
 
                 if self.sub_epoch and (step % self.sub_epoch_interval == 0) and (step != 0):
                     sub_epoch = step // self.sub_epoch_interval

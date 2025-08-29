@@ -286,8 +286,8 @@ def progen_row_reasons(
 
 def main():
     parser = argparse.ArgumentParser(description="Filter sequences with unusual tokens for ESM2 and ProGen2")
-    parser.add_argument("--data_in", default="data/spikeprot0430/virus_tokenized_data_for_tde_downsampled100.pt", help="Path to aggregated dataset .pt to filter")
-    parser.add_argument("--data_out", default="data/spikeprot0430/virus_tokenized_data_for_tde_downsampled100_filtered_test.pt", help="Path to save filtered dataset .pt (default: <data_in>.filtered.pt)")
+    parser.add_argument("--data_in", default="data/spikeprot0430/virus_tokenized_data_for_tde.pt", help="Path to aggregated dataset .pt to filter")
+    parser.add_argument("--data_out", default="data/spikeprot0430/virus_tokenized_data_for_tde_filtered.pt", help="Path to save filtered dataset .pt (default: <data_in>.filtered.pt)")
     parser.add_argument("--esm_name", default="facebook/esm2_t6_8M_UR50D", help="ESM model id or local path")
     parser.add_argument("--progen_name", default="hugohrban/progen2-base", help="ProGen2 model id or local path")
     parser.add_argument("--x_fraction_threshold", type=float, default=0.10, help="Maximum allowed fraction of 'X' tokens in ESM inner positions")

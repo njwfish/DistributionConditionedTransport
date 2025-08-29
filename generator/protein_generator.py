@@ -32,6 +32,7 @@ class ConditionedProgen2(nn.Module):
         condition_dim=256,
         freeze_progen2=False,
         condition_method="prefix",
+        seq_length=1000,
     ):
         """
         Initialize a conditioned Progen2 model.
@@ -49,30 +50,8 @@ class ConditionedProgen2(nn.Module):
         
         super().__init__()
         
-        # Initialize Progen2 model
-        
-        # Load the ProGen2 model
-        try:
-            self.progen2 = AutoModelForCausalLM.from_pretrained(
-                resolve_local_or_repo(progen2_name),
-                trust_remote_code=True,
-                torch_dtype=None,
-                device_map=None,  # Don't automatically place on GPU yet
-                local_files_only=False,  # Allow downloading if needed
-                resume_download=True,  # Resume interrupted downloads
-            )
-        except Exception:
-            # Fallback with minimal parameters
-            self.progen2 = AutoModelForCausalLM.from_pretrained(
-                resolve_local_or_repo(progen2_name),
-                trust_remote_code=True,
-            )
-
-        # Minimal settings
-        if hasattr(self.progen2, 'config') and hasattr(self.progen2.config, 'use_cache'):
-            self.progen2.config.use_cache = False
-
-        # Always use model's default dtype
+        # Initialize Progen2 model      
+        self.progen2 = AutoModelForCausalLM.from_pretrained(resolve_local_or_repo(progen2_name), trust_remote_code=True)
         
         # TODO: make really sure that progen2 is not frozen for virus task.
         # Freeze Progen2 if specified
@@ -96,19 +75,19 @@ class ConditionedProgen2(nn.Module):
             self.hidden_dim = 768
         
         self.condition_method = condition_method
-        # Remove internal model microbatching; trainer now handles set microbatching
-        self.forward_microbatch_size = None
+        self.seq_length = seq_length
         
         # Project latent to correct dimension (same approach as in GPT-2)
         # Note: input dimension is doubled since we concatenate source and target latents
         combined_latent_dim = latent_dim * 2
         
         if self.condition_method == "prefix":
-            # For prefix conditioning, project to hidden states
+            # For prefix conditioning, project to 20 token embeddings inserted mid-sequence
+            self.num_condition_tokens = 20
             self.condition_proj = nn.Sequential(
                 nn.Linear(combined_latent_dim, condition_dim),
                 nn.GELU(),
-                nn.Linear(condition_dim, self.hidden_dim)
+                nn.Linear(condition_dim, self.hidden_dim * self.num_condition_tokens)
             )
         elif self.condition_method == "additive":
             # For additive conditioning, project to hidden states
@@ -140,78 +119,45 @@ class ConditionedProgen2(nn.Module):
         
         # Combine the two latents - concatenate them to create a richer conditioning signal
         combined_latent = torch.cat([latent_source, latent_target], dim=-1)
-        
-        # Ensure latent dtype matches projection weights to avoid matmul dtype mismatch
-        proj_weight_dtype = self.condition_proj[0].weight.dtype if isinstance(self.condition_proj, nn.Sequential) else combined_latent.dtype
-        combined_latent = combined_latent.to(proj_weight_dtype)
         # Project combined latent to correct dimension
         condition = self.condition_proj(combined_latent)
         
+        # Flatten set dimension if present and expand condition accordingly
+        if len(attention_mask.shape) == 3:  # [batch_size, set_size, seq_len]
+            set_size, seq_len = attention_mask.shape[1:]
+            cur_input_ids = input_ids.view(batch_size * set_size, seq_len)
+            cur_attention_mask = attention_mask.view(batch_size * set_size, seq_len)
+            cur_condition = condition.unsqueeze(1).repeat(1, set_size, 1).view(batch_size * set_size, -1)
+        else:
+            cur_input_ids = input_ids
+            cur_attention_mask = attention_mask
+            cur_condition = condition
+        
         if self.condition_method == "prefix":
+            # Insert 20 learned condition tokens after the source + sep token boundary
+            bsz = cur_input_ids.shape[0]
+            insertion_index = self.seq_length + 1  # after source (seq_length) and sep (1)
 
-            if len(attention_mask.shape) == 3:  # [batch_size, set_size, seq_len]
-                set_size, seq_len = attention_mask.shape[1:]
-                # Flatten set dimension
-                reshaped_input_ids = input_ids.view(batch_size * set_size, seq_len)
-                reshaped_attention_mask = attention_mask.view(batch_size * set_size, seq_len)
-                expanded_condition = condition.unsqueeze(1).repeat(1, set_size, 1).view(batch_size * set_size, -1)
-
-                logits = self._forward_single_sequence(
-                    reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="prefix"
-                )
-            else:
-                logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="prefix")
-            
-        elif self.condition_method == "additive":
-            if len(attention_mask.shape) == 3:  # [batch_size, set_size, seq_len]
-                set_size, seq_len = attention_mask.shape[1:]
-                reshaped_input_ids = input_ids.view(batch_size * set_size, seq_len)
-                reshaped_attention_mask = attention_mask.view(batch_size * set_size, seq_len)
-                expanded_condition = condition.unsqueeze(1).repeat(1, set_size, 1).view(batch_size * set_size, -1)
-
-                logits = self._forward_single_sequence(
-                    reshaped_input_ids, reshaped_attention_mask, expanded_condition, method="additive"
-                )
-            else:
-                logits = self._forward_single_sequence(input_ids, attention_mask, condition, method="additive")
-        
-        return logits
-
-    def _forward_single_sequence(self, input_ids, attention_mask, condition, method="prefix"):
-        """
-        Memory-optimized forward pass for a single sequence.
-        
-        Args:
-            input_ids: Token IDs [batch_size, seq_len]
-            attention_mask: Attention mask [batch_size, seq_len]
-            condition: Projected condition [batch_size, hidden_dim]
-            method: "prefix" or "additive"
-            
-        Returns:
-            Logits for the sequence [batch_size, seq_len, vocab_size]
-        """
-        if method == "prefix":
-            batch_size = input_ids.shape[0]
-            
-            # Add prefix to attention mask
-            prefix_attention = torch.ones(batch_size, 1, dtype=attention_mask.dtype, device=attention_mask.device)
-            extended_attention_mask = torch.cat([prefix_attention, attention_mask], dim=1)
-            
-            # Get embeddings for the input sequence
+            # Get token embeddings for the input sequence
             if hasattr(self.progen2.transformer, 'wte'):
-                token_embeds = self.progen2.transformer.wte(input_ids)
+                token_embeds = self.progen2.transformer.wte(cur_input_ids)
             else:
-                token_embeds = self.progen2.get_input_embeddings()(input_ids)
-            
-            # Match dtype and create prefix embedding
-            condition = condition.to(token_embeds.dtype)
-            prefix_embeds = condition.unsqueeze(1)  # [batch_size, 1, hidden_dim]
-            
-            # Concatenate prefix embedding with input embeddings
-            combined_embeds = torch.cat([prefix_embeds, token_embeds], dim=1)
-            
-            # Run through Progen2 with custom embeddings - CRITICAL MEMORY POINT
-            # Enforce no cache and avoid returning hidden states to reduce memory
+                token_embeds = self.progen2.get_input_embeddings()(cur_input_ids)
+
+            # Reshape condition into 20 token embeddings
+            cond_token_embeds = cur_condition.view(bsz, self.num_condition_tokens, self.hidden_dim)
+
+            # Split embeddings and attention at insertion point
+            left_embeds = token_embeds[:, :insertion_index, :]
+            right_embeds = token_embeds[:, insertion_index:, :]
+
+            left_mask = cur_attention_mask[:, :insertion_index]
+            right_mask = cur_attention_mask[:, insertion_index:]
+            cond_mask = torch.ones(bsz, self.num_condition_tokens, dtype=cur_attention_mask.dtype, device=cur_attention_mask.device)
+
+            combined_embeds = torch.cat([left_embeds, cond_token_embeds, right_embeds], dim=1)
+            extended_attention_mask = torch.cat([left_mask, cond_mask, right_mask], dim=1)
+
             outputs = self.progen2(
                 inputs_embeds=combined_embeds,
                 attention_mask=extended_attention_mask,
@@ -219,33 +165,32 @@ class ConditionedProgen2(nn.Module):
                 output_hidden_states=False,
                 return_dict=True
             )
-            
-            # Get logits and remove the prefix logit
-            logits = outputs.logits[:, 1:, :]
-            
-        elif method == "additive":
-            # Process with the model first
+            # Remove logits at the inserted positions to keep alignment with original input length
+            left_logits = outputs.logits[:, :insertion_index, :]
+            right_logits = outputs.logits[:, insertion_index + self.num_condition_tokens:, :]
+            logits = torch.cat([left_logits, right_logits], dim=1)
+            # TODO: make sure that this is correct
+            # Ensure the last timestep predicts the token after the inserted condition tokens
+            logits[:, insertion_index - 1, :] = outputs.logits[:, insertion_index + self.num_condition_tokens - 1, :]
+        elif self.condition_method == "additive":
             outputs = self.progen2(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
+                input_ids=cur_input_ids,
+                attention_mask=cur_attention_mask,
                 use_cache=False,
                 return_dict=True,
                 output_hidden_states=True
             )
-            
-            # Get the final hidden states
             hidden_states = outputs.hidden_states[-1]
             
-            # TODO: is it correct that here we add the condition only right before the langauge head?
-            # Add the condition to each position
-            condition = condition.to(hidden_states.dtype)
-            condition_broadcast = condition.unsqueeze(1)  # [batch_size, 1, hidden_dim]
+            condition_broadcast = cur_condition.unsqueeze(1)  # [batch, 1, hidden_dim]
             hidden_states = hidden_states + condition_broadcast
-            
-            # Project back to vocabulary
             logits = self.progen2.lm_head(hidden_states)
-            
+        else:
+            raise ValueError(f"Unknown conditioning method: {self.condition_method}")
+        
         return logits
+
+    
 
 
 class Progen2Generator(nn.Module):
@@ -281,7 +226,7 @@ class Progen2Generator(nn.Module):
             condition_dim=condition_dim,
             freeze_progen2=freeze_progen2,
             condition_method=condition_method,
-            
+            seq_length=seq_length,
         )
         
         self.temperature = temperature
@@ -363,6 +308,12 @@ class Progen2Generator(nn.Module):
         # Apply mask using ignore_index=-100
         shift_labels = shift_labels_pre.masked_fill(labels_mask == 0, -100)
         
+        # Additionally ignore positions where target token is 'X'
+        # 'X' represents unknown amino acid; use tokenizer to resolve id
+        x_token_id = self.tokenizer.convert_tokens_to_ids('X')
+        x_mask = (target_ids_wo_bos == x_token_id)
+        shift_labels[..., -target_len_wo_bos:] = shift_labels[..., -target_len_wo_bos:].masked_fill(x_mask, -100)
+        
         # If model flattened set dimension, align labels accordingly
         if shift_labels.dim() == 3 and shift_logits.dim() == 3:
             if shift_labels.shape[0] * shift_labels.shape[1] == shift_logits.shape[0]:
@@ -370,17 +321,10 @@ class Progen2Generator(nn.Module):
         
         # Calculate loss
         loss_fct = nn.CrossEntropyLoss(reduction='mean')
-        logits_dtype = shift_logits.dtype
-        if logits_dtype in (torch.float16, torch.bfloat16):
-            loss = loss_fct(
-                shift_logits.float().reshape(-1, shift_logits.size(-1)),
-                shift_labels.reshape(-1)
-            )
-        else:
-            loss = loss_fct(
-                shift_logits.reshape(-1, shift_logits.size(-1)),
-                shift_labels.reshape(-1)
-            )
+        loss = loss_fct(
+            shift_logits.reshape(-1, shift_logits.size(-1)),
+            shift_labels.reshape(-1)
+        )
         
         return loss
 

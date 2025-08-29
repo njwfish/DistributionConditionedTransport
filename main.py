@@ -172,8 +172,12 @@ def main(cfg: DictConfig):
 
         # TODO: make sure this is correct
         # Use simple reconstruction loss when predictor is trained posthoc
+        # Ensure microbatching settings from config are respected even in posthoc mode
         if train_predictor_posthoc:
-            loss_manager = DefaultLossManager()
+            loss_manager = DefaultLossManager(
+                set_size=cfg.experiment.set_size,
+                microbatch_set_size=getattr(cfg.experiment, "set_microbatch_size", None),
+            )
         else:
             loss_manager = hydra.utils.instantiate(cfg.loss)
 

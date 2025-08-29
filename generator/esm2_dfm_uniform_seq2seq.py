@@ -39,11 +39,14 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
     projected conditioning vector derived from the two latents.
     """
 
-    def __init__(self, config: EsmConfig, latent_dim: int = 32, condition_dim: int = 256, condition_method: str = "additive", scale_time: bool = False):
+    def __init__(self, config: EsmConfig, latent_dim: int = 32, condition_dim: int = 256, condition_method: str = "additive", scale_time: bool = False, num_condition_layers: int = 1, use_delta_token: bool = True, gate_method: str = "time_linear"):
         super().__init__(config)
         self.hidden_size = config.hidden_size
         self.condition_method = condition_method
         self.scale_time = scale_time
+        self.num_condition_layers = num_condition_layers
+        self.use_delta_token = use_delta_token
+        self.gate_method = gate_method
 
         if self.condition_method not in ["additive", "cross_attn"]:
             raise ValueError(f"Unknown conditioning method: {self.condition_method}")
@@ -56,18 +59,32 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
             nn.Linear(condition_dim, self.hidden_size)
         )
 
-        # Cross-attention conditioning modules (used when condition_method == "cross_attn")
+        # Cross-attention conditioning stack (external conditioner). Constructed even if unused for checkpoint compatibility.
         num_heads = getattr(config, "num_attention_heads", 4)
         attn_dropout = getattr(config, "attention_probs_dropout_prob", 0.0)
+        hidden_dropout = getattr(config, "hidden_dropout_prob", 0.0)
+
         self.latent_src_proj = nn.Linear(latent_dim, self.hidden_size)
         self.latent_tgt_proj = nn.Linear(latent_dim, self.hidden_size)
-        self.cross_attn = nn.MultiheadAttention(
-            embed_dim=self.hidden_size,
-            num_heads=num_heads,
-            dropout=attn_dropout,
-            batch_first=True,
-        )
-        self.cross_attn_ln = nn.LayerNorm(self.hidden_size)
+        self.latent_delta_proj = nn.Linear(latent_dim, self.hidden_size)
+
+        # Use a compact FFN sized by condition_dim to keep conditioner lightweight
+        ffn_inner_dim = max(condition_dim, 1)
+        self.condition_blocks = nn.ModuleList()
+        for _ in range(self.num_condition_layers):
+            block = nn.ModuleDict({
+                "attn": nn.MultiheadAttention(embed_dim=self.hidden_size, num_heads=num_heads, dropout=attn_dropout, batch_first=True),
+                "ln1": nn.LayerNorm(self.hidden_size),
+                "ffn": nn.Sequential(
+                    nn.Linear(self.hidden_size, ffn_inner_dim),
+                    nn.GELU(),
+                    nn.Dropout(hidden_dropout),
+                    nn.Linear(ffn_inner_dim, self.hidden_size),
+                    nn.Dropout(hidden_dropout),
+                ),
+                "ln2": nn.LayerNorm(self.hidden_size),
+            })
+            self.condition_blocks.append(block)
 
     def forward(
         self,
@@ -94,14 +111,30 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
             cond = self.condition_proj(combined_latent)  # (B, D)
             hidden_states = hidden_states + cond.unsqueeze(1)
         elif self.condition_method == "cross_attn":
-            # Build a small memory from source/target latents and attend to it
-            # memory: (B, 2, D)
+            # Build latent memory tokens [src, tgt, (tgt - src)] → (B, M, D)
             src_token = self.latent_src_proj(latent_source)
             tgt_token = self.latent_tgt_proj(latent_target)
-            memory = torch.stack([src_token, tgt_token], dim=1)
+            memory_tokens = [src_token, tgt_token]
+            if self.use_delta_token:
+                delta = latent_target - latent_source
+                delta_token = self.latent_delta_proj(delta)
+                memory_tokens.append(delta_token)
+            memory = torch.stack(memory_tokens, dim=1)
 
-            attn_out, _ = self.cross_attn(query=hidden_states, key=memory, value=memory, need_weights=False)
-            hidden_states = self.cross_attn_ln(hidden_states + attn_out)
+            # Compute gating scalar per-batch
+            if self.gate_method == "time_linear":
+                alpha = t.view(-1, 1, 1)
+            else:
+                alpha = None
+
+            # Run through external conditioner blocks
+            for block in self.condition_blocks:
+                attn_out, _ = block["attn"](query=hidden_states, key=memory, value=memory, need_weights=False)
+                if alpha is not None:
+                    attn_out = attn_out * alpha
+                hidden_states = block["ln1"](hidden_states + attn_out)
+                ffn_out = block["ffn"](hidden_states)
+                hidden_states = block["ln2"](hidden_states + ffn_out)
         else:
             raise ValueError(f"Unknown conditioning method: {self.condition_method}")
         # Project to vocabulary logits
@@ -128,6 +161,9 @@ class ESM2_DFM_Generator(nn.Module):
         temperature: float = 1.0,
         seq_length: Optional[int] = 1000,
         sample_dt: float = 0.1,
+        num_condition_layers: int = 1,
+        use_delta_token: bool = True,
+        gate_method: str = "time_linear",
     ):
         super().__init__()
 
@@ -142,6 +178,9 @@ class ESM2_DFM_Generator(nn.Module):
             condition_dim=condition_dim,
             condition_method=condition_method,
             scale_time=scale_time,
+            num_condition_layers=num_condition_layers,
+            use_delta_token=use_delta_token,
+            gate_method=gate_method,
         )
 
         # Precision setup removed; model runs in default dtype
@@ -155,21 +194,18 @@ class ESM2_DFM_Generator(nn.Module):
                 param.requires_grad = False
             for param in self.model.lm_head.parameters():
                 param.requires_grad = True
-            # Conditioning paths
-            if hasattr(self.model, "condition_proj"):
-                for param in self.model.condition_proj.parameters():
-                    param.requires_grad = True
-            if hasattr(self.model, "latent_src_proj"):
-                for param in self.model.latent_src_proj.parameters():
-                    param.requires_grad = True
-            if hasattr(self.model, "latent_tgt_proj"):
-                for param in self.model.latent_tgt_proj.parameters():
-                    param.requires_grad = True
-            if hasattr(self.model, "cross_attn"):
-                for param in self.model.cross_attn.parameters():
-                    param.requires_grad = True
-            if hasattr(self.model, "cross_attn_ln"):
-                for param in self.model.cross_attn_ln.parameters():
+            # Conditioning modules remain trainable
+            modules_to_keep = [
+                getattr(self.model, "condition_proj", None),
+                getattr(self.model, "latent_src_proj", None),
+                getattr(self.model, "latent_tgt_proj", None),
+                getattr(self.model, "latent_delta_proj", None),
+                getattr(self.model, "condition_blocks", None),
+            ]
+            for mod in modules_to_keep:
+                if mod is None:
+                    continue
+                for param in mod.parameters():
                     param.requires_grad = True
 
         # Special tokens and AA vocabulary subset (for constraints)

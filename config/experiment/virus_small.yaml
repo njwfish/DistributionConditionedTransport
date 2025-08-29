@@ -59,7 +59,7 @@ tokenize: false
 condition_dim: 32
 freeze_progen2: false
 gradient_accumulation_steps: 1
-set_microbatch_size: 2
+set_microbatch_size: 4
 debug_memory_logging: false  # enable/disable GPU debug memory logger
 condition_method: prefix
 temperature: 1.0

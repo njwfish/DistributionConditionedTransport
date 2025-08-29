@@ -45,7 +45,7 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
         self.condition_method = condition_method
         self.scale_time = scale_time
 
-        if self.condition_method not in ["additive", "prefix", "no_use"]:
+        if self.condition_method not in ["additive", "cross_attn"]:
             raise ValueError(f"Unknown conditioning method: {self.condition_method}")
 
         # Combine source and target latents as in Progen2 (concatenate)
@@ -55,6 +55,19 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
             nn.GELU(),
             nn.Linear(condition_dim, self.hidden_size)
         )
+
+        # Cross-attention conditioning modules (used when condition_method == "cross_attn")
+        num_heads = getattr(config, "num_attention_heads", 4)
+        attn_dropout = getattr(config, "attention_probs_dropout_prob", 0.0)
+        self.latent_src_proj = nn.Linear(latent_dim, self.hidden_size)
+        self.latent_tgt_proj = nn.Linear(latent_dim, self.hidden_size)
+        self.cross_attn = nn.MultiheadAttention(
+            embed_dim=self.hidden_size,
+            num_heads=num_heads,
+            dropout=attn_dropout,
+            batch_first=True,
+        )
+        self.cross_attn_ln = nn.LayerNorm(self.hidden_size)
 
     def forward(
         self,
@@ -75,12 +88,22 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
             time_embed = transformer_timestep_embedding(t * 1000, self.hidden_size)[:, None, :]
         hidden_states = hidden_states + time_embed
 
-        # TODO: currently the conditioning here is only done in the additive mode. I have code for all cases, just need to add it back in.
         # Latent conditioning
-        combined_latent = torch.cat([latent_source, latent_target], dim=-1)
-        cond = self.condition_proj(combined_latent)  # (B, D)
-        hidden_states = hidden_states + cond.unsqueeze(1)
+        if self.condition_method == "additive":
+            combined_latent = torch.cat([latent_source, latent_target], dim=-1)
+            cond = self.condition_proj(combined_latent)  # (B, D)
+            hidden_states = hidden_states + cond.unsqueeze(1)
+        elif self.condition_method == "cross_attn":
+            # Build a small memory from source/target latents and attend to it
+            # memory: (B, 2, D)
+            src_token = self.latent_src_proj(latent_source)
+            tgt_token = self.latent_tgt_proj(latent_target)
+            memory = torch.stack([src_token, tgt_token], dim=1)
 
+            attn_out, _ = self.cross_attn(query=hidden_states, key=memory, value=memory, need_weights=False)
+            hidden_states = self.cross_attn_ln(hidden_states + attn_out)
+        else:
+            raise ValueError(f"Unknown conditioning method: {self.condition_method}")
         # Project to vocabulary logits
         logits = self.lm_head(hidden_states)  # (B, L, V)
         return logits
@@ -99,7 +122,7 @@ class ESM2_DFM_Generator(nn.Module):
         model_name: str = "facebook/esm2_t6_8M_UR50D",
         latent_dim: int = 32,
         condition_dim: int = 256,
-        freeze_esm2: bool = True,
+        freeze_esm2: bool = False,
         condition_method: str = "additive",
         scale_time: bool = False,
         temperature: float = 1.0,
@@ -127,10 +150,27 @@ class ESM2_DFM_Generator(nn.Module):
         # TODO: in any case it would be good to have the option to only un-freeze the language model head.
         # Freezing
         if freeze_esm2:
-            for param in self.model.parameters():
+            # Freeze only the ESM backbone; keep LM head and conditioning modules trainable
+            for param in self.model.esm.parameters():
                 param.requires_grad = False
-            for param in self.model.condition_proj.parameters():
+            for param in self.model.lm_head.parameters():
                 param.requires_grad = True
+            # Conditioning paths
+            if hasattr(self.model, "condition_proj"):
+                for param in self.model.condition_proj.parameters():
+                    param.requires_grad = True
+            if hasattr(self.model, "latent_src_proj"):
+                for param in self.model.latent_src_proj.parameters():
+                    param.requires_grad = True
+            if hasattr(self.model, "latent_tgt_proj"):
+                for param in self.model.latent_tgt_proj.parameters():
+                    param.requires_grad = True
+            if hasattr(self.model, "cross_attn"):
+                for param in self.model.cross_attn.parameters():
+                    param.requires_grad = True
+            if hasattr(self.model, "cross_attn_ln"):
+                for param in self.model.cross_attn_ln.parameters():
+                    param.requires_grad = True
 
         # Special tokens and AA vocabulary subset (for constraints)
         self.mask_token = self.tokenizer.mask_token

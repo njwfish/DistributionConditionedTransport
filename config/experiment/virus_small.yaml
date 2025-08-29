@@ -38,7 +38,7 @@ predictor_model_args:
 weight_mode: "uniform"
 num_samples: 50
 exponential_weight_scale: 1.0
-selective_pairing_mode: "single_step"
+selective_pairing_mode: null
 
 # Experiment-specific parameters
 latent_dim: 128 # TODO: make sure that this is really the correct latent_dim for the ESM2 8M model. Also make sure that there is no conflict due to double usage.
@@ -59,9 +59,11 @@ tokenize: false
 condition_dim: 32
 freeze_progen2: false
 gradient_accumulation_steps: 1
-set_microbatch_size: 1
+set_microbatch_size: 2
 debug_memory_logging: false  # enable/disable GPU debug memory logger
 condition_method: prefix
 temperature: 1.0
+
+use_esm_tokens: true
 
 #precomputed_d_values_pth: /orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430/virus_all_d_values.npz

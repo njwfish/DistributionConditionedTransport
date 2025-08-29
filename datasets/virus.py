@@ -21,6 +21,7 @@ class ViralDataset(Dataset):
                  set_size: int = 10,
                  esm_name: str = 'facebook/esm2_t6_8M_UR50D',
                  progen_name: str = 'hugohrban/progen2-medium',
+                 seq_length: int = 1200,
                  max_length: int = 1200,
                  seed: Optional[int] = 212121,
                  tokenize: bool = False,

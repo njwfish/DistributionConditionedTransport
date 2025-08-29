@@ -61,7 +61,7 @@ freeze_progen2: false
 gradient_accumulation_steps: 1
 set_microbatch_size: 2
 debug_memory_logging: false  # enable/disable GPU debug memory logger
-condition_method: prefix
+condition_method: "additive"
 temperature: 1.0
 use_esm_tokens: true
 #precomputed_d_values_pth: /orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430/virus_all_d_values.npz

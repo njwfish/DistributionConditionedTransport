@@ -8,7 +8,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def hash_config(config: Union[Dict[str, Any], DictConfig], include_keys: list = None, exclude_keys: list = None) -> str:
+def hash_config(
+    config: Union[Dict[str, Any], DictConfig],
+    include_keys: list = None,
+    exclude_keys: list = None,
+    exclude_predictor: bool = True,
+) -> str:
     """
     Generate a deterministic hash from a configuration dictionary or DictConfig object.
     
@@ -41,17 +46,24 @@ def hash_config(config: Union[Dict[str, Any], DictConfig], include_keys: list = 
             if key in filtered_config:
                 del filtered_config[key]
     
-    # NOTE: excluding a lot of predictor-related keys to make search for good predictor parameters easier.
     # Remove non-deterministic or irrelevant keys
-    default_exclude = ['hydra', 'device', 'wandb', 'output_dir', 'predictor_training', 
-                       'predictor', 'predictor_sampling', 'predictor_model_type', 'predictor_conditioning_mode', 
-                       'predictor_model_args']
+    default_exclude = ['hydra', 'device', 'wandb', 'output_dir']
+    if exclude_predictor:
+        # NOTE: excluding predictor-related keys to make search for good predictor parameters easier.
+        default_exclude.extend([
+            'predictor_training',
+            'predictor',
+            'predictor_sampling',
+            'predictor_model_type',
+            'predictor_conditioning_mode',
+            'predictor_model_args',
+        ])
     for key in default_exclude:
         if key in filtered_config:
             del filtered_config[key]
 
-    # Also drop predictor-related fields nested under the experiment namespace
-    if 'experiment' in filtered_config and isinstance(filtered_config['experiment'], dict):
+    # Optionally drop predictor-related fields nested under the experiment namespace
+    if exclude_predictor and 'experiment' in filtered_config and isinstance(filtered_config['experiment'], dict):
         experiment_exclude = [
             'predictor_model_type',
             'predictor_conditioning_mode',
@@ -74,7 +86,8 @@ def hash_config(config: Union[Dict[str, Any], DictConfig], include_keys: list = 
 def get_output_dir(config: Union[Dict[str, Any], DictConfig], 
                   base_dir: str = './outputs',
                   experiment_name: str = None,
-                  create_dir: bool = True) -> str:
+                  create_dir: bool = True,
+                  exclude_predictor: bool = True) -> str:
     """
     Get a deterministic output directory based on config hash.
     
@@ -87,7 +100,7 @@ def get_output_dir(config: Union[Dict[str, Any], DictConfig],
     Returns:
         Path to output directory
     """
-    config_hash = hash_config(config)
+    config_hash = hash_config(config, exclude_predictor=exclude_predictor)
     
     if experiment_name is None:
         if isinstance(config, DictConfig) and 'experiment_name' in config:
@@ -117,7 +130,8 @@ def get_output_dir(config: Union[Dict[str, Any], DictConfig],
     return output_dir
 
 def find_matching_output_dir(config: Union[Dict[str, Any], DictConfig], 
-                           base_dir: str = './outputs') -> str:
+                           base_dir: str = './outputs',
+                           exclude_predictor: bool = True) -> str:
     """
     Find an existing output directory with a matching config hash.
     
@@ -128,7 +142,7 @@ def find_matching_output_dir(config: Union[Dict[str, Any], DictConfig],
     Returns:
         Path to matching directory or None if not found
     """
-    config_hash = hash_config(config)
+    config_hash = hash_config(config, exclude_predictor=exclude_predictor)
     
     if not os.path.exists(base_dir):
         return None

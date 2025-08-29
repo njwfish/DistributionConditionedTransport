@@ -27,9 +27,13 @@ def main(cfg: DictConfig):
     
     start_time = time.time()
 
-    # Compute config hash for reproducibility
+    # Compute config hashes
+    # Excluding predictor params (matches encoder/generator run)
     config_hash = hash_utils.hash_config(cfg)
-    logger.info(f"Configuration hash: {config_hash}")
+    # Including predictor params (to distinguish predictor-only runs)
+    predictor_config_hash = hash_utils.hash_config(cfg, exclude_predictor=False)
+    logger.info(f"Configuration hash (exclude predictor): {config_hash}")
+    logger.info(f"Predictor configuration hash (include predictor): {predictor_config_hash}")
     
     # Set random seed
     if cfg.seed is not None:
@@ -46,6 +50,7 @@ def main(cfg: DictConfig):
     # Log config hash to W&B
     if wandb.run is not None:
         wandb.run.summary["config_hash"] = config_hash
+        wandb.run.summary["predictor_config_hash"] = predictor_config_hash
     
     try:
         # Resolve model path. If not explicitly provided, use hashed output dir just like main.py
@@ -160,10 +165,15 @@ def main(cfg: DictConfig):
         # Create optimizer for predictor only
         pred_optimizer = hydra.utils.instantiate(cfg.optimizer)(params=predictor.parameters())
 
-        # Set up output directory (use model path directory + predictor suffix)
+        # Set up output directory: hashed subdirectory within model directory including predictor params
         model_dir = os.path.dirname(model_path)
-        pred_output_dir = os.path.join(model_dir, "predictor_training")
-        os.makedirs(pred_output_dir, exist_ok=True)
+        pred_output_dir = hash_utils.get_output_dir(
+            cfg,
+            base_dir=model_dir,
+            experiment_name="predictor_training",
+            create_dir=True,
+            exclude_predictor=False,
+        )
 
         # Simple predictor trainer using same training config as main training
         predictor_trainer = PredictorTrainer(

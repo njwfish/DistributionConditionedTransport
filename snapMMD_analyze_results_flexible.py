@@ -241,7 +241,7 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
     return cfg, enc, gen, predictor, train_predictor_posthoc
 
 
-def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], predictor_source: str = 'separate'):
+def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], predictor_source: str = 'separate', use_true_target_latent: bool = False):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     cfg, enc, gen, predictor, train_predictor_posthoc = load_models_from_experiment(experiment_dir, device, predictor_source=predictor_source)
 
@@ -252,15 +252,15 @@ def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], pr
     with torch.no_grad():
         enc_s = enc(samples_s)
         # Determine enc_t
-        # TODO: make sure that this is how we always want to do things here.
-        if predictor is not None:
+        # When requested, feed the true target latent computed by the encoder
+        if predictor is not None and not use_true_target_latent:
             # Condition on (source_idx, target_idx) = (N-2, N-1)
             n_steps = int(training_data['N_steps'])
             source_idx = torch.tensor([n_steps - 2], device=device, dtype=torch.float32)
             target_idx = torch.tensor([n_steps - 1], device=device, dtype=torch.float32)
             enc_t = predictor(enc_s, condition_scalars=(source_idx, target_idx))
         else:
-            # Fallback: encode target directly
+            # Encode target directly using the trained encoder
             enc_t = enc(samples_t)
 
     # Reshape source samples for generator
@@ -555,6 +555,8 @@ def main():
     parser.add_argument('--set', dest='overrides', action='append', default=[], help='Override config values with dot-notation (e.g., match_criteria.sampling.mode=bidirectional). Can be used multiple times.')
     parser.add_argument('--predictor-source', type=str, choices=['auto', 'main', 'separate'], default='auto',
                         help='Where to load predictor checkpoint from: auto (default), main (root dir or joint), or main_predictor (predictor_training subdir)')
+    parser.add_argument('--use-true-target-latent', action='store_true',
+                        help='Feed true target latent (encoder on held-out target) into generator instead of predictor output')
     args = parser.parse_args()
 
     # Load analysis config and apply CLI overrides
@@ -671,7 +673,7 @@ def main():
     per_seed_results: List[Tuple[int, float, Any]] = []  # (seed, mmd^2, emd)
     forecast_for_plot = None
     for seed, (exp_seed, (exp_dir, cfg)) in zip(seeds_sorted, matched_with_seed):
-        forecast = generate_cde_forecast(exp_dir, training_data, predictor_source=args.predictor_source)
+        forecast = generate_cde_forecast(exp_dir, training_data, predictor_source=args.predictor_source, use_true_target_latent=args.use_true_target_latent)
         mmd2, emd = compute_mmd_and_emd(dataset_name, forecast['forecast'], logger, enable_emd=not args.disable_emd)
         per_seed_results.append((seed, mmd2, emd))
         if forecast_for_plot is None and seed == default_seed_for_plots:
@@ -721,7 +723,7 @@ def main():
     if not args.skip_plots:
         if forecast_for_plot is None:
             # If not found seed==default, just take first
-            forecast_for_plot = generate_cde_forecast(matched_with_seed[0][1][0], training_data, predictor_source=args.predictor_source)
+            forecast_for_plot = generate_cde_forecast(matched_with_seed[0][1][0], training_data, predictor_source=args.predictor_source, use_true_target_latent=args.use_true_target_latent)
 
         # Prepare title suffix with naming parameters and metrics
         metrics_title_segment = f"MMD={mmd_mean:.4g}±{mmd_std:.2g}{emd_title_segment}"

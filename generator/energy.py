@@ -45,15 +45,12 @@ class EnergyGenerator(nn.Module):
         if target_latent.shape[0] != batch_size:
             target_latent = target_latent.unsqueeze(1).repeat(1, source_samples.shape[0] // target_latent.shape[0], 1).view(-1, target_latent.shape[-1])
         
-        # Create context by combining source and target latents
-        z = torch.cat([source_latent, target_latent], dim=-1)
-        
         # Sample noise for the energy model
         noise = torch.randn(batch_size, self.noise_dim, device=source_samples.device)
         
         # Predict clean samples
         with torch.no_grad():
-            predicted_samples = self.model(source_samples, z, noise)
+            predicted_samples = self.model(source_samples, source_latent, target_latent, noise)
         
         return predicted_samples
 

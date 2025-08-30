@@ -13,7 +13,7 @@ defaults:
   - /training: default10000
   - /loss: default
   - /predictor: default  # use unified predictor
-  - /predictor_sampling: default
+  - /predictor_sampling: default_d
   - /predictor_training: default_generator_loss
   - /sampling: default
 
@@ -27,8 +27,8 @@ train_predictor_posthoc: true
 
 
 predictor_model_type: "mlp"
-predictor_conditioning_mode: "sinusoidal"
-predictor_condition_type: "none"
+predictor_conditioning_mode: "concat"
+predictor_condition_type: "scalar_d"
 predictor_model_args:
   hidden_dim: 128
   num_layers: 2

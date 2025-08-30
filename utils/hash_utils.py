@@ -67,6 +67,7 @@ def hash_config(
         experiment_exclude = [
             'predictor_model_type',
             'predictor_conditioning_mode',
+            'predictor_condition_type',
             'predictor_model_args',
             'train_predictor_posthoc',
         ]

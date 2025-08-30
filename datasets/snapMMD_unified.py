@@ -87,6 +87,10 @@ class SnapMMDUnified(Dataset):
         # Handle PBMC-specific X_scaling field
         if self.config['has_x_scaling']:
             self.X_scaling = self.full_dataset['X_scaling']
+            
+    
+    def d_fun(self, source_idx, target_idx):
+        return (target_idx - source_idx)/self.time_scale
         
     
     # TODO: make really really sure that you are not training on the test data.
@@ -146,7 +150,7 @@ class SnapMMDUnified(Dataset):
                 'target_samples': target_samples,
                 'source_idx': source_idx,
                 'target_idx': target_idx,                
-                'd': target_idx - source_idx,
+                'd': self.d_fun(source_idx, target_idx),
             }
         # TODO: implement interpolation as an alternative task to forecasting.
         else:

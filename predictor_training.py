@@ -5,6 +5,7 @@ from typing import Optional, Tuple, Dict
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from utils.conditioning import build_condition_tuple, is_conditioned
 
 
 class PredictorTrainer:
@@ -50,14 +51,8 @@ class PredictorTrainer:
                 if generator is None:
                     raise ValueError("Generator must be provided when use_generator_loss=True")
 
-                if getattr(predictor, "requires_condition", False):
-                    condition_scalars = (
-                        batch["source_idx"].to(device),
-                        batch["target_idx"].to(device),
-                    )
-                    pred_target_latent = predictor(source_latent, condition_scalars=condition_scalars)
-                else:
-                    pred_target_latent = predictor(source_latent)
+                condition_scalars = build_condition_tuple(batch, device, getattr(predictor, 'condition_type', 'none'))
+                pred_target_latent = predictor(source_latent, condition_scalars=condition_scalars)
 
                 # Flatten batched sets to match generator expectations ([B,S,D] -> [B*S,D])
                 flat_source_samples = (
@@ -74,16 +69,8 @@ class PredictorTrainer:
                 losses["generator_loss"] = pred_loss
             else:
                 target_latent = encoder(target_samples)
-                if getattr(predictor, "requires_condition", False):
-                    condition_scalars = (
-                        batch["source_idx"].to(device),
-                        batch["target_idx"].to(device),
-                    )
-                    pred_loss, _ = predictor.loss(
-                        source_latent, target_latent, condition_scalars
-                    )
-                else:
-                    pred_loss, _ = predictor.loss(source_latent, target_latent)
+                condition_scalars = build_condition_tuple(batch, device, getattr(predictor, 'condition_type', 'none'))
+                pred_loss, _ = predictor.loss(source_latent, target_latent, condition_scalars)
                 losses["predictor_loss"] = pred_loss
 
         else:
@@ -99,14 +86,8 @@ class PredictorTrainer:
             if self.use_generator_loss:
                 if generator is None:
                     raise ValueError("Generator must be provided when use_generator_loss=True")
-                if getattr(predictor, "requires_condition", False):
-                    condition_scalars = (
-                        batch["source_idx"].to(device),
-                        batch["target_idx"].to(device),
-                    )
-                    pred_target_latent = predictor(source_latent, condition_scalars=condition_scalars)
-                else:
-                    pred_target_latent = predictor(source_latent)
+                condition_scalars = build_condition_tuple(batch, device, getattr(predictor, 'condition_type', 'none'))
+                pred_target_latent = predictor(source_latent, condition_scalars=condition_scalars)
 
                 pred_loss = generator.loss(
                     source_samples, target_samples, source_latent, pred_target_latent
@@ -114,16 +95,8 @@ class PredictorTrainer:
                 losses["generator_loss"] = pred_loss
             else:
                 target_latent = encoder(target_samples)
-                if getattr(predictor, "requires_condition", False):
-                    condition_scalars = (
-                        batch["source_idx"].to(device),
-                        batch["target_idx"].to(device),
-                    )
-                    pred_loss, _ = predictor.loss(
-                        source_latent, target_latent, condition_scalars
-                    )
-                else:
-                    pred_loss, _ = predictor.loss(source_latent, target_latent)
+                condition_scalars = build_condition_tuple(batch, device, getattr(predictor, 'condition_type', 'none'))
+                pred_loss, _ = predictor.loss(source_latent, target_latent, condition_scalars)
                 losses["predictor_loss"] = pred_loss
 
         return pred_loss, losses

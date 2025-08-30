@@ -34,6 +34,7 @@ train_predictor_posthoc: true
 
 predictor_model_type: "ridge"
 predictor_conditioning_mode: "sinusoidal"
+predictor_condition_type: "none"
 predictor_model_args:
   ridge_alpha: 1e-3
 

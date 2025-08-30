@@ -173,6 +173,7 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
 
     enc = hydra.utils.instantiate(cfg['encoder'])
     gen = hydra.utils.instantiate(cfg['generator'])
+    dataset = hydra.utils.instantiate(cfg['dataset'])
 
     # Resolve config for simple key access
     cfg_resolved = OmegaConf.to_container(cfg, resolve=True)
@@ -264,12 +265,12 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
     if predictor is not None:
         predictor.eval(); predictor.to(device)
 
-    return cfg, enc, gen, predictor, train_predictor_posthoc
+    return cfg, enc, gen, predictor, dataset, train_predictor_posthoc
 
 
 def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], predictor_source: str = 'separate', use_true_target_latent: bool = False, forecast_all_timepoints: bool = False, predictor_dir: Optional[str] = None):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    cfg, enc, gen, predictor, train_predictor_posthoc = load_models_from_experiment(experiment_dir, device, predictor_source=predictor_source, predictor_dir=predictor_dir)
+    cfg, enc, gen, predictor, dataset, train_predictor_posthoc = load_models_from_experiment(experiment_dir, device, predictor_source=predictor_source, predictor_dir=predictor_dir)
 
     Xs_training = training_data['Xs']
     samples_s = torch.tensor(Xs_training[-1]).unsqueeze(0).to(device).float()
@@ -280,11 +281,20 @@ def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], pr
         # Determine enc_t
         # When requested, feed the true target latent computed by the encoder
         if predictor is not None and not use_true_target_latent:
-            # Condition on (source_idx, target_idx) = (N-2, N-1)
+            # Compute conditioning based on predictor.condition_type
             n_steps = int(training_data['N_steps'])
-            source_idx = torch.tensor([n_steps - 2], device=device, dtype=torch.float32)
-            target_idx = torch.tensor([n_steps - 1], device=device, dtype=torch.float32)
-            enc_t = predictor(enc_s, condition_scalars=(source_idx, target_idx))
+            if predictor.condition_type == 'index_pair':
+                source_idx = torch.tensor([n_steps - 2], device=device, dtype=torch.float32)
+                target_idx = torch.tensor([n_steps - 1], device=device, dtype=torch.float32)
+                condition = (source_idx, target_idx)
+            elif predictor.condition_type == 'scalar_d':
+                # Use dataset from cfg for d_fun
+                d_val = dataset.d_fun(n_steps - 2, n_steps - 1)
+                d_tensor = torch.tensor([d_val], device=device, dtype=torch.float32)
+                condition = (d_tensor,)
+            else:
+                condition = None
+            enc_t = predictor(enc_s, condition_scalars=condition)
         else:
             # Encode target directly using the trained encoder
             enc_t = enc(samples_t)
@@ -320,9 +330,17 @@ def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], pr
 
             enc_src = enc(src)
             if predictor is not None and not use_true_target_latent:
-                src_idx = torch.tensor([t - 1], device=device, dtype=torch.float32)
-                tgt_idx = torch.tensor([t], device=device, dtype=torch.float32)
-                enc_tgt = predictor(enc_src, condition_scalars=(src_idx, tgt_idx))
+                if predictor.condition_type == 'index_pair':
+                    src_idx = torch.tensor([t - 1], device=device, dtype=torch.float32)
+                    tgt_idx = torch.tensor([t], device=device, dtype=torch.float32)
+                    condition = (src_idx, tgt_idx)
+                elif predictor.condition_type == 'scalar_d':
+                    d_val = dataset.d_fun(t - 1, t)
+                    d_tensor = torch.tensor([d_val], device=device, dtype=torch.float32)
+                    condition = (d_tensor,)
+                else:
+                    condition = None
+                enc_tgt = predictor(enc_src, condition_scalars=condition)
             else:
                 enc_tgt = enc(tgt)
 

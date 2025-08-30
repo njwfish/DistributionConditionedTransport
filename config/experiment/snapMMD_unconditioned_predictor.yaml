@@ -28,6 +28,7 @@ train_predictor_posthoc: true
 
 predictor_model_type: "mlp"
 predictor_conditioning_mode: null
+predictor_condition_type: "none"
 predictor_model_args:
   hidden_dim: 128
   num_layers: 2

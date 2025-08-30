@@ -85,16 +85,30 @@ class Predictor(nn.Module):
             num_layers=2,
         ),
         conditioning_mode="sinusoidal",  # "sinusoidal", "concat", None
+        condition_type: str = "none",    # "none", "index_pair", "scalar_d"
         d_embed_dim=16,
-        num_condition_scalars=2,
+        num_condition_scalars=None,
         loss_type="cosine",  # "cosine" or "MSE"
     ):
         super().__init__()
         self.latent_dim = latent_dim
         self.model_type = model_type
         self.conditioning_mode = conditioning_mode
-        self.num_condition_scalars = num_condition_scalars
-        self.requires_condition = conditioning_mode is not None
+        self.condition_type = condition_type
+        # Derive number of conditioning scalars from condition_type when not explicitly provided
+        if num_condition_scalars is None:
+            if self.condition_type == "none" or self.condition_type is None:
+                self.num_condition_scalars = 0
+            elif self.condition_type == "scalar_d":
+                self.num_condition_scalars = 1
+            elif self.condition_type == "index_pair":
+                self.num_condition_scalars = 2
+            else:
+                raise ValueError(f"Unknown condition_type: {self.condition_type}")
+        else:
+            self.num_condition_scalars = num_condition_scalars
+        # Backward-compat: store string label as requested
+        self.requires_condition = self.condition_type
         self.model_args = model_args
         self.d_embed_dim = d_embed_dim
         self.loss_type = loss_type
@@ -127,31 +141,24 @@ class Predictor(nn.Module):
         
 
     def forward(self, x, condition_scalars=None):
-        # condition_scalars should be a tuple of scalars
-        if condition_scalars:
-            # TODO: make sure the condition_scalars are handled correctly here (especially for batch sizes larger than 1)
-            d1, d2 = condition_scalars
-            d1 = d1.float()
-            d2 = d2.float()
+        # condition_scalars should be a tuple of 0, 1, or 2 scalars
+        d_tensor = None
+        if condition_scalars is not None and len(condition_scalars) > 0:
+            pieces = []
+            for s in condition_scalars:
+                s = s.float()
+                if s.dim() == 1:
+                    s = s.unsqueeze(-1)
+                pieces.append(s)
+            d_tensor = torch.cat(pieces, dim=-1)
 
-            if d1.dim() == 1:
-                d1 = d1.unsqueeze(-1)
-            if d2.dim() == 1:
-                d2 = d2.unsqueeze(-1)
-            
-            d_tensor = torch.cat([d1, d2], dim=-1)
-            
-
-        if self.conditioning_mode is None:
+        if self.conditioning_mode is None or d_tensor is None:
             x_conditioned = x
-            
         elif self.conditioning_mode == "sinusoidal":
             d_encoded = self.d_encoder(d_tensor)
             x_conditioned = torch.cat([x, d_encoded], dim=-1)
-            
         elif self.conditioning_mode == "concat":
             x_conditioned = torch.cat([x, d_tensor], dim=-1)
-            
         else:
             raise ValueError(f"Unknown conditioning_mode: {self.conditioning_mode}")
         

@@ -6,7 +6,7 @@ import yaml
 import json
 import itertools
 import copy
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 import numpy as np
 import torch
@@ -167,7 +167,7 @@ DATASET_CONFIGS: Dict[str, Dict[str, Any]] = {
 # Model loading and forecasting (CDE only)
 # -----------------------------
 
-def load_models_from_experiment(experiment_dir: str, device: torch.device, predictor_source: str = 'separate'):
+def load_models_from_experiment(experiment_dir: str, device: torch.device, predictor_source: str = 'separate', predictor_dir: Optional[str] = None):
     info = get_experiment_info(experiment_dir, load_checkpoints=False)
     cfg = info['config']
 
@@ -179,12 +179,22 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
     experiment_cfg = cfg_resolved.get('experiment', {}) if isinstance(cfg_resolved, dict) else {}
     train_predictor_posthoc = bool(experiment_cfg.get('train_predictor_posthoc', False))
 
-    # Instantiate predictor independently if config has one
+    # Instantiate predictor from predictor subdir config if provided, else from main cfg if present
     predictor = None
-    if 'predictor' in cfg and cfg['predictor'] is not None:
-        predictor = hydra.utils.instantiate(cfg['predictor'])
-        if hasattr(enc, 'latent_act'):
-            predictor.latent_act = enc.latent_act
+
+    if predictor_dir is not None:
+        pred_cfg_path = os.path.join(predictor_dir, 'config.yaml')
+
+        pred_cfg_oc = OmegaConf.load(pred_cfg_path)
+        pred_cfg_node = pred_cfg_oc.get('predictor')
+        predictor = hydra.utils.instantiate(pred_cfg_node)
+
+    # TODO: change back at some point.
+    #elif 'predictor' in cfg and cfg['predictor'] is not None:
+    #    predictor = hydra.utils.instantiate(cfg['predictor'])
+
+    if predictor is not None and hasattr(enc, 'latent_act'):
+        predictor.latent_act = enc.latent_act
 
     # Load encoder/generator from best model
     state = load_best_model(info['dir'])
@@ -194,44 +204,60 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
     else:
         gen.model.load_state_dict(state['generator_state_dict'])
 
-    # Load predictor weights based on requested source
+    # Load predictor weights based on requested source or explicit predictor_dir
     if predictor is not None:
         def _try_load_predictor(ckpt_path: str) -> bool:
-            if os.path.exists(ckpt_path):
-                pred_ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
-                if 'predictor_state_dict' in pred_ckpt:
-                    predictor.load_state_dict(pred_ckpt['predictor_state_dict'])
-                    return True
-            return False
+            pred_ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
+            predictor.load_state_dict(pred_ckpt['predictor_state_dict'])
+            return True
 
-        root_pred_path = os.path.join(info['dir'], 'predictor_best_model.pt')
-        subdir_pred_path = os.path.join(info['dir'], 'predictor_training', 'predictor_best_model.pt')
-
+        # Preferred: explicit hashed predictor subdir
         loaded_pred = False
+        # TODO: change back at some point.
+        if True: #predictor_dir is not None:
+            hashed_pred_path = os.path.join(predictor_dir, 'predictor_best_model.pt')
+            loaded_pred = _try_load_predictor(hashed_pred_path)
+        else:
+            # Backward-compatible fallbacks
+            root_pred_path = os.path.join(info['dir'], 'predictor_best_model.pt')
+            static_subdir_pred_path = os.path.join(info['dir'], 'predictor_training', 'predictor_best_model.pt')
 
-        if predictor_source == 'main':
-            # Load from root-level artifacts (saved by main.py posthoc or joint)
-            loaded_pred = _try_load_predictor(root_pred_path)
-            if not loaded_pred and 'predictor_state_dict' in state:
-                predictor.load_state_dict(state['predictor_state_dict'])
-                loaded_pred = True
-        elif predictor_source == 'separate':
-            # Load from dedicated predictor subdirectory (saved by main_predictor.py)
-            loaded_pred = _try_load_predictor(subdir_pred_path)
-        else:  # 'auto'
-            if train_predictor_posthoc:
-                # Prefer explicit predictor checkpoint; fall back to others
-                loaded_pred = _try_load_predictor(root_pred_path) or _try_load_predictor(subdir_pred_path)
+            if predictor_source == 'main':
+                loaded_pred = _try_load_predictor(root_pred_path)
                 if not loaded_pred and 'predictor_state_dict' in state:
                     predictor.load_state_dict(state['predictor_state_dict'])
                     loaded_pred = True
-            else:
-                # Prefer joint-trained weights inside best_model; fall back to files
-                if 'predictor_state_dict' in state:
-                    predictor.load_state_dict(state['predictor_state_dict'])
-                    loaded_pred = True
+            elif predictor_source == 'separate':
+                # Try static path first, then any hashed dirs we can find
+                loaded_pred = _try_load_predictor(static_subdir_pred_path)
                 if not loaded_pred:
-                    loaded_pred = _try_load_predictor(root_pred_path) or _try_load_predictor(subdir_pred_path)
+                    # Probe for any hashed predictor dirs and try the most recent
+                    cand_dirs = [d for d in os.listdir(info['dir']) if d.startswith('predictor_training_') and os.path.isdir(os.path.join(info['dir'], d))]
+                    cand_dirs.sort(key=lambda d: os.path.getmtime(os.path.join(info['dir'], d)), reverse=True)
+                    for d in cand_dirs:
+                        if _try_load_predictor(os.path.join(info['dir'], d, 'predictor_best_model.pt')):
+                            loaded_pred = True
+                            break
+            else:  # 'auto'
+                if train_predictor_posthoc:
+                    loaded_pred = _try_load_predictor(root_pred_path) or _try_load_predictor(static_subdir_pred_path)
+                    if not loaded_pred:
+                        # Try hashed dirs
+                        cand_dirs = [d for d in os.listdir(info['dir']) if d.startswith('predictor_training_') and os.path.isdir(os.path.join(info['dir'], d))]
+                        cand_dirs.sort(key=lambda d: os.path.getmtime(os.path.join(info['dir'], d)), reverse=True)
+                        for d in cand_dirs:
+                            if _try_load_predictor(os.path.join(info['dir'], d, 'predictor_best_model.pt')):
+                                loaded_pred = True
+                                break
+                    if not loaded_pred and 'predictor_state_dict' in state:
+                        predictor.load_state_dict(state['predictor_state_dict'])
+                        loaded_pred = True
+                else:
+                    if 'predictor_state_dict' in state:
+                        predictor.load_state_dict(state['predictor_state_dict'])
+                        loaded_pred = True
+                    if not loaded_pred:
+                        loaded_pred = _try_load_predictor(root_pred_path) or _try_load_predictor(static_subdir_pred_path)
 
     enc.eval(); gen.eval()
     enc.to(device); gen.to(device)
@@ -241,9 +267,9 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
     return cfg, enc, gen, predictor, train_predictor_posthoc
 
 
-def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], predictor_source: str = 'separate', use_true_target_latent: bool = False, forecast_all_timepoints: bool = False):
+def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], predictor_source: str = 'separate', use_true_target_latent: bool = False, forecast_all_timepoints: bool = False, predictor_dir: Optional[str] = None):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    cfg, enc, gen, predictor, train_predictor_posthoc = load_models_from_experiment(experiment_dir, device, predictor_source=predictor_source)
+    cfg, enc, gen, predictor, train_predictor_posthoc = load_models_from_experiment(experiment_dir, device, predictor_source=predictor_source, predictor_dir=predictor_dir)
 
     Xs_training = training_data['Xs']
     samples_s = torch.tensor(Xs_training[-1]).unsqueeze(0).to(device).float()
@@ -622,6 +648,58 @@ def setup_logger(out_dir: str, log_name: str) -> logging.Logger:
     return logger
 
 
+# -----------------------------
+# Predictor subdir discovery
+# -----------------------------
+
+def find_matching_predictor_subdir(experiment_dir: str, predictor_match_criteria: Dict[str, Any], seed: Optional[int]) -> Optional[str]:
+    """Find a hashed predictor subdirectory under experiment_dir that matches the given criteria.
+    Prefers a match with the same seed when multiple candidates are available.
+    Returns the full path or None if not found.
+    """
+    if not os.path.isdir(experiment_dir):
+        return None
+
+    # Candidate predictor directories: hashed (predictor_training_<hash>) and legacy static (predictor_training)
+    candidates: List[str] = []
+    
+    for d in os.listdir(experiment_dir):
+        if d.startswith('predictor_training_'):
+            full = os.path.join(experiment_dir, d)
+            if os.path.isdir(full):
+                candidates.append(full)
+
+    matched: List[Tuple[str, Dict[str, Any]]] = []
+    for cand in candidates:
+        cfg_path = os.path.join(cand, 'config.yaml')
+        if not os.path.exists(cfg_path):
+            continue
+        # TODO: understand what the difference between the two different config loading functions is.
+        try:
+            cfg = load_hydra_resolved_config(cfg_path)
+        except Exception:
+            try:
+                cfg = load_yaml(cfg_path)
+            except Exception:
+                continue
+        if predictor_match_criteria:
+            if dict_contains(cfg, predictor_match_criteria):
+                matched.append((cand, cfg))
+        else:
+            matched.append((cand, cfg))
+
+    if not matched:
+        return None
+
+    # If multiple remain, ensure they are identical modulo seed
+    if len(matched) > 1:
+        diff_msg = summarize_differences([cfg for _, cfg in matched])
+        # If truly ambiguous, raise to prompt explicit criteria
+        raise ValueError("Multiple predictor subdirectories match the criteria.\n" + diff_msg)
+
+    return matched[0][0]
+
+
 def main():
     parser = argparse.ArgumentParser(description='Flexible analysis of CDE results across seeds')
     parser.add_argument('--config', type=str, default='analysis_config.yaml', help='Path to analysis config file')
@@ -635,6 +713,7 @@ def main():
                         help='Feed true target latent (encoder on held-out target) into generator instead of predictor output')
     parser.add_argument('--plot-all-timepoints', action='store_true',
                         help='Overlay forecast vs ground truth for all timepoints (training + last)')
+    # No explicit CLI flags for predictor matching; use config/overrides via --set predictor_match_criteria.*
     args = parser.parse_args()
 
     # Load analysis config and apply CLI overrides
@@ -647,6 +726,7 @@ def main():
     config = OmegaConf.to_container(cfg_oc, resolve=True)  # standard Python containers
     experiment_name: str = config['experiment_name']
     match_criteria: Dict[str, Any] = config.get('match_criteria', {})
+    predictor_match_criteria: Dict[str, Any] = config.get('predictor_match_criteria', {})
     naming_parameters: List[str] = config.get('naming_parameters', [])
     output_folder: str = config.get('output_folder', 'figures')
     default_seed_for_plots: int = int(config.get('default_seed_for_plots', 0))
@@ -751,12 +831,22 @@ def main():
     per_seed_results: List[Tuple[int, float, Any]] = []  # (seed, mmd^2, emd)
     forecast_for_plot = None
     for seed, (exp_seed, (exp_dir, cfg)) in zip(seeds_sorted, matched_with_seed):
+        # Identify predictor hashed subdir inside this experiment dir
+        predictor_dir = None
+        try:
+            predictor_dir = find_matching_predictor_subdir(exp_dir, predictor_match_criteria, seed)
+        except Exception as e:
+            logger.error(f"Predictor subdir selection error for {exp_dir}: {e}")
+            print(f"Predictor subdir selection error for {exp_dir}: {e}")
+            sys.exit(1)
+
         forecast = generate_cde_forecast(
             exp_dir,
             training_data,
             predictor_source=args.predictor_source,
             use_true_target_latent=args.use_true_target_latent,
             forecast_all_timepoints=args.plot_all_timepoints,
+            predictor_dir=predictor_dir,
         )
         mmd_legacy, mmd_paper, emd = compute_mmd_and_emd(dataset_name, forecast['forecast'], logger, enable_emd=not args.disable_emd)
         per_seed_results.append((seed, mmd_legacy, mmd_paper, emd))
@@ -812,12 +902,21 @@ def main():
     if not args.skip_plots:
         if forecast_for_plot is None:
             # If not found seed==default, just take first
+            # Also resolve predictor subdir for the default seed run
+            default_exp_dir = matched_with_seed[0][1][0]
+            try:
+                default_predictor_dir = find_matching_predictor_subdir(default_exp_dir, predictor_match_criteria, seeds_sorted[0])
+            except Exception as e:
+                logger.error(f"Predictor subdir selection error for default run {default_exp_dir}: {e}")
+                print(f"Predictor subdir selection error for default run {default_exp_dir}: {e}")
+                sys.exit(1)
             forecast_for_plot = generate_cde_forecast(
-                matched_with_seed[0][1][0],
+                default_exp_dir,
                 training_data,
                 predictor_source=args.predictor_source,
                 use_true_target_latent=args.use_true_target_latent,
                 forecast_all_timepoints=args.plot_all_timepoints,
+                predictor_dir=default_predictor_dir,
             )
 
         # Prepare title suffix with naming parameters and metrics

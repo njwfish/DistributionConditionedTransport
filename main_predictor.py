@@ -83,7 +83,7 @@ def main(cfg: DictConfig):
             'collate_fn': None
         }
         
-        sampling_config = cfg.sampling
+        sampling_config = cfg.predictor_sampling
 
         # Load optional lists for the sampler if specified in cfg.experiment
         sampler_kwargs = {}
@@ -175,17 +175,8 @@ def main(cfg: DictConfig):
             exclude_predictor=False,
         )
 
-        # Simple predictor trainer using same training config as main training
-        predictor_trainer = PredictorTrainer(
-            num_epochs=cfg.predictor_training.num_epochs,
-            log_interval=cfg.predictor_training.log_interval,
-            save_interval=cfg.predictor_training.save_interval,
-            eval_interval=cfg.predictor_training.eval_interval,
-            early_stopping=cfg.predictor_training.early_stopping,
-            patience=cfg.predictor_training.patience,
-            use_tqdm=cfg.predictor_training.use_tqdm,
-            use_generator_loss=getattr(cfg.predictor_training, 'use_generator_loss', False),
-        )
+        # Instantiate predictor trainer from Hydra config
+        predictor_trainer = hydra.utils.instantiate(cfg.predictor_training)
 
         # Run predictor training
         train_start = time.time()

@@ -184,12 +184,14 @@ def main(cfg: DictConfig):
             early_stopping=cfg.predictor_training.early_stopping,
             patience=cfg.predictor_training.patience,
             use_tqdm=cfg.predictor_training.use_tqdm,
+            use_generator_loss=getattr(cfg.predictor_training, 'use_generator_loss', False),
         )
 
         # Run predictor training
         train_start = time.time()
         final_output_dir, pred_stats = predictor_trainer.train(
             encoder=encoder,
+            generator=generator,
             predictor=predictor,
             dataloader=dataloader,
             optimizer=pred_optimizer,

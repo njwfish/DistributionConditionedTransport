@@ -14,7 +14,7 @@ defaults:
   - /loss: default
   - /predictor: default  # use unified predictor
   - /predictor_sampling: default
-  - /predictor_training: default
+  - /predictor_training: default_generator_loss
   - /sampling: default
 
 ot_coupling: false

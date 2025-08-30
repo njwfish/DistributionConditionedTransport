@@ -8,9 +8,6 @@ match_criteria:
     selective_pairing_mode: ${experiment.selective_pairing_mode}
     num_samples: ${experiment.num_samples}
     exponential_weight_scale: ${experiment.exponential_weight_scale}
-  loss:
-    _target_: loss.predictor.PredictorLossManager
-    predictor_loss_weight: ${experiment.predictor_loss_weight}
   #predictor:
   #  _target_: predictor.predictor.Predictor
   #  model_type: ${experiment.predictor_model_type}

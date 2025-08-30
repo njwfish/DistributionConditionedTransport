@@ -241,7 +241,7 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
     return cfg, enc, gen, predictor, train_predictor_posthoc
 
 
-def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], predictor_source: str = 'separate', use_true_target_latent: bool = False):
+def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], predictor_source: str = 'separate', use_true_target_latent: bool = False, forecast_all_timepoints: bool = False):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     cfg, enc, gen, predictor, train_predictor_posthoc = load_models_from_experiment(experiment_dir, device, predictor_source=predictor_source)
 
@@ -270,10 +270,49 @@ def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], pr
     forecast = gen.sample(samples_s, enc_s, enc_t)
     forecast_np = forecast.detach().cpu().numpy()
     forecast_structured = forecast_np[None, :, :]  # (1, N, D)
-    return {
+
+    results: Dict[str, Any] = {
         'forecast': forecast_structured,
         'X_val': training_data['X_val_true']
     }
+
+    # Optionally produce forecasts for all timepoints (training + final)
+    if forecast_all_timepoints:
+        n_steps = int(training_data['N_steps'])
+        forecasts_seq: List[np.ndarray] = []
+        for t in range(1, n_steps):
+            # Source is time t-1; target is time t (final uses X_val_true)
+            if t < n_steps - 1:
+                source_np = training_data['Xs'][t - 1]
+                target_np = training_data['Xs'][t]
+            else:
+                source_np = training_data['Xs'][t - 1]
+                target_np = training_data['X_val_true']
+
+            src = torch.tensor(source_np, dtype=torch.float32, device=device).unsqueeze(0)
+            tgt = torch.tensor(target_np, dtype=torch.float32, device=device).unsqueeze(0)
+
+            enc_src = enc(src)
+            if predictor is not None and not use_true_target_latent:
+                src_idx = torch.tensor([t - 1], device=device, dtype=torch.float32)
+                tgt_idx = torch.tensor([t], device=device, dtype=torch.float32)
+                enc_tgt = predictor(enc_src, condition_scalars=(src_idx, tgt_idx))
+            else:
+                enc_tgt = enc(tgt)
+
+            # Reshape for generator
+            _, set_size_t, *data_shape_t = src.shape
+            gen_src = src.reshape(-1, *data_shape_t)
+            pred_t = gen.sample(gen_src, enc_src, enc_tgt)
+            pred_t_np = pred_t.detach().cpu().numpy()
+            pred_t_structured = pred_t_np[None, :, :]  # (1, N, D)
+            forecasts_seq.append(pred_t_structured)
+
+        # Shape: (n_steps-1, N, D)
+        if len(forecasts_seq) > 0:
+            results['forecast_sequence'] = np.stack(forecasts_seq, axis=0)
+
+    return results
 
 
 # -----------------------------
@@ -316,8 +355,10 @@ def compute_mmd_and_emd(dataset_name: str, forecast_1xNxD: np.ndarray, logger: l
 
     X_val = training_data['Xs'][-1]
 
-    rbf = RBF(bandwidth=2.0).to(device)
-    myMMD = MMDLoss(kernel=rbf).to(device)
+    rbf_legacy = RBF(bandwidth=1.0).to(device)
+    rbf_paper = RBF(1.0).to(device)
+    mmd_loss_legacy = MMDLoss(kernel=rbf_legacy).to(device)
+    mmd_loss_paper = MMDLoss(kernel=rbf_paper).to(device)
 
     # forecast_1xNxD is numpy with shape (1, N, D). Take final timepoint (N, D)
     # TODO: to me this indicates that there is an issue.
@@ -327,8 +368,9 @@ def compute_mmd_and_emd(dataset_name: str, forecast_1xNxD: np.ndarray, logger: l
     X_val_t = torch.tensor(X_val).to(device)
 
     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",forecast_1xNxD.shape,forecast_1xNxD[-1].shape, X_val_t.shape)
-    mmd_squared = myMMD(forecast_final_t, X_val_t).item()
-    mmd = float(np.sqrt(mmd_squared))
+    mmd_legacy = np.sqrt(mmd_loss_legacy(forecast_final_t, X_val_t).item())
+    mmd_paper = mmd_loss_paper(forecast_final_t, X_val_t).item()
+    
 
     emd = None
     if enable_emd and cfg.get('calculate_emd', False):
@@ -340,8 +382,8 @@ def compute_mmd_and_emd(dataset_name: str, forecast_1xNxD: np.ndarray, logger: l
         emd_val = calculate_emd(forecast_for_emd, X_val_for_emd)
         emd = float(emd_val) if not np.isnan(emd_val) else None
 
-    logger.info(f"Computed metrics -> MMD: {mmd:.6f}, MMD^2: {mmd_squared:.6f}, EMD: {('%.6f' % emd) if emd is not None else 'n/a'}")
-    return mmd_squared, emd
+    logger.info(f"Computed metrics -> MMD_legacy: {mmd_legacy:.6f}, MMD_paper: {mmd_paper:.6f}, EMD: {('%.6f' % emd) if emd is not None else 'n/a'}")
+    return mmd_legacy, mmd_paper, emd
 
 
 # -----------------------------
@@ -374,7 +416,7 @@ def transform_for_plot(dataset_name: str, data: np.ndarray, pca: PCA = None) -> 
 # Plotting
 # -----------------------------
 
-def plot_main_results(dataset_name: str, results: Dict[str, Any], out_dir: str, logger: logging.Logger, pca: PCA = None, title_suffix: str = ""):
+def plot_main_results(dataset_name: str, results: Dict[str, Any], out_dir: str, logger: logging.Logger, pca: PCA = None, title_suffix: str = "", plot_all_timepoints: bool = False):
     os.makedirs(out_dir, exist_ok=True)
     cfg = DATASET_CONFIGS[dataset_name]
     training = results['training_data']
@@ -411,17 +453,51 @@ def plot_main_results(dataset_name: str, results: Dict[str, Any], out_dir: str, 
     cbar = plt.colorbar(scatter, ax=ax, shrink=0.8, aspect=20)
     cbar.set_label('Time Point', rotation=270, labelpad=15)
 
-    true_data = transform_for_plot(dataset_name, training['X_val_true'], pca)
-    forecast_data = transform_for_plot(dataset_name, forecast['forecast'][-1][-1], pca)
+    print("!!!!!!!!! FORECAST SHAPE !!!!!!!!",forecast['forecast_sequence'].shape)
+    
+    if plot_all_timepoints and ('forecast_sequence' in forecast and forecast['forecast_sequence'] is not None):
+        forecast_seq = forecast['forecast_sequence']  # shape: (T, N, D) with T=n_steps-1
+        n_seq_training = len(training['Xs'])  # equals T
+        first_overlay = True
+        for idx in range(forecast_seq.shape[0]):
+            if idx < n_seq_training - 1:
+                true_np = training['Xs'][idx + 1]
+            else:
+                true_np = training['X_val_true']
 
-    if is_3d:
-        ax.scatter(true_data[:, 0], true_data[:, 1], true_data[:, 2], alpha=0.9, s=8.0, color='darkgreen', label='Ground Truth', marker='o', edgecolor='white', linewidth=0.5)
-        ax.scatter(forecast_data[:, 0], forecast_data[:, 1], forecast_data[:, 2], alpha=0.9, s=8.0, color='darkorange', label='Forecast', marker='s', edgecolor='white', linewidth=0.5)
-        ax.set_zlabel(cfg['axes_labels'][2] if len(cfg['axes_labels']) > 2 else 'Z')
+            pred_np = forecast_seq[idx]
+            print(f"!!!!!!!!! SOURCE SHAPE !!!!!!!! at INDEX {idx} IS: ",training['X_val_true'].shape, forecast['forecast'].shape)
+
+            true_p = transform_for_plot(dataset_name, true_np, pca)
+            pred_p = transform_for_plot(dataset_name, pred_np[-1][-1], pca)
+
+            gt_label = 'Ground Truth (all times)' if first_overlay else None
+            fc_label = 'Forecast (all times)' if first_overlay else None
+
+            if is_3d:
+                ax.scatter(true_p[:, 0], true_p[:, 1], true_p[:, 2], alpha=0.7, s=6.0, color='darkgreen', label=gt_label, marker='o', edgecolor='white', linewidth=0.3)
+                ax.scatter(pred_p[:, 0], pred_p[:, 1], pred_p[:, 2], alpha=0.7, s=6.0, color='darkorange', label=fc_label, marker='s', edgecolor='white', linewidth=0.3)
+            else:
+                
+                ax.scatter(true_p[:, 0], true_p[:, 1], alpha=0.7, s=6.0, color='darkgreen', label=gt_label, marker='o', edgecolor='white', linewidth=0.3)
+                #ax.scatter(pred_p[:, 0], pred_p[:, 1], alpha=0.7, s=6.0, color='darkorange', label=fc_label, marker='s', edgecolor='white', linewidth=0.3)
+                ax.scatter(pred_p[:, 0], pred_p[:, 1], alpha=0.7, s=6.0, label=fc_label, marker='s', edgecolor='white', linewidth=0.3)
+            first_overlay = False
+        if not is_3d:
+            ax.grid(True)
     else:
-        ax.scatter(true_data[:, 0], true_data[:, 1], alpha=0.9, s=8.0, color='darkgreen', label='Ground Truth', marker='o', edgecolor='white', linewidth=0.5)
-        ax.scatter(forecast_data[:, 0], forecast_data[:, 1], alpha=0.9, s=8.0, color='darkorange', label='Forecast', marker='s', edgecolor='white', linewidth=0.5)
-        ax.grid(True)
+        print("!!!!!!!!! SOURCE SHAPE !!!!!!!!",training['X_val_true'].shape, forecast['forecast'].shape)
+        true_data = transform_for_plot(dataset_name, training['X_val_true'], pca)
+        forecast_data = transform_for_plot(dataset_name, forecast['forecast'][-1][-1], pca)
+
+        if is_3d:
+            ax.scatter(true_data[:, 0], true_data[:, 1], true_data[:, 2], alpha=0.9, s=8.0, color='darkgreen', label='Ground Truth', marker='o', edgecolor='white', linewidth=0.5)
+            ax.scatter(forecast_data[:, 0], forecast_data[:, 1], forecast_data[:, 2], alpha=0.9, s=8.0, color='darkorange', label='Forecast', marker='s', edgecolor='white', linewidth=0.5)
+            ax.set_zlabel(cfg['axes_labels'][2] if len(cfg['axes_labels']) > 2 else 'Z')
+        else:
+            ax.scatter(true_data[:, 0], true_data[:, 1], alpha=0.9, s=8.0, color='darkgreen', label='Ground Truth', marker='o', edgecolor='white', linewidth=0.5)
+            ax.scatter(forecast_data[:, 0], forecast_data[:, 1], alpha=0.9, s=8.0, color='darkorange', label='Forecast', marker='s', edgecolor='white', linewidth=0.5)
+            ax.grid(True)
 
     ax.set_xlabel(cfg['axes_labels'][0])
     ax.set_ylabel(cfg['axes_labels'][1])
@@ -557,6 +633,8 @@ def main():
                         help='Where to load predictor checkpoint from: auto (default), main (root dir or joint), or main_predictor (predictor_training subdir)')
     parser.add_argument('--use-true-target-latent', action='store_true',
                         help='Feed true target latent (encoder on held-out target) into generator instead of predictor output')
+    parser.add_argument('--plot-all-timepoints', action='store_true',
+                        help='Overlay forecast vs ground truth for all timepoints (training + last)')
     args = parser.parse_args()
 
     # Load analysis config and apply CLI overrides
@@ -673,9 +751,15 @@ def main():
     per_seed_results: List[Tuple[int, float, Any]] = []  # (seed, mmd^2, emd)
     forecast_for_plot = None
     for seed, (exp_seed, (exp_dir, cfg)) in zip(seeds_sorted, matched_with_seed):
-        forecast = generate_cde_forecast(exp_dir, training_data, predictor_source=args.predictor_source, use_true_target_latent=args.use_true_target_latent)
-        mmd2, emd = compute_mmd_and_emd(dataset_name, forecast['forecast'], logger, enable_emd=not args.disable_emd)
-        per_seed_results.append((seed, mmd2, emd))
+        forecast = generate_cde_forecast(
+            exp_dir,
+            training_data,
+            predictor_source=args.predictor_source,
+            use_true_target_latent=args.use_true_target_latent,
+            forecast_all_timepoints=args.plot_all_timepoints,
+        )
+        mmd_legacy, mmd_paper, emd = compute_mmd_and_emd(dataset_name, forecast['forecast'], logger, enable_emd=not args.disable_emd)
+        per_seed_results.append((seed, mmd_legacy, mmd_paper, emd))
         if forecast_for_plot is None and seed == default_seed_for_plots:
             forecast_for_plot = forecast
 
@@ -688,27 +772,32 @@ def main():
     # Print and log per-seed metrics
     print("Individual results (by seed):")
     logger.info("Individual results (by seed):")
-    mmd2_list = []
+    mmd_paper_list = []
+    mmd_legacy_list = []
     emd_list = []
-    for seed, mmd2, emd in per_seed_results:
-        mmd = float(np.sqrt(mmd2))
+    for seed, mmd_legacy, mmd_paper, emd in per_seed_results:
         emd_str = ("%.6f" % emd) if emd is not None else "n/a"
-        line = f"  Seed {seed}: MMD = {mmd:.6f}, MMD^2 = {mmd2:.6f}, EMD = {emd_str}"
+        line = f"  Seed {seed}: MMD_legacy = {mmd_legacy:.6f}, MMD_paper = {mmd_paper:.6f}, EMD = {emd_str}"
         print(line)
         logger.info(line)
-        mmd2_list.append(mmd2)
+        mmd_paper_list.append(mmd_paper)
+        mmd_legacy_list.append(mmd_legacy)
         if emd is not None:
             emd_list.append(emd)
 
     # Aggregate stats
-    mmd2_arr = np.array(mmd2_list)
-    mmd_arr = np.sqrt(mmd2_arr)
-    mmd_mean = float(mmd_arr.mean())
-    mmd_std = float(mmd_arr.std())
-    print(f"MMD: {mmd_mean:.6f} ± {mmd_std:.6f}")
-    print(f"MMD^2: {mmd2_arr.mean():.6f} ± {mmd2_arr.std():.6f}")
-    logger.info(f"MMD: {mmd_mean:.6f} ± {mmd_std:.6f}")
-    logger.info(f"MMD^2: {mmd2_arr.mean():.6f} ± {mmd2_arr.std():.6f}")
+    mmd_paper_arr = np.array(mmd_paper_list)
+    mmd_legacy_arr = np.array(mmd_legacy_list)
+    mmd_paper_mean = float(mmd_paper_arr.mean())
+    mmd_legacy_mean = float(mmd_legacy_arr.mean())
+    mmd_paper_std = float(mmd_paper_arr.std())
+    mmd_legacy_std = float(mmd_legacy_arr.std())
+    print(f"MMD_paper: {mmd_paper_mean:.6f} ± {mmd_paper_std:.6f}")
+    print(f"MMD_legacy: {mmd_legacy_mean:.6f} ± {mmd_legacy_std:.6f}")
+    #print(f"MMD^2: {mmd2_arr.mean():.6f} ± {mmd2_arr.std():.6f}")
+    logger.info(f"MMD_paper: {mmd_paper_mean:.6f} ± {mmd_paper_std:.6f}")
+    logger.info(f"MMD_legacy: {mmd_legacy_mean:.6f} ± {mmd_legacy_std:.6f}")
+    #logger.info(f"MMD^2: {mmd2_arr.mean():.6f} ± {mmd2_arr.std():.6f}")
 
     emd_title_segment = ""
     if len(emd_list) > 0:
@@ -723,17 +812,24 @@ def main():
     if not args.skip_plots:
         if forecast_for_plot is None:
             # If not found seed==default, just take first
-            forecast_for_plot = generate_cde_forecast(matched_with_seed[0][1][0], training_data, predictor_source=args.predictor_source, use_true_target_latent=args.use_true_target_latent)
+            forecast_for_plot = generate_cde_forecast(
+                matched_with_seed[0][1][0],
+                training_data,
+                predictor_source=args.predictor_source,
+                use_true_target_latent=args.use_true_target_latent,
+                forecast_all_timepoints=args.plot_all_timepoints,
+            )
 
         # Prepare title suffix with naming parameters and metrics
-        metrics_title_segment = f"MMD={mmd_mean:.4g}±{mmd_std:.2g}{emd_title_segment}"
+        metrics_title_segment = f"MMD={mmd_paper_mean:.4g}±{mmd_paper_std:.2g}, MMD_legacy={mmd_legacy_mean:.4g}±{mmd_legacy_std:.2g}{emd_title_segment}"
         title_suffix = f"{parameters_label_for_title} | {metrics_title_segment}"
 
         results_struct = {
             'training_data': training_data,
             'forecast_data': {
                 'forecast': forecast_for_plot['forecast'],
-                'X_val_forecast': forecast_for_plot['X_val']
+                'X_val_forecast': forecast_for_plot['X_val'],
+                'forecast_sequence': forecast_for_plot.get('forecast_sequence')
             },
             'metadata': {
                 'task_name': dataset_name,
@@ -741,7 +837,7 @@ def main():
                 'forecast_method': 'CDE'
             }
         }
-        plot_main_results(dataset_name, results_struct, out_dir, logger, pca, title_suffix=title_suffix)
+        plot_main_results(dataset_name, results_struct, out_dir, logger, pca, title_suffix=title_suffix, plot_all_timepoints=args.plot_all_timepoints)
 
     print(f"\n✓ Analysis complete. Figures and logs saved to: {out_dir}/")
     logger.info(f"Analysis complete. Output saved to: {out_dir}/")

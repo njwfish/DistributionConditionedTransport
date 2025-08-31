@@ -357,7 +357,7 @@ def _sample_indices(num_items: int, set_size: int, rng: np.random.RandomState) -
 # Core visualization logic
 # -----------------------------
 
-def visualize_latents_for_run(exp_dir: str, cfg: Dict[str, Any], out_dir: str, logger: logging.Logger, num_sets: int, set_size_cli: Optional[int] = None, title_suffix: str = "", skip_plots: bool = False, ridge_alpha: float = 1.0) -> None:
+def visualize_latents_for_run(exp_dir: str, cfg: Dict[str, Any], out_dir: str, logger: logging.Logger, num_sets: int, set_size_cli: Optional[int] = None, title_suffix: str = "", skip_plots: bool = False, ridge_alpha: float = 1.0, ridge_train_mode: str = 'full') -> None:
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     cfg_model, enc, _gen, _pred, dataset, _ = load_models_from_experiment(exp_dir, device, use_true_target_latent=True)
 
@@ -442,19 +442,30 @@ def visualize_latents_for_run(exp_dir: str, cfg: Dict[str, Any], out_dir: str, l
     
     print("LENGTH OF LATENTS BY TIMEPOINT: ", len(latents_by_timepoint))
     if len(latents_by_timepoint) >= 2:  # Need at least 2 timepoints for transitions
-        # Prepare training datat: X = latents at time t, y = latents at time t+1
+        # Prepare training data (exclude final held-out timepoint)
         X_ridge = []
         y_ridge = []
-        
-        for t in range(len(latents_by_timepoint) - 2):  # Exclude last timepoint as target
-            current_latents = latents_by_timepoint[t]
-            next_latents = latents_by_timepoint[t + 1]
-            
-            # Pair each latent at time t with each latent at time t+1
-            for curr_lat in current_latents:
-                for next_lat in next_latents:
-                    X_ridge.append(curr_lat)
-                    y_ridge.append(next_lat)
+
+        if ridge_train_mode == 'centroids':
+            # Compute centroid per timepoint
+            centroids: List[np.ndarray] = []
+            for timepoint_latents in latents_by_timepoint:
+                arr = np.vstack(timepoint_latents) if len(timepoint_latents) > 1 else np.array(timepoint_latents)
+                centroids.append(arr.mean(axis=0))
+            # Build training pairs only among training timepoints (exclude transitions into final)
+            for t in range(len(centroids) - 2):
+                X_ridge.append(centroids[t])
+                y_ridge.append(centroids[t + 1])
+        else:
+            # "full" mode: all pairwise latents between consecutive training timepoints
+            for t in range(len(latents_by_timepoint) - 2):  # Exclude last timepoint as target
+                current_latents = latents_by_timepoint[t]
+                next_latents = latents_by_timepoint[t + 1]
+                # Pair each latent at time t with each latent at time t+1
+                for curr_lat in current_latents:
+                    for next_lat in next_latents:
+                        X_ridge.append(curr_lat)
+                        y_ridge.append(next_lat)
         
         if len(X_ridge) > 0:
             X_ridge = np.vstack(X_ridge)
@@ -469,7 +480,7 @@ def visualize_latents_for_run(exp_dir: str, cfg: Dict[str, Any], out_dir: str, l
             ridge_r2 = r2_score(y_ridge, y_pred)
             ridge_mse = mean_squared_error(y_ridge, y_pred)
             
-            logger.info(f"Ridge regression latent forecasting: R² = {ridge_r2:.6f}, MSE = {ridge_mse:.6f}")
+            logger.info(f"Ridge regression latent forecasting (mode={ridge_train_mode}): R² = {ridge_r2:.6f}, MSE = {ridge_mse:.6f}")
 
             # Save trained ridge regressor and metadata alongside figures
             try:
@@ -514,12 +525,23 @@ def visualize_latents_for_run(exp_dir: str, cfg: Dict[str, Any], out_dir: str, l
 
     # Plot 2D scatter on first two PCs
     if not skip_plots:
+        # Compute centroids per timepoint (in latent space) for visualization
+        centroids = []
+        for tpl in latents_by_timepoint:
+            arr = np.vstack(tpl) if len(tpl) > 1 else np.array(tpl)
+            centroids.append(arr.mean(axis=0))
+        centroids_arr = np.vstack(centroids)
+        centroid_time_labels_arr = np.arange(1, len(latents_by_timepoint) + 1)
+
         # Transform ground truth latents
         if n_components >= 2:
             latents_2d = pca.transform(latents_arr)[:, :2]
+            centroids_2d = pca.transform(centroids_arr)[:, :2]
         else:
             comp1 = pca.transform(latents_arr)[:, 0]
             latents_2d = np.stack([comp1, np.zeros_like(comp1)], axis=1)
+            cent_comp1 = pca.transform(centroids_arr)[:, 0]
+            centroids_2d = np.stack([cent_comp1, np.zeros_like(cent_comp1)], axis=1)
 
         fig, ax = plt.subplots(1, 1, figsize=(12, 8))
         n_sequences = n_total_steps
@@ -543,6 +565,11 @@ def visualize_latents_for_run(exp_dir: str, cfg: Dict[str, Any], out_dir: str, l
             sc_pred = ax.scatter(predicted_2d[:, 0], predicted_2d[:, 1], c=predicted_time_labels_arr, 
                                cmap='coolwarm', vmin=1, vmax=n_sequences, s=15.0, alpha=0.6, 
                                edgecolors='black', linewidth=0.5, label='Ridge Predictions', marker='s')
+
+        # Plot centroids clearly
+        sc_cent = ax.scatter(centroids_2d[:, 0], centroids_2d[:, 1], c=centroid_time_labels_arr,
+                             cmap='coolwarm', vmin=1, vmax=n_sequences, s=80.0, alpha=0.95,
+                             edgecolors='black', linewidth=1.0, label='Centroids', marker='X')
 
         # Colorbar and labels
         cbar = plt.colorbar(sc_gt, ax=ax, shrink=0.8, aspect=20)
@@ -580,6 +607,8 @@ def main():
     parser.add_argument('--num-sets', type=int, default=1, help='Number of random subsets per timepoint to encode')
     parser.add_argument('--set-size', type=int, default=None, help='Override the set_size parameter (points per subset)')
     parser.add_argument('--ridge-alpha', type=float, default=1.0, help='Ridge regression regularization parameter (default: 1.0)')
+    parser.add_argument('--ridge-train-mode', type=str, choices=['full', 'centroids'], default='full',
+                        help='Training data for ridge: full (all latents) or centroids (mean per timepoint)')
     args = parser.parse_args()
 
     # Load analysis config and apply CLI overrides
@@ -696,6 +725,7 @@ def main():
             title_suffix=title_suffix,
             skip_plots=bool(args.skip_plots),
             ridge_alpha=float(args.ridge_alpha),
+            ridge_train_mode=str(args.ridge_train_mode),
         )
 
     print(f"\n✓ Latent visualization complete for seeds {seeds_sorted}. Outputs saved under: {out_dir}/")

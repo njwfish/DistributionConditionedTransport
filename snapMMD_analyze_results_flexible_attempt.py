@@ -18,6 +18,9 @@ from utils.experiment_utils import load_best_model, get_experiment_info
 import hydra
 from omegaconf import OmegaConf
 
+from TrajectoryNet.optimal_transport.emd import earth_mover_distance
+
+
 
 # -----------------------------
 # Configuration helpers
@@ -186,10 +189,30 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
     if not use_true_target_latent:
         if predictor_dir is not None:
             pred_cfg_path = os.path.join(predictor_dir, 'config.yaml')
-
-            pred_cfg_oc = OmegaConf.load(pred_cfg_path)
-            pred_cfg_node = pred_cfg_oc.get('predictor')
-            predictor = hydra.utils.instantiate(pred_cfg_node)
+            if not os.path.exists(pred_cfg_path):
+                print(f"[predictor] Expected predictor config not found at {pred_cfg_path}; predictor=None")
+                predictor = None
+            else:
+                try:
+                    pred_cfg_oc = OmegaConf.load(pred_cfg_path)
+                except Exception as e:
+                    print(f"[predictor] Failed to load predictor config at {pred_cfg_path}: {e}; predictor=None")
+                    pred_cfg_oc = None
+                if pred_cfg_oc is not None:
+                    pred_cfg_node = pred_cfg_oc.get('predictor')
+                    if pred_cfg_node is None:
+                        print(f"[predictor] 'predictor' section missing in {pred_cfg_path}; predictor=None")
+                        predictor = None
+                    else:
+                        try:
+                            predictor = hydra.utils.instantiate(pred_cfg_node)
+                        except Exception as e:
+                            print(f"[predictor] Hydra instantiate failed for {pred_cfg_path}: {e}; predictor=None")
+                            predictor = None
+                        if predictor is None:
+                            print(f"[predictor] Hydra instantiate returned None for config at {pred_cfg_path}; predictor=None")
+        else:
+            print(f"[predictor] No predictor_dir provided for {experiment_dir}; predictor=None")
 
         # TODO: change back at some point.
         #elif 'predictor' in cfg and cfg['predictor'] is not None:
@@ -198,6 +221,7 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
         if predictor is not None and hasattr(enc, 'latent_act'):
             predictor.latent_act = enc.latent_act
     else:
+        print("[predictor] use_true_target_latent=True; disabling predictor and any posthoc predictor training")
         predictor = None
         train_predictor_posthoc = False
 
@@ -212,9 +236,13 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
     # Load predictor weights based on requested source or explicit predictor_dir
     if predictor is not None:
         def _try_load_predictor(ckpt_path: str) -> bool:
-            pred_ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
-            predictor.load_state_dict(pred_ckpt['predictor_state_dict'])
-            return True
+            try:
+                pred_ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
+                predictor.load_state_dict(pred_ckpt['predictor_state_dict'])
+                return True
+            except Exception as e:
+                print(f"[predictor] Failed to load checkpoint at {ckpt_path}: {e}")
+                return False
 
         # Preferred: explicit hashed predictor subdir
         loaded_pred = False
@@ -275,6 +303,12 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
 def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], predictor_source: str = 'separate', use_true_target_latent: bool = False, forecast_all_timepoints: bool = False, predictor_dir: Optional[str] = None, source_steps_back: int = 1, num_sets: int = 1, cli_set_size: Optional[int] = None):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     cfg, enc, gen, predictor, dataset, train_predictor_posthoc = load_models_from_experiment(experiment_dir, device, predictor_source=predictor_source, predictor_dir=predictor_dir, use_true_target_latent=use_true_target_latent)
+
+    # If we are not allowed to use true target latents and the predictor is missing,
+    # skip this run by returning None. Downstream code will ignore this seed.
+    if not use_true_target_latent and predictor is None:
+        print(f"[forecast] Skipping run at {experiment_dir}: predictor=None and use_true_target_latent=False.")
+        return None
 
     Xs_training = training_data['Xs']
     n_steps = int(training_data['N_steps'])
@@ -533,7 +567,7 @@ def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], pr
 # Metrics
 # -----------------------------
 
-def calculate_emd(x: np.ndarray, y: np.ndarray) -> float:
+def calculate_emd_my_implementation(x: np.ndarray, y: np.ndarray) -> float:
     # Linear programming EMD (balanced, uniform weights)
     from scipy.optimize import linprog
     n, m = x.shape[0], y.shape[0]
@@ -556,6 +590,8 @@ def calculate_emd(x: np.ndarray, y: np.ndarray) -> float:
     else:
         return float('nan')
 
+def calculate_emd(x: np.ndarray, y: np.ndarray) -> float:
+    return earth_mover_distance(x, y)
 
 def compute_mmd_and_emd(dataset_name: str, forecast_NxD: np.ndarray, logger: logging.Logger, enable_emd: bool = True) -> Tuple[float, float]:
     cfg = DATASET_CONFIGS[dataset_name]
@@ -832,6 +868,7 @@ def find_matching_predictor_subdir(experiment_dir: str, predictor_match_criteria
     Returns the full path or None if not found.
     """
     if not os.path.isdir(experiment_dir):
+        print(f"[predictor-discovery] Experiment directory does not exist or is not a directory: {experiment_dir}")
         return None
 
     # Candidate predictor directories: hashed (predictor_training_<hash>) and legacy static (predictor_training)
@@ -842,6 +879,9 @@ def find_matching_predictor_subdir(experiment_dir: str, predictor_match_criteria
             full = os.path.join(experiment_dir, d)
             if os.path.isdir(full):
                 candidates.append(full)
+
+    if not candidates:
+        print(f"[predictor-discovery] No predictor_training_* subdirectories found under {experiment_dir}; seed={seed}")
 
     matched: List[Tuple[str, Dict[str, Any]]] = []
     for cand in candidates:
@@ -855,6 +895,7 @@ def find_matching_predictor_subdir(experiment_dir: str, predictor_match_criteria
             try:
                 cfg = load_yaml(cfg_path)
             except Exception:
+                print(f"[predictor-discovery] Failed to read predictor config at {cfg_path}; skipping")
                 continue
         if predictor_match_criteria:
             if dict_contains(cfg, predictor_match_criteria):
@@ -863,6 +904,7 @@ def find_matching_predictor_subdir(experiment_dir: str, predictor_match_criteria
             matched.append((cand, cfg))
 
     if not matched:
+        print(f"[predictor-discovery] Found {len(candidates)} predictor dirs but none matched criteria={json.dumps(predictor_match_criteria)}; seed={seed}")
         return None
 
     # If multiple remain, ensure they are identical modulo seed
@@ -1032,6 +1074,9 @@ def main():
             num_sets=args.num_sets,
             cli_set_size=args.set_size,
         )
+        if forecast is None:
+            logger.info(f"Skipping seed {seed}: no predictor available and --use-true-target-latent is False.")
+            continue
         mmd_legacy, mmd_paper, emd = compute_mmd_and_emd(dataset_name, forecast['forecast'], logger, enable_emd=not args.disable_emd)
         per_seed_results.append((seed, mmd_legacy, mmd_paper, emd))
         if forecast_for_plot is None and seed == default_seed_for_plots:
@@ -1085,8 +1130,7 @@ def main():
     # Plot for default seed
     if not args.skip_plots:
         if forecast_for_plot is None:
-            # If not found seed==default, just take first
-            # Also resolve predictor subdir for the default seed run
+            # If not found seed==default, try the first matched run
             default_exp_dir = matched_with_seed[0][1][0]
             default_predictor_dir = None
             if not args.use_true_target_latent:
@@ -1108,24 +1152,27 @@ def main():
                 cli_set_size=args.set_size,
             )
 
-        # Prepare title suffix with naming parameters and metrics
-        metrics_title_segment = f"MMD={mmd_paper_mean:.4g}±{mmd_paper_std:.2g}, MMD_legacy={mmd_legacy_mean:.4g}±{mmd_legacy_std:.2g}{emd_title_segment}"
-        title_suffix = f"{parameters_label_for_title} | {metrics_title_segment}"
+        if forecast_for_plot is not None:
+            # Prepare title suffix with naming parameters and metrics
+            metrics_title_segment = f"MMD={mmd_paper_mean:.4g}±{mmd_paper_std:.2g}, MMD_legacy={mmd_legacy_mean:.4g}±{mmd_legacy_std:.2g}{emd_title_segment}"
+            title_suffix = f"{parameters_label_for_title} | {metrics_title_segment}"
 
-        results_struct = {
-            'training_data': training_data,
-            'forecast_data': {
-                'forecast': forecast_for_plot['forecast'],
-                'X_val_forecast': forecast_for_plot['X_val'],
-                'forecast_sequence': forecast_for_plot.get('forecast_sequence')
-            },
-            'metadata': {
-                'task_name': dataset_name,
-                'config': DATASET_CONFIGS[dataset_name],
-                'forecast_method': 'CDE'
+            results_struct = {
+                'training_data': training_data,
+                'forecast_data': {
+                    'forecast': forecast_for_plot['forecast'],
+                    'X_val_forecast': forecast_for_plot['X_val'],
+                    'forecast_sequence': forecast_for_plot.get('forecast_sequence')
+                },
+                'metadata': {
+                    'task_name': dataset_name,
+                    'config': DATASET_CONFIGS[dataset_name],
+                    'forecast_method': 'CDE'
+                }
             }
-        }
-        plot_main_results(dataset_name, results_struct, out_dir, logger, pca, title_suffix=title_suffix, plot_all_timepoints=args.plot_all_timepoints)
+            plot_main_results(dataset_name, results_struct, out_dir, logger, pca, title_suffix=title_suffix, plot_all_timepoints=args.plot_all_timepoints)
+        else:
+            logger.warning("No forecast available for plotting; skipping plots.")
 
     print(f"\n✓ Analysis complete. Figures and logs saved to: {out_dir}/")
     logger.info(f"Analysis complete. Output saved to: {out_dir}/")

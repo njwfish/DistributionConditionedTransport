@@ -440,12 +440,13 @@ def visualize_latents_for_run(exp_dir: str, cfg: Dict[str, Any], out_dir: str, l
     predicted_latents = []
     predicted_time_labels = []
     
+    print("LENGTH OF LATENTS BY TIMEPOINT: ", len(latents_by_timepoint))
     if len(latents_by_timepoint) >= 2:  # Need at least 2 timepoints for transitions
-        # Prepare training data: X = latents at time t, y = latents at time t+1
+        # Prepare training datat: X = latents at time t, y = latents at time t+1
         X_ridge = []
         y_ridge = []
         
-        for t in range(len(latents_by_timepoint) - 1):  # Exclude last timepoint as target
+        for t in range(len(latents_by_timepoint) - 2):  # Exclude last timepoint as target
             current_latents = latents_by_timepoint[t]
             next_latents = latents_by_timepoint[t + 1]
             
@@ -503,16 +504,10 @@ def visualize_latents_for_run(exp_dir: str, cfg: Dict[str, Any], out_dir: str, l
     else:
         logger.warning("Insufficient timepoints for ridge regression (need at least 2)")
 
-    # Combine all latents (ground truth + predictions) for PCA fitting
-    all_latents_for_pca = latents_arr
-    if len(predicted_latents) > 0:
-        predicted_latents_arr = np.vstack(predicted_latents)
-        all_latents_for_pca = np.vstack([latents_arr, predicted_latents_arr])
-
-    # Fit PCA and log explained variance
-    n_components = min(5, all_latents_for_pca.shape[1]) if all_latents_for_pca.ndim == 2 else 2
+    # Fit PCA only on ground-truth latents (no ridge predictions to avoid leakage)
+    n_components = min(5, latents_arr.shape[1]) if latents_arr.ndim == 2 else 2
     pca = PCA(n_components=n_components)
-    pca.fit(all_latents_for_pca)
+    pca.fit(latents_arr)
     evr = pca.explained_variance_ratio_
     evr_str = ", ".join([f"{v:.6f}" for v in evr])
     logger.info(f"Explained variance ratio (first {n_components} PCs): {evr_str}")
@@ -597,7 +592,7 @@ def main():
     experiment_name: str = config['experiment_name']
     match_criteria: Dict[str, Any] = config.get('match_criteria', {})
     naming_parameters: List[str] = config.get('naming_parameters', [])
-    output_folder: str = 'figures_lat2' #config.get('output_folder', 'figures')
+    output_folder: str = config.get('output_folder', 'figures')
     default_seed_for_plots: int = int(config.get('default_seed_for_plots', 0))
 
     # Build output directory name

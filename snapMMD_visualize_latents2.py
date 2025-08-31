@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score, mean_squared_error
-import joblib
 
 import hydra
 from omegaconf import OmegaConf
@@ -357,7 +356,7 @@ def _sample_indices(num_items: int, set_size: int, rng: np.random.RandomState) -
 # Core visualization logic
 # -----------------------------
 
-def visualize_latents_for_run(exp_dir: str, cfg: Dict[str, Any], out_dir: str, logger: logging.Logger, num_sets: int, set_size_cli: Optional[int] = None, title_suffix: str = "", skip_plots: bool = False, ridge_alpha: float = 1.0) -> None:
+def visualize_latents_for_run(exp_dir: str, cfg: Dict[str, Any], out_dir: str, logger: logging.Logger, num_sets: int, set_size_cli: Optional[int] = None, title_suffix: str = "", skip_plots: bool = False, ridge_alpha: float = 1.0, ridge_use_centroids: bool = False) -> None:
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     cfg_model, enc, _gen, _pred, dataset, _ = load_models_from_experiment(exp_dir, device, use_true_target_latent=True)
 
@@ -441,78 +440,95 @@ def visualize_latents_for_run(exp_dir: str, cfg: Dict[str, Any], out_dir: str, l
     predicted_time_labels = []
     
     if len(latents_by_timepoint) >= 2:  # Need at least 2 timepoints for transitions
-        # Prepare training data: X = latents at time t, y = latents at time t+1
-        X_ridge = []
-        y_ridge = []
-        
-        for t in range(len(latents_by_timepoint) - 1):  # Exclude last timepoint as target
-            current_latents = latents_by_timepoint[t]
-            next_latents = latents_by_timepoint[t + 1]
-            
-            # Pair each latent at time t with each latent at time t+1
-            for curr_lat in current_latents:
-                for next_lat in next_latents:
-                    X_ridge.append(curr_lat)
-                    y_ridge.append(next_lat)
-        
-        if len(X_ridge) > 0:
-            X_ridge = np.vstack(X_ridge)
-            y_ridge = np.vstack(y_ridge)
-            
-            # Train ridge regression
-            ridge_model = Ridge(alpha=ridge_alpha, random_state=seed_val)
-            ridge_model.fit(X_ridge, y_ridge)
-            
-            # Evaluate on training data (since we don't have separate test data)
-            y_pred = ridge_model.predict(X_ridge)
-            ridge_r2 = r2_score(y_ridge, y_pred)
-            ridge_mse = mean_squared_error(y_ridge, y_pred)
-            
-            logger.info(f"Ridge regression latent forecasting: R² = {ridge_r2:.6f}, MSE = {ridge_mse:.6f}")
+        logger.info("Ridge regression mode: %s", "centroids" if ridge_use_centroids else "full pairwise")
+        if ridge_use_centroids:
+            # Compute centroids per timepoint
+            centroids: List[np.ndarray] = []
+            for timepoint_latents in latents_by_timepoint:
+                if len(timepoint_latents) == 0:
+                    continue
+                centroids.append(np.mean(np.vstack(timepoint_latents), axis=0))
 
-            # Save trained ridge regressor and metadata alongside figures
-            try:
-                ridge_path = os.path.join(out_dir, 'ridge_regressor.pkl')
-                joblib.dump(ridge_model, ridge_path)
-                ridge_meta = {
-                    'alpha': float(ridge_alpha),
-                    'r2': float(ridge_r2) if ridge_r2 is not None else None,
-                    'mse': float(ridge_mse) if ridge_mse is not None else None,
-                    'seed': int(seed_val) if seed_val is not None else None,
-                    'latent_dim': int(latents_arr.shape[1]) if latents_arr.ndim == 2 else None,
-                    'num_training_pairs': int(X_ridge.shape[0]),
-                    'num_timepoints': int(len(latents_by_timepoint)),
-                }
-                with open(os.path.join(out_dir, 'ridge_regressor_meta.json'), 'w') as f:
-                    json.dump(ridge_meta, f, indent=2)
-                logger.info(f"Saved ridge regressor to: {ridge_path}")
-            except Exception as e:
-                logger.warning(f"Failed to save ridge regressor: {e}")
-            
-            # Generate predictions for visualization: predict t+1 from each t
-            for t in range(len(latents_by_timepoint) - 1):  # Exclude final timepoint
-                current_latents = latents_by_timepoint[t]
-                predictions = ridge_model.predict(np.vstack(current_latents))
-                
-                for pred_lat in predictions:
-                    predicted_latents.append(pred_lat)
-                    predicted_time_labels.append(t + 2)  # Predicted timepoint is t+1 (1-indexed: t+2)
-                    
+            # Prepare training pairs from centroids of training timepoints
+            X_ridge = []
+            y_ridge = []
+            for t in range(len(centroids) - 2):
+                X_ridge.append(centroids[t])
+                y_ridge.append(centroids[t + 1])
+
+            if len(X_ridge) > 0:
+                X_ridge = np.vstack(X_ridge)
+                y_ridge = np.vstack(y_ridge)
+
+                ridge_model = Ridge(alpha=ridge_alpha, random_state=seed_val)
+                ridge_model.fit(X_ridge, y_ridge)
+
+                y_pred = ridge_model.predict(X_ridge)
+                ridge_r2 = r2_score(y_ridge, y_pred)
+                ridge_mse = mean_squared_error(y_ridge, y_pred)
+                logger.info(f"Ridge regression latent forecasting: R² = {ridge_r2:.6f}, MSE = {ridge_mse:.6f}")
+
+                # Predictions for visualization: one predicted centroid per timepoint
+                for t in range(len(centroids) - 1):
+                    pred = ridge_model.predict(centroids[t][None, :])[0]
+                    predicted_latents.append(pred)
+                    predicted_time_labels.append(t + 2)
+            else:
+                logger.warning("No centroid pairs available for ridge regression training")
         else:
-            logger.warning("No latent pairs available for ridge regression training")
+            # Prepare training data: X = latents at time t, y = latents at time t+1
+            X_ridge = []
+            y_ridge = []
+
+            for t in range(len(latents_by_timepoint) - 2):  # Exclude last timepoint and held-out final timepoint as target
+                current_latents = latents_by_timepoint[t]
+                next_latents = latents_by_timepoint[t + 1]
+
+                # Pair each latent at time t with each latent at time t+1
+                for curr_lat in current_latents:
+                    for next_lat in next_latents:
+                        X_ridge.append(curr_lat)
+                        y_ridge.append(next_lat)
+
+            if len(X_ridge) > 0:
+                X_ridge = np.vstack(X_ridge)
+                y_ridge = np.vstack(y_ridge)
+
+                # Train ridge regression
+                ridge_model = Ridge(alpha=ridge_alpha, random_state=seed_val)
+                ridge_model.fit(X_ridge, y_ridge)
+
+                # Evaluate on training data (since we don't have separate test data)
+                y_pred = ridge_model.predict(X_ridge)
+                ridge_r2 = r2_score(y_ridge, y_pred)
+                ridge_mse = mean_squared_error(y_ridge, y_pred)
+
+                logger.info(f"Ridge regression latent forecasting: R² = {ridge_r2:.6f}, MSE = {ridge_mse:.6f}")
+
+                # Generate predictions for visualization: predict t+1 from each t
+                for t in range(len(latents_by_timepoint) - 1):  # Predict up to the last available timepoint for visualization
+                    current_latents = latents_by_timepoint[t]
+                    predictions = ridge_model.predict(np.vstack(current_latents))
+
+                    for pred_lat in predictions:
+                        predicted_latents.append(pred_lat)
+                        predicted_time_labels.append(t + 2)  # Predicted timepoint is t+1 (1-indexed: t+2)
+            else:
+                logger.warning("No latent pairs available for ridge regression training")
     else:
         logger.warning("Insufficient timepoints for ridge regression (need at least 2)")
 
-    # Combine all latents (ground truth + predictions) for PCA fitting
-    all_latents_for_pca = latents_arr
-    if len(predicted_latents) > 0:
-        predicted_latents_arr = np.vstack(predicted_latents)
-        all_latents_for_pca = np.vstack([latents_arr, predicted_latents_arr])
+    # Fit PCA only on training latents (exclude predictions and held-out final timepoint)
+    training_latents_list: List[np.ndarray] = []
+    for t in range(n_training_steps):
+        if len(latents_by_timepoint[t]) > 0:
+            training_latents_list.append(np.vstack(latents_by_timepoint[t]))
+    training_latents_arr = np.vstack(training_latents_list)
 
     # Fit PCA and log explained variance
-    n_components = min(5, all_latents_for_pca.shape[1]) if all_latents_for_pca.ndim == 2 else 2
+    n_components = min(5, training_latents_arr.shape[1]) if training_latents_arr.ndim == 2 else 2
     pca = PCA(n_components=n_components)
-    pca.fit(all_latents_for_pca)
+    pca.fit(training_latents_arr)
     evr = pca.explained_variance_ratio_
     evr_str = ", ".join([f"{v:.6f}" for v in evr])
     logger.info(f"Explained variance ratio (first {n_components} PCs): {evr_str}")
@@ -585,6 +601,7 @@ def main():
     parser.add_argument('--num-sets', type=int, default=1, help='Number of random subsets per timepoint to encode')
     parser.add_argument('--set-size', type=int, default=None, help='Override the set_size parameter (points per subset)')
     parser.add_argument('--ridge-alpha', type=float, default=1.0, help='Ridge regression regularization parameter (default: 1.0)')
+    parser.add_argument('--ridge-centroids', action='store_true', help='Train ridge on timepoint centroids instead of full pairs')
     args = parser.parse_args()
 
     # Load analysis config and apply CLI overrides
@@ -597,7 +614,7 @@ def main():
     experiment_name: str = config['experiment_name']
     match_criteria: Dict[str, Any] = config.get('match_criteria', {})
     naming_parameters: List[str] = config.get('naming_parameters', [])
-    output_folder: str = 'figures_lat2' #config.get('output_folder', 'figures')
+    output_folder: str = config.get('output_folder', 'figures')
     default_seed_for_plots: int = int(config.get('default_seed_for_plots', 0))
 
     # Build output directory name
@@ -683,28 +700,33 @@ def main():
     seeds_sorted = [s for s, _ in matched_with_seed]
     logger.info(f"Matched runs (seeds): {seeds_sorted}")
 
-    # Run visualization + ridge training for ALL matched seeds
-    for seed_val, (exp_dir_selected, cfg_selected) in matched_with_seed:
-        title_suffix = f"{parameters_label_for_title} | seed={seed_val}"
-        out_dir_seed = os.path.join(out_dir, f"seed_{seed_val}")
-        os.makedirs(out_dir_seed, exist_ok=True)
-        seed_logger = setup_logger(out_dir_seed, f"{folder_name}_latent_vis_seed_{seed_val}")
+    # Select run for plotting/logging: prefer default_seed_for_plots, else first
+    selected: Optional[Tuple[int, Tuple[str, Dict[str, Any]]]] = None
+    for s, pair in matched_with_seed:
+        if s == default_seed_for_plots:
+            selected = (s, pair)
+            break
+    if selected is None:
+        selected = matched_with_seed[0]
 
-        seed_logger.info(f"Processing seed={seed_val} at exp_dir={exp_dir_selected}")
-        visualize_latents_for_run(
-            exp_dir_selected,
-            cfg_selected,
-            out_dir_seed,
-            seed_logger,
-            num_sets=int(args.num_sets),
-            set_size_cli=args.set_size,
-            title_suffix=title_suffix,
-            skip_plots=bool(args.skip_plots),
-            ridge_alpha=float(args.ridge_alpha),
-        )
+    seed_selected, (exp_dir_selected, cfg_selected) = selected
+    title_suffix = f"{parameters_label_for_title} | seed={seed_selected}"
 
-    print(f"\n✓ Latent visualization complete for seeds {seeds_sorted}. Outputs saved under: {out_dir}/")
-    logger.info(f"Latent visualization complete for seeds {seeds_sorted}. Output saved under: {out_dir}/")
+    visualize_latents_for_run(
+        exp_dir_selected,
+        cfg_selected,
+        out_dir,
+        logger,
+        num_sets=int(args.num_sets),
+        set_size_cli=args.set_size,
+        title_suffix=title_suffix,
+        skip_plots=bool(args.skip_plots),
+        ridge_alpha=float(args.ridge_alpha),
+        ridge_use_centroids=bool(args.ridge_centroids),
+    )
+
+    print(f"\n✓ Latent visualization complete. Figures and logs saved to: {out_dir}/")
+    logger.info(f"Latent visualization complete. Output saved to: {out_dir}/")
 
 
 if __name__ == "__main__":

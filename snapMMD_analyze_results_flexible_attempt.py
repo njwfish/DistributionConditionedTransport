@@ -298,19 +298,40 @@ def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], pr
     if cli_set_size is not None:
         set_size_cfg = cli_set_size
 
-    # Aggregate forecasts over num_sets random subsets
+    # Build non-overlapping subsets that cover each source element exactly once
+    num_available = int(Xs_training[source_idx_value].shape[0])
+    perm_indices = np.random.permutation(num_available)
+    num_full_sets = num_available // set_size_cfg
+    remainder = num_available % set_size_cfg
+
+    full_subsets: List[np.ndarray] = [
+        perm_indices[i * set_size_cfg:(i + 1) * set_size_cfg]
+        for i in range(num_full_sets)
+    ]
+
+    leftover_indices: Optional[np.ndarray] = None
+    padded_latent_indices: Optional[np.ndarray] = None
+    if remainder > 0:
+        leftover_indices = perm_indices[num_full_sets * set_size_cfg:]
+        pad_needed = set_size_cfg - remainder
+        if num_full_sets > 0:
+            used_pool = perm_indices[:num_full_sets * set_size_cfg]
+            pad_extra = np.random.choice(used_pool, size=pad_needed, replace=False)
+        else:
+            # If no full sets exist, pad for latents from the leftover itself (allow repeats)
+            pad_extra = np.random.choice(leftover_indices, size=pad_needed, replace=True)
+        padded_latent_indices = np.concatenate([leftover_indices, pad_extra], axis=0)
+
+    # Aggregate forecasts across all constructed subsets
     aggregated_forecasts: List[np.ndarray] = []
 
-    for _ in range(int(num_sets)):
-        # Draw random subset indices from source, same used for target if needed
-        num_available = Xs_training[source_idx_value].shape[0]
-        subset_indices = np.random.choice(num_available, size=set_size_cfg, replace=False)
-
-        src_subset_np = Xs_training[source_idx_value][subset_indices]
-        src_subset_t = torch.tensor(src_subset_np, dtype=torch.float32, device=device).unsqueeze(0)
+    # Process full subsets (latents and generator both of size set_size_cfg)
+    for subset_indices in full_subsets:
+        src_subset_np_lat = Xs_training[source_idx_value][subset_indices]
+        src_subset_t_lat = torch.tensor(src_subset_np_lat, dtype=torch.float32, device=device).unsqueeze(0)
 
         with torch.no_grad():
-            enc_s = enc(src_subset_t)
+            enc_s = enc(src_subset_t_lat)
 
             if predictor is not None and not use_true_target_latent:
                 # Compute conditioning based on predictor.condition_type
@@ -329,24 +350,63 @@ def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], pr
                 # Encode target subset directly using the trained encoder
                 if use_true_target_latent:
                     tgt_subset_np = training_data['X_val_true'][subset_indices]
-                
                 else:
                     tgt_subset_np = training_data['X_val_true']
                     raise NotImplementedError("THERE IS A MAJOR PROBLEM WITH THIS BRANCH BECAUSE WE NEED TO GET THE TARGET FROM THE PREDICTOR HERE")
                 tgt_subset_t = torch.tensor(tgt_subset_np, dtype=torch.float32, device=device).unsqueeze(0)
                 enc_t = enc(tgt_subset_t)
 
-            # Reshape source samples for generator
-            _, set_size_cur, *data_shape = src_subset_t.shape
-            gen_src = src_subset_t.reshape(-1, *data_shape)
+            # Generator input uses the exact subset (no duplicates)
+            src_subset_t_gen = src_subset_t_lat
+            _, set_size_cur, *data_shape = src_subset_t_gen.shape
+            gen_src = src_subset_t_gen.reshape(-1, *data_shape)
 
             pred_subset = gen.sample(gen_src, enc_s, enc_t)[0]
             pred_subset_np = pred_subset.detach().cpu().numpy()
-            print("!!!!!!!!!!!!!!!!! PREDICTION SHAPE FOR FORECAST!!!!!!!!!!!!!!!",pred_subset_np.shape, pred_subset_np[None, :, :].shape)
+            print("!!!!!!!!!!!!!!!!! PREDICTION SHAPE FOR FORECAST!!!!!!!!!!!!!!!", pred_subset_np.shape, pred_subset_np[None, :, :].shape)
+            aggregated_forecasts.append(pred_subset_np)
+
+    # Process leftover subset (generator sees only remaining elements; latents padded to set_size_cfg)
+    if leftover_indices is not None and padded_latent_indices is not None:
+        src_subset_np_lat = Xs_training[source_idx_value][padded_latent_indices]
+        src_subset_t_lat = torch.tensor(src_subset_np_lat, dtype=torch.float32, device=device).unsqueeze(0)
+
+        with torch.no_grad():
+            enc_s = enc(src_subset_t_lat)
+            print("IS PREDICTOR NONNNNNNNNNNNNNNNEEEEEE", predictor is not None, use_true_target_latent)
+            if predictor is not None and not use_true_target_latent:
+                if getattr(predictor, 'condition_type', None) == 'index_pair':
+                    source_idx = torch.tensor([source_idx_value], device=device, dtype=torch.float32)
+                    target_idx = torch.tensor([n_steps - 1], device=device, dtype=torch.float32)
+                    condition = (source_idx, target_idx)
+                elif getattr(predictor, 'condition_type', None) == 'scalar_d':
+                    d_val = dataset.d_fun(source_idx_value, n_steps - 1)
+                    d_tensor = torch.tensor([d_val], device=device, dtype=torch.float32)
+                    condition = (d_tensor,)
+                else:
+                    condition = None
+                enc_t = predictor(enc_s, condition_scalars=condition)
+            else:
+                if use_true_target_latent:
+                    tgt_subset_np = training_data['X_val_true'][padded_latent_indices]
+                else:
+                    tgt_subset_np = training_data['X_val_true']
+                    raise NotImplementedError("THERE IS A MAJOR PROBLEM WITH THIS BRANCH BECAUSE WE NEED TO GET THE TARGET FROM THE PREDICTOR HERE")
+                tgt_subset_t = torch.tensor(tgt_subset_np, dtype=torch.float32, device=device).unsqueeze(0)
+                enc_t = enc(tgt_subset_t)
+
+            # Generator sees only the true leftover indices (no duplicates)
+            src_subset_np_gen = Xs_training[source_idx_value][leftover_indices]
+            src_subset_t_gen = torch.tensor(src_subset_np_gen, dtype=torch.float32, device=device).unsqueeze(0)
+            _, set_size_cur, *data_shape = src_subset_t_gen.shape
+            gen_src = src_subset_t_gen.reshape(-1, *data_shape)
+
+            pred_subset = gen.sample(gen_src, enc_s, enc_t)[0]
+            pred_subset_np = pred_subset.detach().cpu().numpy()
+            print("!!!!!!!!!!!!!!!!! PREDICTION SHAPE FOR FORECAST (LEFTOVER)!!!!!!!!!!!!!!!", pred_subset_np.shape)
             aggregated_forecasts.append(pred_subset_np)
 
     # Concatenate all subset forecasts into a single aggregated set (N, D)
-    aggregated_forecasts = np.array(aggregated_forecasts)
     forecast_structured = np.vstack(aggregated_forecasts)
     print("!!!!!!!!!!!!!!!!! FINAL PREDICTION SHAPE!!!!!!!!!!!!!!!",forecast_structured.shape)
     results: Dict[str, Any] = {
@@ -359,20 +419,40 @@ def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], pr
         n_steps = int(training_data['N_steps'])
         forecasts_seq: List[np.ndarray] = []
         for t in range(1, n_steps):
-            # Aggregate per-timepoint forecasts over num_sets subsets
+            # Aggregate per-timepoint forecasts using disjoint subsets that cover all elements once
             per_t_agg: List[np.ndarray] = []
             source_full_np = training_data['Xs'][t - 1]
             target_full_np = training_data['Xs'][t] if t < n_steps - 1 else training_data['X_val_true']
 
-            for _ in range(int(num_sets)):
-                num_available_t = source_full_np.shape[0]
-                subset_indices_t = np.random.choice(num_available_t, size=set_size_cfg, replace=False)
+            num_available_t = int(source_full_np.shape[0])
+            perm_t = np.random.permutation(num_available_t)
+            num_full_t = num_available_t // set_size_cfg
+            remainder_t = num_available_t % set_size_cfg
 
-                src_subset_np_t = source_full_np[subset_indices_t]
-                src_subset_t = torch.tensor(src_subset_np_t, dtype=torch.float32, device=device).unsqueeze(0)
+            full_sets_t: List[np.ndarray] = [
+                perm_t[i * set_size_cfg:(i + 1) * set_size_cfg]
+                for i in range(num_full_t)
+            ]
+
+            leftover_t: Optional[np.ndarray] = None
+            padded_latent_t: Optional[np.ndarray] = None
+            if remainder_t > 0:
+                leftover_t = perm_t[num_full_t * set_size_cfg:]
+                pad_needed_t = set_size_cfg - remainder_t
+                if num_full_t > 0:
+                    used_pool_t = perm_t[:num_full_t * set_size_cfg]
+                    pad_extra_t = np.random.choice(used_pool_t, size=pad_needed_t, replace=False)
+                else:
+                    pad_extra_t = np.random.choice(leftover_t, size=pad_needed_t, replace=True)
+                padded_latent_t = np.concatenate([leftover_t, pad_extra_t], axis=0)
+
+            # Process full sets
+            for subset_indices_t in full_sets_t:
+                src_subset_np_t_lat = source_full_np[subset_indices_t]
+                src_subset_t_lat = torch.tensor(src_subset_np_t_lat, dtype=torch.float32, device=device).unsqueeze(0)
 
                 with torch.no_grad():
-                    enc_src = enc(src_subset_t)
+                    enc_src = enc(src_subset_t_lat)
                     if predictor is not None and not use_true_target_latent:
                         if getattr(predictor, 'condition_type', None) == 'index_pair':
                             src_idx = torch.tensor([t - 1], device=device, dtype=torch.float32)
@@ -387,23 +467,59 @@ def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], pr
                         enc_tgt = predictor(enc_src, condition_scalars=condition)
                     else:
                         if use_true_target_latent:
-                            tgt_subset_np_t = target_full_np[subset_indices_t]
+                            tgt_subset_np_t_lat = target_full_np[subset_indices_t]
                         else:
-                            tgt_subset_np_t = target_full_np
-                        tgt_subset_t = torch.tensor(tgt_subset_np_t, dtype=torch.float32, device=device).unsqueeze(0)
+                            tgt_subset_np_t_lat = target_full_np
+                        tgt_subset_t = torch.tensor(tgt_subset_np_t_lat, dtype=torch.float32, device=device).unsqueeze(0)
                         enc_tgt = enc(tgt_subset_t)
 
                     # Reshape and sample
-                    _, set_size_t, *data_shape_t = src_subset_t.shape
-                    gen_src_t = src_subset_t.reshape(-1, *data_shape_t)
+                    src_subset_t_gen = src_subset_t_lat
+                    _, set_size_t, *data_shape_t = src_subset_t_gen.shape
+                    gen_src_t = src_subset_t_gen.reshape(-1, *data_shape_t)
                     pred_t = gen.sample(gen_src_t, enc_src, enc_tgt)[0]
-                    print("!!!!!!!!!!!!!!!!! PREDICTION SHAPE!!!!!!!!!!!!!!!",pred_t.shape, pred_t.detach().cpu().numpy()[None, :, :].shape)
+                    print("!!!!!!!!!!!!!!!!! PREDICTION SHAPE!!!!!!!!!!!!!!!", pred_t.shape, pred_t.detach().cpu().numpy()[None, :, :].shape)
+                    per_t_agg.append(pred_t.detach().cpu().numpy())
+
+            # Process leftover set if present
+            if leftover_t is not None and padded_latent_t is not None:
+                src_subset_np_t_lat = source_full_np[padded_latent_t]
+                src_subset_t_lat = torch.tensor(src_subset_np_t_lat, dtype=torch.float32, device=device).unsqueeze(0)
+
+                with torch.no_grad():
+                    enc_src = enc(src_subset_t_lat)
+                    if predictor is not None and not use_true_target_latent:
+                        if getattr(predictor, 'condition_type', None) == 'index_pair':
+                            src_idx = torch.tensor([t - 1], device=device, dtype=torch.float32)
+                            tgt_idx = torch.tensor([t], device=device, dtype=torch.float32)
+                            condition = (src_idx, tgt_idx)
+                        elif getattr(predictor, 'condition_type', None) == 'scalar_d':
+                            d_val = dataset.d_fun(t - 1, t)
+                            d_tensor = torch.tensor([d_val], device=device, dtype=torch.float32)
+                            condition = (d_tensor,)
+                        else:
+                            condition = None
+                        enc_tgt = predictor(enc_src, condition_scalars=condition)
+                    else:
+                        if use_true_target_latent:
+                            tgt_subset_np_t_lat = target_full_np[padded_latent_t]
+                        else:
+                            tgt_subset_np_t_lat = target_full_np
+                        tgt_subset_t = torch.tensor(tgt_subset_np_t_lat, dtype=torch.float32, device=device).unsqueeze(0)
+                        enc_tgt = enc(tgt_subset_t)
+
+                    # Generator sees only leftover indices
+                    src_subset_np_t_gen = source_full_np[leftover_t]
+                    src_subset_t_gen = torch.tensor(src_subset_np_t_gen, dtype=torch.float32, device=device).unsqueeze(0)
+                    _, set_size_t, *data_shape_t = src_subset_t_gen.shape
+                    gen_src_t = src_subset_t_gen.reshape(-1, *data_shape_t)
+                    pred_t = gen.sample(gen_src_t, enc_src, enc_tgt)[0]
+                    print("!!!!!!!!!!!!!!!!! PREDICTION SHAPE (LEFTOVER)!!!!!!!!!!!!!!!", pred_t.shape)
                     per_t_agg.append(pred_t.detach().cpu().numpy())
 
             # Concatenate aggregated per-timepoint predictions (N, D)
-            per_t_agg = np.array(per_t_agg)
             forecasts_seq.append(np.vstack(per_t_agg))
-            print("!!!!!!!!!!!!!!!!! FINAL PREDICTION SHAPE INTERMEDIATE!!!!!!!!!!!!!!!",np.vstack(per_t_agg).shape)
+            print("!!!!!!!!!!!!!!!!! FINAL PREDICTION SHAPE INTERMEDIATE!!!!!!!!!!!!!!!", np.vstack(per_t_agg).shape)
 
 
         #if len(forecasts_seq) > 0:

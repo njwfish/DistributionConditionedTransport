@@ -7,6 +7,7 @@ from torchvision.datasets import MNIST
 import scipy as sp
 import os
 import hydra
+from hydra.core.global_hydra import GlobalHydra
 import ot
 
 class SnapMMDUnified(Dataset):
@@ -72,9 +73,12 @@ class SnapMMDUnified(Dataset):
         # TODO: hmmm, maybe I interpreted set_size slightly wrong. Is it supposed to be a subset of the whole population at a given time point or just the size of the population?
         self.set_size = set_size
         
-        # Use the original working directory before Hydra changed it
-        original_cwd = hydra.utils.get_original_cwd()
-        data_path = os.path.join(original_cwd, self.config['data_dir'], self.config['data_name'])
+        # Resolve base directory robustly with or without Hydra
+        if GlobalHydra.instance().is_initialized():
+            base_dir = hydra.utils.get_original_cwd()
+        else:
+            base_dir = os.getcwd()
+        data_path = os.path.join(base_dir, self.config['data_dir'], self.config['data_name'])
         self.full_dataset = np.load(data_path)
         
         # NOTE: indexing [:-1] is to remove the last time point, which is the target for forecasting benchmarks.

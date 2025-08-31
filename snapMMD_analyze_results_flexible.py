@@ -399,7 +399,7 @@ def compute_mmd_and_emd(dataset_name: str, forecast_1xNxD: np.ndarray, logger: l
 
     X_val = training_data['Xs'][-1]
 
-    rbf_legacy = RBF(bandwidth=1.0).to(device)
+    rbf_legacy = RBF(bandwidth=2.0).to(device)
     rbf_paper = RBF(1.0).to(device)
     mmd_loss_legacy = MMDLoss(kernel=rbf_legacy).to(device)
     mmd_loss_paper = MMDLoss(kernel=rbf_paper).to(device)

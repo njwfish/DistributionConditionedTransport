@@ -101,7 +101,6 @@ class FlowMatchingGenerator(nn.Module):
             wrapped_model, solver="dopri5", sensitivity="adjoint", atol=1e-4, rtol=1e-4
         )
         
-        # TODO: is it a problem that we always integrate from 0 to 1 here? I think this is correct, so no.
         with torch.no_grad():
             # Return only final point
             traj = node.trajectory(
@@ -125,6 +124,7 @@ class FlowMatchingGenerator(nn.Module):
             target_latent: target distribution embedding
         """
         
+        # TODO: this check is useless, it will always be silent, even when inputs were already flattened. But maybe that is fine as long as the latents were not flattened but rather just the samples.
         # NOTE: adding this check to make sure that normalization of latents is done on a per-sample basis.
         # Validate latent dimensions
         if source_latent.dim() != 2 or target_latent.dim() != 2:

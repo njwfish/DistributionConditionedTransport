@@ -184,14 +184,20 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
     experiment_cfg = cfg_resolved.get('experiment', {}) if isinstance(cfg_resolved, dict) else {}
     train_predictor_posthoc = bool(experiment_cfg.get('train_predictor_posthoc', False))
 
-    # Instantiate predictor from predictor subdir config if provided, else from main cfg if present
+    # Instantiate predictor based on predictor_source
     predictor = None
 
     if not use_true_target_latent:
-        if predictor_dir is not None:
-            pred_cfg_path = os.path.join(predictor_dir, 'config.yaml')
-            pred_cfg_oc = OmegaConf.load(pred_cfg_path)
-            pred_cfg_node = pred_cfg_oc.get('predictor')
+        if predictor_source == 'separate':
+            if predictor_dir is not None:
+                pred_cfg_path = os.path.join(predictor_dir, 'config.yaml')
+                pred_cfg_oc = OmegaConf.load(pred_cfg_path)
+                pred_cfg_node = pred_cfg_oc.get('predictor')
+                predictor = hydra.utils.instantiate(pred_cfg_node)
+        elif predictor_source == 'main':
+            # Instantiate predictor from the main experiment config
+            pred_cfg_node = cfg['predictor']
+            
             predictor = hydra.utils.instantiate(pred_cfg_node)
 
         if predictor is not None and hasattr(enc, 'latent_act'):
@@ -202,16 +208,16 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
     enc.load_state_dict(state['encoder_state_dict'])
     gen.load_state_dict(state['generator_state_dict'])
 
-    # Load predictor weights based on requested source or explicit predictor_dir
+    # Load predictor weights from the selected source
     if not use_true_target_latent and predictor is not None:
-
-        # Preferred: explicit hashed predictor subdir
-        loaded_pred = False
-
-        if use_separate_predictor_dir:
-            pred_ckpt = torch.load(os.path.join(predictor_dir, 'predictor_best_model.pt'),map_location=device, weights_only=False)
+        if predictor_source == 'separate':
+            if predictor_dir is None:
+                raise ValueError("predictor_source='separate' but predictor_dir is None")
+            pred_ckpt = torch.load(os.path.join(predictor_dir, 'predictor_best_model.pt'), map_location=device, weights_only=False)
             predictor.load_state_dict(pred_ckpt['predictor_state_dict'])
-        else:
+        elif predictor_source == 'main':
+            if 'predictor_state_dict' not in state:
+                raise KeyError("predictor_state_dict not found in main checkpoint")
             predictor.load_state_dict(state['predictor_state_dict'])
            
     enc.eval(); gen.eval()
@@ -892,10 +898,10 @@ def main():
     parser = argparse.ArgumentParser(description='Flexible analysis of CDE results across seeds')
     parser.add_argument('--config', type=str, default='analysis_config.yaml', help='Path to analysis config file')
     parser.add_argument('--outputs-dir', type=str, default='outputs', help='Directory containing experiment subdirectories')
+    parser.add_argument('--predictor-source', type=str, default='separate', help="Where to load the predictor from: 'separate' (use predictor_training_* subdir config + checkpoint) or 'main' (use main experiment config + checkpoint)")
     parser.add_argument('--skip-plots', action='store_true', help='Skip plotting, only compute metrics')
     parser.add_argument('--disable-emd', action='store_true', help='Disable EMD computation to reduce memory usage')
     parser.add_argument('--set', dest='overrides', action='append', default=[], help='Override config values with dot-notation (e.g., match_criteria.sampling.mode=bidirectional). Can be used multiple times.')
-                        help='Where to load predictor checkpoint from: auto (default), main (root dir or joint), or main_predictor (predictor_training subdir)')
     parser.add_argument('--use-true-target-latent', action='store_true',
                         help='Feed true target latent (encoder on held-out target) into generator instead of predictor output')
     parser.add_argument('--plot-all-timepoints', action='store_true',
@@ -934,6 +940,7 @@ def main():
     logger = setup_logger(out_dir, f"{folder_name}_analysis_CDE")
 
     logger.info(f"Experiment name (prefix): {experiment_name}")
+    logger.info(f"Predictor source: {args.predictor_source}")
     logger.info(f"Outputs directory: {os.path.abspath(args.outputs_dir)}")
     logger.info(f"Match criteria: {json.dumps(match_criteria, indent=2)}")
     parameters_label_for_title = build_parameters_label(match_criteria, naming_parameters)
@@ -1042,9 +1049,9 @@ def main():
             logger.error(f"Failed to load ridge predictor for seed {seed_value} at {ridge_path}: {e}")
             return None
     for seed, (exp_seed, (exp_dir, cfg)) in zip(seeds_sorted, matched_with_seed):
-        # Identify predictor hashed subdir inside this experiment dir
+        # Identify predictor hashed subdir only if using 'separate' source
         predictor_dir = None
-        if not args.use_true_target_latent:
+        if (args.predictor_source == 'separate') and (not args.use_true_target_latent):
             try:
                 predictor_dir = find_matching_predictor_subdir(exp_dir, predictor_match_criteria, seed)
             except Exception as e:
@@ -1131,7 +1138,7 @@ def main():
             # If not found seed==default, try the first matched run
             default_exp_dir = matched_with_seed[0][1][0]
             default_predictor_dir = None
-            if not args.use_true_target_latent:
+            if (args.predictor_source == 'separate') and (not args.use_true_target_latent):
                 try:
                     default_predictor_dir = find_matching_predictor_subdir(default_exp_dir, predictor_match_criteria, seeds_sorted[0])
                 except Exception as e:

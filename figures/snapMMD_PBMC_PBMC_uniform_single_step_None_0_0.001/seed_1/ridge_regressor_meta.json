@@ -1,0 +1,12 @@
+{
+  "alpha": 0.01,
+  "r2": 0.53879714012146,
+  "mse": 0.05741460621356964,
+  "seed": 1,
+  "latent_dim": 16,
+  "num_training_pairs": 47500,
+  "num_timepoints": 21,
+  "feature_scaling": "none",
+  "ridge_train_mode": "full",
+  "normalize_latents": false
+}

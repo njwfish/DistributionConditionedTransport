@@ -86,8 +86,8 @@ class LossManager:
 
                     # Cleanup microbatch tensors to reduce memory
                     del x_source_mb, x_target_mb, loss_mb, loss_mb_scaled
-                    if self.empty_cache_between_microbatches and torch.cuda.is_available():
-                        torch.cuda.empty_cache()
+                    #if self.empty_cache_between_microbatches and torch.cuda.is_available():
+                    #    torch.cuda.empty_cache()
 
                 # Backprop latent grads to encoder once
                 if torch.is_grad_enabled():

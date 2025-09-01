@@ -9,3 +9,4 @@ patience: 5
 use_tqdm: false
 gradient_accumulation_steps: ${experiment.gradient_accumulation_steps} 
 use_esm_tokens: ${experiment.use_esm_tokens}
+use_amp: true

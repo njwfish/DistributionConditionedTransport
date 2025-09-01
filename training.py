@@ -8,6 +8,7 @@ import wandb
 from utils.hash_utils import get_output_dir
 from utils.visualization import visualize_text_data, visualize_coupled_data
 from omegaconf import OmegaConf, DictConfig
+import contextlib
 
 class Trainer:
     def __init__(
@@ -25,6 +26,7 @@ class Trainer:
         gradient_accumulation_steps=1,
         use_amp=False,
         use_esm_tokens=False,
+        generate_samples_bool=False,
     ):
         """
         Initialize the trainer.
@@ -38,6 +40,7 @@ class Trainer:
             patience: Number of evaluations with no improvement before early stopping
             use_tqdm: Whether to use tqdm progress bars
         """
+        self.generate_samples_bool = generate_samples_bool
         self.num_epochs = num_epochs
         self.log_interval = log_interval
         self.save_interval = save_interval
@@ -304,10 +307,9 @@ class Trainer:
         start_time = time.time()
         self.logger.info(f"Starting training on {device}...")
         
-        # Disable AMP/mixed precision
-        autocast_enabled = False
-        amp_dtype = None
-        use_scaler = False
+        # Configure AMP (prefer BF16 on CUDA if enabled)
+        use_amp = bool(self.use_amp) and (device.type == "cuda")
+        autocast_context = torch.autocast(device_type='cuda', dtype=torch.bfloat16) if use_amp else contextlib.nullcontext()
 
         # Main training loop
         for epoch in range(start_epoch, self.num_epochs):
@@ -330,9 +332,11 @@ class Trainer:
                 # Handle samples which can be either a tensor or a dictionary
                 
                 optimizer.zero_grad(set_to_none=True)
-
-                # Always delegate backward to the loss manager (it handles both microbatch and standard cases)
-                loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
+                
+                # Forward (and backward inside loss manager) under autocast when enabled
+                with autocast_context:
+                    # Always delegate backward to the loss manager (it handles both microbatch and standard cases)
+                    loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 optimizer.step()
 
                 
@@ -469,70 +473,71 @@ class Trainer:
                         "epoch/epoch": epoch + 1,
                     }, step=step)
 
-                # Generate some samples with the trained model
-                samples = self.generate_samples(encoder, generator, dataloader)
-                if samples is not None:
-                    self.logger.info(f"Source samples shape: {samples.get('source', 'N/A').shape if hasattr(samples.get('source', None), 'shape') else 'N/A'}")
-                    self.logger.info(f"Target samples shape: {samples.get('target', 'N/A').shape if hasattr(samples.get('target', None), 'shape') else 'N/A'}")
-                    self.logger.info(f"Generated samples shape: {samples.get('generated', 'N/A').shape if hasattr(samples.get('generated', None), 'shape') else 'N/A'}")
-                
-                    # Log generated samples to W&B (optional)
-                    if wandb.run is not None:
-                        # Handle different types of samples
-                        if 'generated_texts' in samples:
-                            n_examples = min(6, len(samples['source_texts']))
-                            n_examples_per_example = min(6, len(samples['source_texts'][0]))
-                            # For text data, use our text visualization
-                            text_output_dir = os.path.join(output_dir, f"text_samples_epoch_{epoch+1}")
-                            visualize_text_data(
-                                text_output_dir,
-                                samples['source_texts'],
-                                samples['target_texts'],
-                                samples['generated_texts'],
-                            )
-
-                            # Create a dataframe with source, target, and generated texts
-                            flat_source = []
-                            flat_target = []
-                            flat_generated = []
-                            set_indices = []
-                            for i in range(n_examples):
-                                for j in range(n_examples_per_example):
-                                    flat_source.append(samples['source_texts'][i][j])
-                                    flat_target.append(samples['target_texts'][i][j])
-                                    flat_generated.append(samples['generated_texts'][i][j])
-                                    set_indices.append(i)
-
-                            import pandas as pd
-                            df = pd.DataFrame({
-                                'source': flat_source,
-                                'target': flat_target,
-                                'generated': flat_generated,
-                                'set_index': set_indices
-                            })
-
-                            print(df.head())
-
-                            # Log table with source, target, and generated texts
-                            wandb.log({
-                                "epoch/text_samples": wandb.Table(dataframe=df)
-                            }, step=step)
-                            
-                        elif 'source' in samples and 'target' in samples and 'generated' in samples and hasattr(samples['source'], 'shape'):
-                            # For numerical or image data, use the updated visualization
-                            n_examples = min(6, samples['source'].shape[0])
-                            for i in range(n_examples):
-                                save_path = os.path.join(output_dir, f"coupled_samples_{i}_epoch_{epoch+1}.png")
-                                visualize_coupled_data(
-                                    save_path, 
-                                    samples['source'][i], 
-                                    samples['target'][i],
-                                    samples['generated'][i]
+                if self.generate_samples_bool:
+                    # Generate some samples with the trained model
+                    samples = self.generate_samples(encoder, generator, dataloader)
+                    if samples is not None:
+                        self.logger.info(f"Source samples shape: {samples.get('source', 'N/A').shape if hasattr(samples.get('source', None), 'shape') else 'N/A'}")
+                        self.logger.info(f"Target samples shape: {samples.get('target', 'N/A').shape if hasattr(samples.get('target', None), 'shape') else 'N/A'}")
+                        self.logger.info(f"Generated samples shape: {samples.get('generated', 'N/A').shape if hasattr(samples.get('generated', None), 'shape') else 'N/A'}")
+                    
+                        # Log generated samples to W&B (optional)
+                        if wandb.run is not None:
+                            # Handle different types of samples
+                            if 'generated_texts' in samples:
+                                n_examples = min(6, len(samples['source_texts']))
+                                n_examples_per_example = min(6, len(samples['source_texts'][0]))
+                                # For text data, use our text visualization
+                                text_output_dir = os.path.join(output_dir, f"text_samples_epoch_{epoch+1}")
+                                visualize_text_data(
+                                    text_output_dir,
+                                    samples['source_texts'],
+                                    samples['target_texts'],
+                                    samples['generated_texts'],
                                 )
 
-                                wandb.log({
-                                    f"samples/coupled_{i}": wandb.Image(save_path)
+                                # Create a dataframe with source, target, and generated texts
+                                flat_source = []
+                                flat_target = []
+                                flat_generated = []
+                                set_indices = []
+                                for i in range(n_examples):
+                                    for j in range(n_examples_per_example):
+                                        flat_source.append(samples['source_texts'][i][j])
+                                        flat_target.append(samples['target_texts'][i][j])
+                                        flat_generated.append(samples['generated_texts'][i][j])
+                                        set_indices.append(i)
+
+                                import pandas as pd
+                                df = pd.DataFrame({
+                                    'source': flat_source,
+                                    'target': flat_target,
+                                    'generated': flat_generated,
+                                    'set_index': set_indices
                                 })
+
+                                print(df.head())
+
+                                # Log table with source, target, and generated texts
+                                wandb.log({
+                                    "epoch/text_samples": wandb.Table(dataframe=df)
+                                }, step=step)
+                                
+                            elif 'source' in samples and 'target' in samples and 'generated' in samples and hasattr(samples['source'], 'shape'):
+                                # For numerical or image data, use the updated visualization
+                                n_examples = min(6, samples['source'].shape[0])
+                                for i in range(n_examples):
+                                    save_path = os.path.join(output_dir, f"coupled_samples_{i}_epoch_{epoch+1}.png")
+                                    visualize_coupled_data(
+                                        save_path, 
+                                        samples['source'][i], 
+                                        samples['target'][i],
+                                        samples['generated'][i]
+                                    )
+
+                                    wandb.log({
+                                        f"samples/coupled_{i}": wandb.Image(save_path)
+                                    })
 
                 # Check if this is the best model so far
                 if eval_loss < self.best_loss:
@@ -613,8 +618,8 @@ class Trainer:
             for batch in dataloader:
                 # TODO: legacy code was not using loss manager here, is there any specific reason for this?
                 # Use loss manager for consistent loss computation
-
-                loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
+                with (torch.autocast(device_type='cuda', dtype=torch.bfloat16) if (bool(self.use_amp) and device.type == 'cuda') else contextlib.nullcontext()):
+                    loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 total_loss += loss.item()
                 num_batches += 1
         
@@ -656,73 +661,70 @@ class Trainer:
         with torch.no_grad():
             for batch in dataloader:
                 # Handle samples which can be either a tensor or a dictionary
-                if isinstance(batch['source_samples'], torch.Tensor):
+                with (torch.autocast(device_type='cuda', dtype=torch.bfloat16) if (bool(self.use_amp) and device.type == 'cuda') else contextlib.nullcontext()):
+                    if isinstance(batch['source_samples'], torch.Tensor):
                     # Legacy numeric/image path (not used for ProGen2 proteins)
-                    source_samples = batch['source_samples'].to(device)
-                    target_samples = batch['target_samples'].to(device)
-                    
-                    # Encode to latents
-                    source_latent = encoder(source_samples)
-                    target_latent = encoder(target_samples)
-                    
-                    # If a generator supports direct tensor sampling, attempt it; otherwise skip
-                    generated = generator.sample(source_samples, source_latent, target_latent)
+                        source_samples = batch['source_samples'].to(device)
+                        target_samples = batch['target_samples'].to(device)
+                        
+                        # Encode to latents
+                        source_latent = encoder(source_samples)
+                        target_latent = encoder(target_samples)
+                        
+                        # If a generator supports direct tensor sampling, attempt it; otherwise skip
+                        generated = generator.sample(source_samples, source_latent, target_latent)
 
-                    
-                    return {
-                        'source': source_samples.cpu(),
-                        'target': target_samples.cpu(),
-                        'generated': generated.cpu(),
-                    }
-                else:
-                    # Dictionary samples (ProGen2 proteins)
-                    source_samples = {}
-                    target_samples = {}
-                    for key, value in batch['source_samples'].items():
-                        source_samples[key] = value.to(device) if isinstance(value, torch.Tensor) else value
-                    for key, value in batch['target_samples'].items():
-                        target_samples[key] = value.to(device) if isinstance(value, torch.Tensor) else value
-                    
-                    # Compute latents
-                    source_latent = encoder(source_samples)
-                    target_latent = encoder(target_samples)
-                    
-                    # Determine how many samples per example to generate (use set size if available)
-                    set_size = 6
-                    
-                    # Generate sequences, leveraging multiple prompts from the set if available
-                    generated = generator.sample(
-                        source_samples,
-                        source_latent,
-                        target_latent,
-                        num_samples=set_size,
-                        return_texts=True
-                    )
-                    
-                    if isinstance(generated, tuple):
-                        generated_ids, generated_texts = generated
+                        return {
+                            'source': source_samples.cpu(),
+                            'target': target_samples.cpu(),
+                            'generated': generated.cpu(),
+                        }
                     else:
-                        generated_ids, generated_texts = generated, None
-                    
-
-
-                    src_ids = source_samples.get('esm_input_ids', None)
-                    tgt_ids = target_samples.get('esm_input_ids', None)
-                    # Prefer dataset's ESM tokenizer when available
-                    dataset_tok = getattr(getattr(dataloader, 'dataset'), 'esm_tokenizer')
-                    decode_tokenizer = dataset_tok
-
-                    source_texts = _decode_token_ids_to_texts(src_ids, decode_tokenizer)
-                    target_texts = _decode_token_ids_to_texts(tgt_ids, decode_tokenizer)
-
-                    
-                    result = {
-                        'source': source_samples,
-                        'target': target_samples,
-                        'generated': generated_ids.cpu() if isinstance(generated_ids, torch.Tensor) else generated_ids,
-                    }
-                    result['generated_texts'] = generated_texts
-                    result['source_texts'] = source_texts
-                    print("!!!!!!!!!!!", source_texts)
-                    result['target_texts'] = target_texts
-                    return result
+                        # Dictionary samples (ProGen2 proteins)
+                        source_samples = {}
+                        target_samples = {}
+                        for key, value in batch['source_samples'].items():
+                            source_samples[key] = value.to(device) if isinstance(value, torch.Tensor) else value
+                        for key, value in batch['target_samples'].items():
+                            target_samples[key] = value.to(device) if isinstance(value, torch.Tensor) else value
+                        
+                        # Compute latents
+                        source_latent = encoder(source_samples)
+                        target_latent = encoder(target_samples)
+                        
+                        # Determine how many samples per example to generate (use set size if available)
+                        set_size = 6
+                        
+                        # Generate sequences, leveraging multiple prompts from the set if available
+                        generated = generator.sample(
+                            source_samples,
+                            source_latent,
+                            target_latent,
+                            num_samples=set_size,
+                            return_texts=True
+                        )
+                        
+                        if isinstance(generated, tuple):
+                            generated_ids, generated_texts = generated
+                        else:
+                            generated_ids, generated_texts = generated, None
+                        
+                        src_ids = source_samples.get('esm_input_ids', None)
+                        tgt_ids = target_samples.get('esm_input_ids', None)
+                        # Prefer dataset's ESM tokenizer when available
+                        dataset_tok = getattr(getattr(dataloader, 'dataset'), 'esm_tokenizer')
+                        decode_tokenizer = dataset_tok
+                        
+                        source_texts = _decode_token_ids_to_texts(src_ids, decode_tokenizer)
+                        target_texts = _decode_token_ids_to_texts(tgt_ids, decode_tokenizer)
+                        
+                        result = {
+                            'source': source_samples,
+                            'target': target_samples,
+                            'generated': generated_ids.cpu() if isinstance(generated_ids, torch.Tensor) else generated_ids,
+                        }
+                        result['generated_texts'] = generated_texts
+                        result['source_texts'] = source_texts
+                        print("!!!!!!!!!!!", source_texts)
+                        result['target_texts'] = target_texts
+                        return result

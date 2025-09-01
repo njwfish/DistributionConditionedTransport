@@ -26,6 +26,7 @@ naming_parameters:
   #- predictor.model_type
   #- predictor.conditioning_mode
   - experiment.train_predictor_posthoc
+  - experiment.predictor_loss_weight
 
 output_folder: figures
 default_seed_for_plots: 1

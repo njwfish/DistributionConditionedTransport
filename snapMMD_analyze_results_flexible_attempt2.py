@@ -1001,6 +1001,7 @@ def main():
         cli_oc = OmegaConf.from_dotlist(dotlist)
         cfg_oc = OmegaConf.merge(cfg_oc, cli_oc)
     config = OmegaConf.to_container(cfg_oc, resolve=True)  # standard Python containers
+    print("!!!!",config)
     experiment_name: str = config['experiment_name']
     match_criteria: Dict[str, Any] = config.get('match_criteria', {})
     predictor_match_criteria: Dict[str, Any] = config.get('predictor_match_criteria', {})

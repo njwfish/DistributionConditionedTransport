@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score, mean_squared_error
+from sklearn.preprocessing import StandardScaler
 import joblib
 
 import hydra
@@ -357,7 +358,7 @@ def _sample_indices(num_items: int, set_size: int, rng: np.random.RandomState) -
 # Core visualization logic
 # -----------------------------
 
-def visualize_latents_for_run(exp_dir: str, cfg: Dict[str, Any], out_dir: str, logger: logging.Logger, num_sets: int, set_size_cli: Optional[int] = None, title_suffix: str = "", skip_plots: bool = False, ridge_alpha: float = 1.0, ridge_train_mode: str = 'full') -> None:
+def visualize_latents_for_run(exp_dir: str, cfg: Dict[str, Any], out_dir: str, logger: logging.Logger, num_sets: int, set_size_cli: Optional[int] = None, title_suffix: str = "", skip_plots: bool = False, ridge_alpha: float = 1.0, ridge_train_mode: str = 'full', normalize_latents: bool = False, disable_scaler: bool = False) -> None:
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     cfg_model, enc, _gen, _pred, dataset, _ = load_models_from_experiment(exp_dir, device, use_true_target_latent=True)
 
@@ -430,6 +431,24 @@ def visualize_latents_for_run(exp_dir: str, cfg: Dict[str, Any], out_dir: str, l
         logger.error("No latents were collected; aborting visualization.")
         return
 
+    # Optional L2 normalization of all latent vectors before any downstream use
+    if normalize_latents:
+        def _l2_normalize(vec: np.ndarray) -> np.ndarray:
+            norm = np.linalg.norm(vec)
+            if not np.isfinite(norm) or norm <= 0.0:
+                return vec.astype(np.float32, copy=False)
+            return (vec / norm).astype(np.float32, copy=False)
+
+        latents_by_timepoint = [[_l2_normalize(v) for v in tpl] for tpl in latents_by_timepoint]
+        # Rebuild flattened latents and time labels to ensure alignment
+        latents = []
+        time_labels = []
+        for t_idx, tpl in enumerate(latents_by_timepoint):
+            for v in tpl:
+                latents.append(v)
+                time_labels.append(t_idx + 1)
+        logger.info("Applied L2 normalization to all latent vectors.")
+
     latents_arr = np.vstack(latents)
     time_labels_arr = np.array(time_labels)
 
@@ -470,13 +489,26 @@ def visualize_latents_for_run(exp_dir: str, cfg: Dict[str, Any], out_dir: str, l
         if len(X_ridge) > 0:
             X_ridge = np.vstack(X_ridge)
             y_ridge = np.vstack(y_ridge)
+
+            # Feature-wise standardization (fit only on training latents; final held-out excluded)
+            if not disable_scaler:
+                x_scaler = StandardScaler(with_mean=True, with_std=True)
+                y_scaler = StandardScaler(with_mean=True, with_std=True)
+                X_ridge_scaled = x_scaler.fit_transform(X_ridge)
+                y_ridge_scaled = y_scaler.fit_transform(y_ridge)
+            else:
+                x_scaler = None
+                y_scaler = None
+                X_ridge_scaled = X_ridge
+                y_ridge_scaled = y_ridge
             
-            # Train ridge regression
+            # Train ridge regression on scaled data
             ridge_model = Ridge(alpha=ridge_alpha, random_state=seed_val)
-            ridge_model.fit(X_ridge, y_ridge)
+            ridge_model.fit(X_ridge_scaled, y_ridge_scaled)
             
             # Evaluate on training data (since we don't have separate test data)
-            y_pred = ridge_model.predict(X_ridge)
+            y_pred_scaled = ridge_model.predict(X_ridge_scaled)
+            y_pred = y_scaler.inverse_transform(y_pred_scaled) if y_scaler is not None else y_pred_scaled
             ridge_r2 = r2_score(y_ridge, y_pred)
             ridge_mse = mean_squared_error(y_ridge, y_pred)
             
@@ -485,7 +517,14 @@ def visualize_latents_for_run(exp_dir: str, cfg: Dict[str, Any], out_dir: str, l
             # Save trained ridge regressor and metadata alongside figures
             try:
                 ridge_path = os.path.join(out_dir, 'ridge_regressor.pkl')
-                joblib.dump(ridge_model, ridge_path)
+                ridge_bundle = {
+                    'model': ridge_model,
+                    'x_scaler': x_scaler,
+                    'y_scaler': y_scaler,
+                    'train_mode': ridge_train_mode,
+                    'normalize_latents': bool(normalize_latents),
+                }
+                joblib.dump(ridge_bundle, ridge_path)
                 ridge_meta = {
                     'alpha': float(ridge_alpha),
                     'r2': float(ridge_r2) if ridge_r2 is not None else None,
@@ -494,17 +533,23 @@ def visualize_latents_for_run(exp_dir: str, cfg: Dict[str, Any], out_dir: str, l
                     'latent_dim': int(latents_arr.shape[1]) if latents_arr.ndim == 2 else None,
                     'num_training_pairs': int(X_ridge.shape[0]),
                     'num_timepoints': int(len(latents_by_timepoint)),
+                    'feature_scaling': 'standard' if x_scaler is not None else 'none',
+                    'ridge_train_mode': ridge_train_mode,
+                    'normalize_latents': bool(normalize_latents),
                 }
                 with open(os.path.join(out_dir, 'ridge_regressor_meta.json'), 'w') as f:
                     json.dump(ridge_meta, f, indent=2)
-                logger.info(f"Saved ridge regressor to: {ridge_path}")
+                logger.info(f"Saved ridge regressor (with scalers) to: {ridge_path}")
             except Exception as e:
                 logger.warning(f"Failed to save ridge regressor: {e}")
             
             # Generate predictions for visualization: predict t+1 from each t
             for t in range(len(latents_by_timepoint) - 1):  # Exclude final timepoint
                 current_latents = latents_by_timepoint[t]
-                predictions = ridge_model.predict(np.vstack(current_latents))
+                cur_arr = np.vstack(current_latents)
+                cur_scaled = x_scaler.transform(cur_arr) if x_scaler is not None else cur_arr
+                pred_scaled = ridge_model.predict(cur_scaled)
+                predictions = y_scaler.inverse_transform(pred_scaled) if y_scaler is not None else pred_scaled
                 
                 for pred_lat in predictions:
                     predicted_latents.append(pred_lat)
@@ -606,9 +651,13 @@ def main():
     parser.add_argument('--set', dest='overrides', action='append', default=[], help='Override config values with dot-notation (e.g., match_criteria.sampling.mode=bidirectional). Can be used multiple times.')
     parser.add_argument('--num-sets', type=int, default=1, help='Number of random subsets per timepoint to encode')
     parser.add_argument('--set-size', type=int, default=None, help='Override the set_size parameter (points per subset)')
-    parser.add_argument('--ridge-alpha', type=float, default=1.0, help='Ridge regression regularization parameter (default: 1.0)')
+    parser.add_argument('--ridge-alpha', type=float, default=0.01, help='Ridge regression regularization parameter (default: 1.0)')
     parser.add_argument('--ridge-train-mode', type=str, choices=['full', 'centroids'], default='full',
                         help='Training data for ridge: full (all latents) or centroids (mean per timepoint)')
+    parser.add_argument('--normalize-latents', action='store_true',
+                        help='L2-normalize each latent vector before PCA and ridge training')
+    parser.add_argument('--no-standardize', action='store_true',
+                        help='Disable StandardScaler for ridge (no feature scaling)')
     args = parser.parse_args()
 
     # Load analysis config and apply CLI overrides
@@ -726,6 +775,8 @@ def main():
             skip_plots=bool(args.skip_plots),
             ridge_alpha=float(args.ridge_alpha),
             ridge_train_mode=str(args.ridge_train_mode),
+            normalize_latents=bool(args.normalize_latents),
+            disable_scaler=bool(args.no_standardize),
         )
 
     print(f"\n✓ Latent visualization complete for seeds {seeds_sorted}. Outputs saved under: {out_dir}/")

@@ -302,12 +302,23 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
 
 
 class UnconditionedRidgePredictor(torch.nn.Module):
-    """Torch wrapper around a scikit-learn Ridge model mapping latent_t -> latent_{t+1}.
-    Ignores any conditioning; corresponds to the unconditioned case.
+    """Torch wrapper for an unconditioned ridge regressor.
+    Supports either a bare sklearn estimator, or a bundle dict with
+    {'model', 'x_scaler', 'y_scaler', 'normalize_latents'}.
     """
-    def __init__(self, ridge_model):
+    def __init__(self, ridge_obj):
         super().__init__()
-        self.ridge_model = ridge_model
+        # Accept either model or bundle
+        if isinstance(ridge_obj, dict) and ('model' in ridge_obj):
+            self.model = ridge_obj.get('model')
+            self.x_scaler = ridge_obj.get('x_scaler')
+            self.y_scaler = ridge_obj.get('y_scaler')
+            self.normalize_latents = bool(ridge_obj.get('normalize_latents', False))
+        else:
+            self.model = ridge_obj
+            self.x_scaler = None
+            self.y_scaler = None
+            self.normalize_latents = False
         self._device = torch.device('cpu')
         self.condition_type = 'none'
 
@@ -315,10 +326,25 @@ class UnconditionedRidgePredictor(torch.nn.Module):
         self._device = device
         return self
 
+    def _l2_normalize_rows(self, x: np.ndarray) -> np.ndarray:
+        norms = np.linalg.norm(x, axis=1, keepdims=True)
+        safe_norms = np.where((~np.isfinite(norms)) | (norms <= 0.0), 1.0, norms)
+        return x / safe_norms
+
     def forward(self, latent_source: torch.Tensor, condition_scalars: Optional[tuple] = None) -> torch.Tensor:
         with torch.no_grad():
             x_np = latent_source.detach().cpu().numpy()
-            y_np = self.ridge_model.predict(x_np)
+            if self.normalize_latents:
+                x_np = self._l2_normalize_rows(x_np)
+            if self.x_scaler is not None:
+                x_np_scaled = self.x_scaler.transform(x_np)
+            else:
+                x_np_scaled = x_np
+            y_np_scaled = self.model.predict(x_np_scaled)
+            if self.y_scaler is not None:
+                y_np = self.y_scaler.inverse_transform(y_np_scaled)
+            else:
+                y_np = y_np_scaled
             y_t = torch.from_numpy(y_np).to(latent_source.device, dtype=latent_source.dtype)
             return y_t
 
@@ -1090,9 +1116,9 @@ def main():
             logger.warning(f"--use-ridge-predictor set but ridge file not found for seed {seed_value} at {ridge_path}; skipping this seed")
             return None
         try:
-            ridge_model_local = joblib.load(ridge_path)
+            ridge_obj_local = joblib.load(ridge_path)
             logger.info(f"Loaded ridge predictor for seed {seed_value} from {ridge_path}")
-            return UnconditionedRidgePredictor(ridge_model_local)
+            return UnconditionedRidgePredictor(ridge_obj_local)
         except Exception as e:
             logger.error(f"Failed to load ridge predictor for seed {seed_value} at {ridge_path}: {e}")
             return None

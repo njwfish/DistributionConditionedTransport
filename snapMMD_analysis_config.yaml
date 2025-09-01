@@ -1,4 +1,4 @@
-experiment_name: snapMMD_energy_${dataset_name}
+experiment_name: snapMMD_${dataset_name}
 
 match_criteria:
   dataset:

@@ -18,7 +18,7 @@ defaults:
   - /training: default_virus
 
 # TODO: change to the full data file once you are done with debugging
-data_file: virus_tokenized_data_for_tde_filtered.pt
+data_file: virus_tokenized_data_for_tde_downsampled100_filtered_test.pt
 
 train_predictor_posthoc: true
 

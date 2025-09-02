@@ -10,6 +10,7 @@ from utils.hf_local import resolve_local_or_repo
 import math
 
 # TODO: cite source (the original DFM paper).
+# TODO: now that you are sticking to t \in [0,1], rather than t \in [0, 1000], is this still a good way to embed the timesteps?
 def transformer_timestep_embedding(timesteps: torch.Tensor, embedding_dim: int, max_positions: int = 10000) -> torch.Tensor:
     """Sinusoidal time embedding used for conditioning on continuous time t in [0, 1].
 
@@ -39,11 +40,10 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
     projected conditioning vector derived from the two latents.
     """
 
-    def __init__(self, config: EsmConfig, latent_dim: int = 32, condition_dim: int = 256, condition_method: str = "additive", scale_time: bool = False, num_condition_layers: int = 1, use_delta_token: bool = True, gate_method: str = "time_linear"):
+    def __init__(self, config: EsmConfig, latent_dim: int = 32, condition_dim: int = 256, condition_method: str = "additive", num_condition_layers: int = 1, use_delta_token: bool = True, gate_method: str = "time_linear"):
         super().__init__(config)
         self.hidden_size = config.hidden_size
         self.condition_method = condition_method
-        self.scale_time = scale_time
         self.num_condition_layers = num_condition_layers
         self.use_delta_token = use_delta_token
         self.gate_method = gate_method
@@ -99,10 +99,8 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
         hidden_states = outputs.last_hidden_state  # (B, L, D)
 
         # Time embedding
-        if self.scale_time:
-            time_embed = transformer_timestep_embedding(t, self.hidden_size)[:, None, :]
-        else:
-            time_embed = transformer_timestep_embedding(t * 1000, self.hidden_size)[:, None, :]
+        time_embed = transformer_timestep_embedding(t, self.hidden_size).to(hidden_states.dtype)[:, None, :]
+
         hidden_states = hidden_states + time_embed
 
         # Latent conditioning
@@ -123,7 +121,7 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
 
             # Compute gating scalar per-batch
             if self.gate_method == "time_linear":
-                alpha = t.view(-1, 1, 1)
+                alpha = t.view(-1, 1, 1).to(dtype=hidden_states.dtype)
             else:
                 alpha = None
 
@@ -157,7 +155,6 @@ class ESM2_DFM_Generator(nn.Module):
         condition_dim: int = 256,
         freeze_esm2: bool = False,
         condition_method: str = "additive",
-        scale_time: bool = False,
         temperature: float = 1.0,
         seq_length: Optional[int] = 1000,
         sample_dt: float = 0.1,
@@ -177,7 +174,6 @@ class ESM2_DFM_Generator(nn.Module):
             latent_dim=latent_dim,
             condition_dim=condition_dim,
             condition_method=condition_method,
-            scale_time=scale_time,
             num_condition_layers=num_condition_layers,
             use_delta_token=use_delta_token,
             gate_method=gate_method,
@@ -187,6 +183,7 @@ class ESM2_DFM_Generator(nn.Module):
 
         # TODO: I think this is freezing all parameters including the language model head, right? Or wrong? If right, change.
         # TODO: in any case it would be good to have the option to only un-freeze the language model head.
+        # TODO: there might be some conflicts when only un-freezing the language model head, figure out if this is the case.
         # Freezing
         if freeze_esm2:
             # Freeze only the ESM backbone; keep LM head and conditioning modules trainable
@@ -230,7 +227,7 @@ class ESM2_DFM_Generator(nn.Module):
             self.x_id = self.tokenizer.convert_tokens_to_ids('X')
         except Exception:
             self.x_id = None
-
+    # TODO: I scanned the dataset and since there is no padding, we should generally be fine. But I think this code is a little shaky when it comes to handling padding.
     # TODO: make sure the attention mask of the dataset is actually correct (I think it should basically be all 1s).
     def loss(self, x_source, x_target, latent_source: torch.Tensor, latent_target: torch.Tensor) -> torch.Tensor:
 
@@ -289,28 +286,26 @@ class ESM2_DFM_Generator(nn.Module):
         # Removed latent dtype alignment to model parameters
 
         # Forward through conditioned ESM
-        logits = self.model(
-            input_ids=xt,
-            attention_mask=attention_mask_source,
+        attn_mask_xt = valid_mask.to(dtype=torch.long)
+        logits = self.model(input_ids=xt,
+            attention_mask=attn_mask_xt,
             t=t,
             latent_source=latent_source,
-            latent_target=latent_target,
-        )  # (B, L, V)
+            latent_target=latent_target)
 
         # Cross-entropy to target tokens x1; ignore padded target positions
         labels = input_ids_target.clone()
         if attention_mask_target is not None:
             labels[attention_mask_target == 0] = -100
+            
         # Ignore ambiguous 'X' residues in target
-
         labels[labels == self.x_id] = -100
         
         # TODO: why are we transposing here?
         loss = F.cross_entropy(logits.transpose(1, 2), labels, ignore_index=-100, reduction='mean')
         return loss
 
-    # TODO: force the last token to always be the EOS token.
-    
+    # TODO: force the last token to always be the EOS token.    
     @torch.no_grad()
     def sample(self, x_source, latent_source: torch.Tensor, latent_target: torch.Tensor, num_samples: int = 1, return_texts: bool = False):
         """Mutational sampling starting from source sequences with discrete flow steps.
@@ -343,6 +338,7 @@ class ESM2_DFM_Generator(nn.Module):
             S = 1
 
         def select_source_for_sample(sample_idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+            # TODO: make sure both cases are correct.
             if src_ids_all.ndim == 3:
                 set_idx = sample_idx % S
                 return src_ids_all[:, set_idx, :].to(device), src_mask_all[:, set_idx, :].to(device)
@@ -358,6 +354,7 @@ class ESM2_DFM_Generator(nn.Module):
                 xt[:, 0] = self.bos_id
             if self.eos_id is not None:
                 xt[:, -1] = self.eos_id
+                # TODO: why are we setting this here explicitly?
                 attention_mask[:, -1] = 1
 
             # Enforce expected sequence length
@@ -376,6 +373,8 @@ class ESM2_DFM_Generator(nn.Module):
                     latent_source=latent_source,
                     latent_target=latent_target,
                 )
+                
+                # TODO: should we just remove temperature scaling here?
                 # Temperature scaling
                 logits = logits / max(self.temperature, 1e-8)
 

@@ -209,7 +209,7 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
         gen.model.load_state_dict(state['generator_state_dict'])
 
     enc.eval(); gen.eval()
-    enc.to(device); gen.to(device)
+    enc.to(device)
     if predictor is not None:
         predictor.eval(); predictor.to(device)
 

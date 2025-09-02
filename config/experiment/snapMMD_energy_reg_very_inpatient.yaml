@@ -10,7 +10,7 @@ defaults:
   - /encoder: gnn
   - /model: noise_mlp
   - /generator: energy  # Use flow matching for coupled embeddings
-  - /training: default_very_inpatient
+  - /training: default_inpatient
   - /loss: predictor
   - /predictor: default  # use unified predictor
   - /predictor_sampling: default

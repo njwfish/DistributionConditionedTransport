@@ -221,7 +221,7 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
             predictor.load_state_dict(state['predictor_state_dict'])
            
     enc.eval(); gen.eval()
-    enc.to(device); gen.to(device)
+    enc.to(device); gen.to('cpu')
     if predictor is not None:
         predictor.eval(); predictor.to(device)
 
@@ -373,7 +373,9 @@ def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], pr
             _, set_size_cur, *data_shape = src_subset_t_gen.shape
             gen_src = src_subset_t_gen.reshape(-1, *data_shape)
 
+            gen.to(device)
             pred_subset = gen.sample(gen_src, enc_s, enc_t)[0]
+            gen.to('cpu')
             pred_subset_np = pred_subset.detach().cpu().numpy()
             print("!!!!!!!!!!!!!!!!! PREDICTION SHAPE FOR FORECAST!!!!!!!!!!!!!!!", pred_subset_np.shape, pred_subset_np[None, :, :].shape)
             aggregated_forecasts.append(pred_subset_np)
@@ -411,7 +413,9 @@ def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], pr
             _, set_size_cur, *data_shape = src_subset_t_gen.shape
             gen_src = src_subset_t_gen.reshape(-1, *data_shape)
 
+            gen.to(device)
             pred_subset = gen.sample(gen_src, enc_s, enc_t)[0]
+            gen.to('cpu')
             pred_subset_np = pred_subset.detach().cpu().numpy()
             print("!!!!!!!!!!!!!!!!! PREDICTION SHAPE FOR FORECAST (LEFTOVER)!!!!!!!!!!!!!!!", pred_subset_np.shape)
             aggregated_forecasts.append(pred_subset_np)
@@ -489,7 +493,9 @@ def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], pr
                     src_subset_t_gen = src_subset_t_lat
                     _, set_size_t, *data_shape_t = src_subset_t_gen.shape
                     gen_src_t = src_subset_t_gen.reshape(-1, *data_shape_t)
+                    gen.to(device)
                     pred_t = gen.sample(gen_src_t, enc_src, enc_tgt)[0]
+                    gen.to('cpu')
                     print("!!!!!!!!!!!!!!!!! PREDICTION SHAPE!!!!!!!!!!!!!!!", pred_t.shape, pred_t.detach().cpu().numpy()[None, :, :].shape)
                     per_t_agg.append(pred_t.detach().cpu().numpy())
 
@@ -526,7 +532,9 @@ def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], pr
                     src_subset_t_gen = torch.tensor(src_subset_np_t_gen, dtype=torch.float32, device=device).unsqueeze(0)
                     _, set_size_t, *data_shape_t = src_subset_t_gen.shape
                     gen_src_t = src_subset_t_gen.reshape(-1, *data_shape_t)
+                    gen.to(device)
                     pred_t = gen.sample(gen_src_t, enc_src, enc_tgt)[0]
+                    gen.to('cpu')
                     print("!!!!!!!!!!!!!!!!! PREDICTION SHAPE (LEFTOVER)!!!!!!!!!!!!!!!", pred_t.shape)
                     per_t_agg.append(pred_t.detach().cpu().numpy())
 

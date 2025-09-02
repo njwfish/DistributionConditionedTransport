@@ -361,7 +361,31 @@ class Trainer:
                 
                 wandb.log(wandb_log, step=step)
             
-            # Removed saving periodic checkpoints; only best_model is saved during evaluation
+            # Save model checkpoint at regular intervals
+            if (epoch + 1) % self.save_interval == 0:
+                checkpoint_path = os.path.join(output_dir, f"checkpoint_epoch_{epoch+1}.pt")
+                
+                generator_state = generator.state_dict()
+                
+                checkpoint_data = {
+                    'epoch': epoch + 1,
+                    'encoder_state_dict': encoder.state_dict(),
+                    'generator_state_dict': generator_state,
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'scheduler_state_dict': scheduler.state_dict(),
+                    'loss': avg_epoch_loss,
+                    'step': step,
+                }
+                
+                if predictor is not None:
+                    checkpoint_data['predictor_state_dict'] = predictor.state_dict()
+                
+                torch.save(checkpoint_data, checkpoint_path)
+                self.logger.info(f"Saved checkpoint to {checkpoint_path}")
+                
+                # Log model checkpoint to W&B at the end of training
+                if wandb.run is not None and (epoch + 1) == self.num_epochs:
+                    wandb.save(checkpoint_path)
             
             # Evaluation and early stopping logic
             if ((epoch + 1) % self.eval_interval == 0 or (epoch + 1) == self.num_epochs):

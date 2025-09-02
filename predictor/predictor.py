@@ -93,6 +93,7 @@ class Predictor(nn.Module):
         super().__init__()
         self.latent_dim = latent_dim
         self.model_type = model_type
+        self.model_args = model_args
         self.conditioning_mode = conditioning_mode
         self.condition_type = condition_type
         # Derive number of conditioning scalars from condition_type when not explicitly provided

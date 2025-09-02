@@ -1,2 +1,4 @@
 # @package _global_.loss
 _target_: loss.default.LossManager
+set_size: ${experiment.set_size}
+microbatch_set_size: ${experiment.set_microbatch_size}

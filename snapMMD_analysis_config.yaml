@@ -6,6 +6,7 @@ match_criteria:
   sampling:
     weight_mode: ${experiment.weight_mode}
     selective_pairing_mode: ${experiment.selective_pairing_mode}
+
     num_samples: ${experiment.num_samples}
     exponential_weight_scale: ${experiment.exponential_weight_scale}
   #predictor:
@@ -30,4 +31,5 @@ naming_parameters:
 
 output_folder: figures
 default_seed_for_plots: 1
+
 

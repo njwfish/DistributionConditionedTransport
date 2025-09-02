@@ -9,7 +9,7 @@ from predictor_training import PredictorTrainer
 import os
 import numpy as np
 import time
-
+import sys
 import torch.nn as nn
 # Import our resolver for sum operations
 import utils.hash_utils as hash_utils
@@ -69,6 +69,31 @@ def main(cfg: DictConfig):
         if debug_logger is not None:
             debug_logger.log_memory("DATASET_START", "Creating dataset")
         dataset = hydra.utils.instantiate(cfg.dataset)
+        # Debug: print a few examples of ESM and Progen input IDs and shapes
+        #try:
+        #    print("=== SyntheticProteinDataset sample inspection ===")
+        #    max_items_to_show = 2
+        #    for sample_idx in range(min(max_items_to_show, len(dataset))):
+        #        sample = dataset[sample_idx]
+        #        print(f"[Item {sample_idx}] source_idx={sample.get('source_idx')}, target_idx={sample.get('target_idx')}")
+        #        for group_name in ['source_samples', 'target_samples']:
+        #            group = sample[group_name]
+        #            esm_ids = group['esm_input_ids']
+        #            progen_ids = group['progen_input_ids']
+        #            print(f"  {group_name} esm_input_ids shape: {tuple(esm_ids.shape)}")
+        #            print(f"  {group_name} progen_input_ids shape: {tuple(progen_ids.shape)}")
+        #            num_seqs_to_print = min(2, esm_ids.shape[0])
+        #            print(f"  {group_name} esm_input_ids first {num_seqs_to_print} sequences (full token ids):")
+        #            for s in range(num_seqs_to_print):
+        #                print(f"    seq {s}: {esm_ids[s].tolist()}")
+        #            num_seqs_to_print = min(2, progen_ids.shape[0])
+        #            print(f"  {group_name} progen_input_ids first {num_seqs_to_print} sequences (full token ids):")
+        #            for s in range(num_seqs_to_print):
+        #                print(f"    seq {s}: {progen_ids[s].tolist()}")
+        #    print("=== End inspection ===")
+        #except Exception as e:
+        #    print(f"[WARN] Failed to inspect SyntheticProteinDataset samples: {e}")
+        #sys.exit()
         if debug_logger is not None:
             debug_logger.log_memory("DATASET_LOADED", f"Dataset created with {len(dataset)} samples")
 
@@ -170,11 +195,12 @@ def main(cfg: DictConfig):
         optimizer = hydra.utils.instantiate(cfg.optimizer)(params=model_parameters)
         scheduler = hydra.utils.instantiate(cfg.scheduler)(optimizer=optimizer)
 
-        if train_predictor_posthoc and cfg.loss._target_ != "loss.default.LossManager":
-            raise ValueError("Cannot train predictor posthoc with non-default loss")
-        
-        loss_manager = hydra.utils.instantiate(cfg.loss)
-
+        # TODO: make sure this is correct
+        # Use simple reconstruction loss when predictor is trained posthoc
+        if train_predictor_posthoc:
+            loss_manager = DefaultLossManager()
+        else:
+            loss_manager = hydra.utils.instantiate(cfg.loss)
 
         # Create trainer
         trainer = hydra.utils.instantiate(cfg.training)

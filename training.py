@@ -1,17 +1,17 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader
+import math
 import os
 import time
 import shutil
 from tqdm import tqdm
 import logging
 import wandb
-from utils.hash_utils import get_output_dir, find_matching_output_dir
+from utils.hash_utils import get_output_dir
 from utils.visualization import visualize_text_data, visualize_coupled_data
 from omegaconf import OmegaConf, DictConfig
 import contextlib
+
+from utils.nan_debug import set_nan_logger, get_nan_logger
 
 class Trainer:
     def __init__(
@@ -27,7 +27,9 @@ class Trainer:
         mask_context_prob=0.0,
         sub_epoch=None,
         gradient_accumulation_steps=1,
-        use_amp=True,
+        use_amp=False,
+        use_esm_tokens=False,
+        generate_samples_bool=False,
     ):
         """
         Initialize the trainer.
@@ -41,6 +43,7 @@ class Trainer:
             patience: Number of evaluations with no improvement before early stopping
             use_tqdm: Whether to use tqdm progress bars
         """
+        self.generate_samples_bool = generate_samples_bool
         self.num_epochs = num_epochs
         self.log_interval = log_interval
         self.save_interval = save_interval
@@ -56,7 +59,9 @@ class Trainer:
         self.mask_context_prob = mask_context_prob
         self.gradient_accumulation_steps = gradient_accumulation_steps
         self.use_amp = use_amp
-        
+
+        self.use_esm_tokens = use_esm_tokens
+
         self.logger = logging.getLogger(__name__)
         self.best_loss = float('inf')
         self.no_improve_count = 0
@@ -153,21 +158,52 @@ class Trainer:
                     
         return latest_checkpoint
     
+    def _cleanup_old_checkpoints(self, directory, keep_last_n):
+        """Delete old epoch checkpoints, keeping only the latest N.
+        Does not touch best_model.pt.
+        """
+        try:
+            checkpoints = []
+            for filename in os.listdir(directory):
+                if filename.startswith("checkpoint_epoch_") and filename.endswith(".pt"):
+                    try:
+                        epoch_num = int(filename.split("_")[-1].split(".")[0])
+                        checkpoints.append((epoch_num, os.path.join(directory, filename)))
+                    except (ValueError, IndexError):
+                        continue
+            if not checkpoints:
+                return
+            checkpoints.sort(key=lambda x: x[0])  # ascending by epoch
+            n_keep = max(int(keep_last_n) if keep_last_n is not None else 0, 0)
+            if n_keep == 0:
+                return
+            excess = len(checkpoints) - n_keep
+            if excess <= 0:
+                return
+            to_delete = checkpoints[:excess]
+            for _, path in to_delete:
+                try:
+                    os.remove(path)
+                    self.logger.info(f"Deleted old checkpoint: {path}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to delete checkpoint {path}: {e}")
+        except Exception as e:
+            self.logger.warning(f"Checkpoint cleanup failed in {directory}: {e}")
+    
     def train(
         self,
         encoder,
         generator,
+        predictor,
         dataloader,
         optimizer,
         loss_manager,
         scheduler=None,
-        predictor=None,
         device=None,
         output_dir='./outputs',
         config=None,
     ):
         """Train the model with W&B logging."""
-        training_start = time.time()
         
         if device is None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -193,6 +229,36 @@ class Trainer:
         else:
             os.makedirs(output_dir, exist_ok=True)
             self.logger.info(f"Using specified output directory: {output_dir}")
+
+        # Initialize NaN debug logger to a dedicated file under the run directory
+        try:
+            nan_log_path = os.path.join(output_dir, "nan_debug.log")
+            set_nan_logger(nan_log_path)
+            nan_logger = get_nan_logger()
+            # One-time environment snapshot
+            cuda_info = {
+                "cuda_available": torch.cuda.is_available(),
+                "device": str(device) if device is not None else str(torch.device("cuda" if torch.cuda.is_available() else "cpu")),
+                "amp_enabled": bool(self.use_amp),
+            }
+            if torch.cuda.is_available():
+                try:
+                    dev = torch.cuda.current_device()
+                    cuda_info.update({
+                        "device_index": dev,
+                        "device_name": torch.cuda.get_device_name(dev),
+                        "total_mem_gb": f"{torch.cuda.get_device_properties(dev).total_memory / 1024**3:.2f}",
+                    })
+                except Exception:
+                    pass
+            nan_logger.log("Training environment", cuda_info)
+            nan_logger.log_model_summary("encoder", encoder)
+            nan_logger.log_model_summary("generator", generator)
+            if predictor is not None:
+                nan_logger.log_model_summary("predictor", predictor)
+            nan_logger.log_optimizer(optimizer)
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize NaN debug logger: {e}")
         
         # Check for existing checkpoints in the output directory
         best_model_path = os.path.join(output_dir, "best_model.pt")
@@ -282,7 +348,6 @@ class Trainer:
 
         # Main training loop
         for epoch in range(start_epoch, self.num_epochs):
-            epoch_start = time.time()
             
             encoder.train()
             generator.train()
@@ -301,13 +366,16 @@ class Trainer:
             for batch_idx, batch in enumerate(pbar):
                 # Handle samples which can be either a tensor or a dictionary
                 batch_loss_start = time.time()
+
                 optimizer.zero_grad(set_to_none=True)
-                with autocast_context:
-                    loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 
-                # Standard backward and optimizer step per batch
-                loss.backward()
+                # Forward (and backward inside loss manager) under autocast when enabled
+                with autocast_context:
+                    # Always delegate backward to the loss manager (it handles both microbatch and standard cases)
+                    loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 optimizer.step()
+
+                
                 
                 # Record batch loss
                 current_loss = loss.item()
@@ -319,13 +387,43 @@ class Trainer:
                     if self.use_tqdm:
                         pbar.set_postfix(loss=f"{current_loss:.6f}")
                     
+                    # NaN/Inf detection and detailed dump
+                    try:
+                        nan_logger = get_nan_logger()
+                        if not math.isfinite(current_loss):
+                            nan_logger.log("Detected non-finite loss", {"epoch": epoch + 1, "batch_idx": batch_idx, "loss": current_loss})
+                            # Batch structure and shapes
+                            if isinstance(batch, dict):
+                                nan_logger.log_batch("BATCH_START", batch)
+                            # Gradient stats just after backward
+                            nan_logger.log_grad_stats("encoder", encoder)
+                            nan_logger.log_grad_stats("generator", generator)
+                            if predictor is not None:
+                                nan_logger.log_grad_stats("predictor", predictor)
+                            nan_logger.log_optimizer(optimizer)
+                    except Exception as e:
+                        self.logger.warning(f"NaN debug logging failed at batch {batch_idx}: {e}")
+
                     # Log batch metrics to W&B
                     if wandb.run is not None:
+                        # Convert any tensor values in losses to floats
+                        def _to_float(x):
+                            try:
+                                import torch as _t
+                                if isinstance(x, _t.Tensor):
+                                    return float(x.detach().item())
+                            except Exception:
+                                pass
+                            try:
+                                return float(x)
+                            except Exception:
+                                return x
+                        losses_float = {f'batch/{k}': _to_float(v) for k, v in losses.items()}
                         wandb.log({
                             "batch/loss": current_loss,
                             "batch/step": step,
                             "batch/epoch": epoch + 1,
-                        } | {f'batch/{k}': v for k, v in losses.items()}, step=step)
+                        } | losses_float, step=step)
 
                 if self.sub_epoch and (step % self.sub_epoch_interval == 0) and (step != 0):
                     sub_epoch = step // self.sub_epoch_interval
@@ -333,6 +431,10 @@ class Trainer:
                         scheduler.step()
                         current_lr = scheduler.get_last_lr()[0]
                         self.logger.info(f"Learning rate: {current_lr:.6f}")
+
+                        # Prune older checkpoints beyond patience
+                        self._cleanup_old_checkpoints(output_dir, keep_last_n=self.patience)
+
 
                 step += 1
             
@@ -381,7 +483,10 @@ class Trainer:
                     checkpoint_data['predictor_state_dict'] = predictor.state_dict()
                 
                 torch.save(checkpoint_data, checkpoint_path)
+
                 self.logger.info(f"Saved checkpoint to {checkpoint_path}")
+                # Prune older checkpoints beyond patience
+                self._cleanup_old_checkpoints(output_dir, keep_last_n=self.patience)
                 
                 # Log model checkpoint to W&B at the end of training
                 if wandb.run is not None and (epoch + 1) == self.num_epochs:
@@ -389,7 +494,8 @@ class Trainer:
             
             # Evaluation and early stopping logic
             if ((epoch + 1) % self.eval_interval == 0 or (epoch + 1) == self.num_epochs):
-                eval_loss = self._evaluate(encoder, generator, dataloader, device, loss_manager, predictor=predictor)
+                eval_loss = self._evaluate(encoder, generator, dataloader, device, loss_manager, predictor=predictor, config=config)
+
                 stats['eval_losses'].append(eval_loss)
                 
                 self.logger.info(f"Evaluation Loss: {eval_loss:.6f}")
@@ -401,7 +507,72 @@ class Trainer:
                         "epoch/epoch": epoch + 1,
                     }, step=step)
 
-                
+                if self.generate_samples_bool:
+                    # Generate some samples with the trained model
+                    samples = self.generate_samples(encoder, generator, dataloader)
+                    if samples is not None:
+                        self.logger.info(f"Source samples shape: {samples.get('source', 'N/A').shape if hasattr(samples.get('source', None), 'shape') else 'N/A'}")
+                        self.logger.info(f"Target samples shape: {samples.get('target', 'N/A').shape if hasattr(samples.get('target', None), 'shape') else 'N/A'}")
+                        self.logger.info(f"Generated samples shape: {samples.get('generated', 'N/A').shape if hasattr(samples.get('generated', None), 'shape') else 'N/A'}")
+                    
+                        # Log generated samples to W&B (optional)
+                        if wandb.run is not None:
+                            # Handle different types of samples
+                            if 'generated_texts' in samples:
+                                n_examples = min(6, len(samples['source_texts']))
+                                n_examples_per_example = min(6, len(samples['source_texts'][0]))
+                                # For text data, use our text visualization
+                                text_output_dir = os.path.join(output_dir, f"text_samples_epoch_{epoch+1}")
+                                visualize_text_data(
+                                    text_output_dir,
+                                    samples['source_texts'],
+                                    samples['target_texts'],
+                                    samples['generated_texts'],
+                                )
+
+                                # Create a dataframe with source, target, and generated texts
+                                flat_source = []
+                                flat_target = []
+                                flat_generated = []
+                                set_indices = []
+                                for i in range(n_examples):
+                                    for j in range(n_examples_per_example):
+                                        flat_source.append(samples['source_texts'][i][j])
+                                        flat_target.append(samples['target_texts'][i][j])
+                                        flat_generated.append(samples['generated_texts'][i][j])
+                                        set_indices.append(i)
+
+                                import pandas as pd
+                                df = pd.DataFrame({
+                                    'source': flat_source,
+                                    'target': flat_target,
+                                    'generated': flat_generated,
+                                    'set_index': set_indices
+                                })
+
+                                print(df.head())
+
+                                # Log table with source, target, and generated texts
+                                wandb.log({
+                                    "epoch/text_samples": wandb.Table(dataframe=df)
+                                }, step=step)
+                                
+                            elif 'source' in samples and 'target' in samples and 'generated' in samples and hasattr(samples['source'], 'shape'):
+                                # For numerical or image data, use the updated visualization
+                                n_examples = min(6, samples['source'].shape[0])
+                                for i in range(n_examples):
+                                    save_path = os.path.join(output_dir, f"coupled_samples_{i}_epoch_{epoch+1}.png")
+                                    visualize_coupled_data(
+                                        save_path, 
+                                        samples['source'][i], 
+                                        samples['target'][i],
+                                        samples['generated'][i]
+                                    )
+
+                                    wandb.log({
+                                        f"samples/coupled_{i}": wandb.Image(save_path)
+                                    })
+
                 # Check if this is the best model so far
                 if eval_loss < self.best_loss:
                     self.best_loss = eval_loss
@@ -424,6 +595,7 @@ class Trainer:
                         checkpoint_data['predictor_state_dict'] = predictor.state_dict()
                     
                     torch.save(checkpoint_data, best_model_path)
+
                     self.logger.info(f"New best model saved to {best_model_path}")
                     
                     # Log best model to W&B
@@ -462,7 +634,8 @@ class Trainer:
         
         return output_dir, stats
     
-    def _evaluate(self, encoder, generator, dataloader, device, loss_manager, predictor=None):
+    def _evaluate(self, encoder, generator, dataloader, device, loss_manager, predictor=None, config=None):
+
         """Run evaluation and return average loss."""
         encoder.eval()
         generator.eval()
@@ -472,6 +645,9 @@ class Trainer:
         total_loss = 0
         num_batches = 0
         
+        # No autocast in evaluation
+        autocast_enabled = False
+        amp_dtype = None
         with torch.no_grad():
             for batch in dataloader:
                 # TODO: legacy code was not using loss manager here, is there any specific reason for this?
@@ -479,20 +655,50 @@ class Trainer:
                 with (torch.autocast(device_type='cuda', dtype=torch.bfloat16) if (bool(self.use_amp) and device.type == 'cuda') else contextlib.nullcontext()):
                     loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 total_loss += loss.item()
+                # Log when non-finite observed in eval
+                try:
+                    if not math.isfinite(float(loss.detach().cpu().item())):
+                        nan_logger = get_nan_logger()
+                        nan_logger.log("Non-finite eval loss", {"loss": float(loss.detach().cpu().item())})
+                        nan_logger.log_batch("EVAL_BATCH", batch)
+                except Exception:
+                    pass
                 num_batches += 1
         
-        return total_loss / num_batches
+        eval_loss = total_loss / num_batches
+        return eval_loss
     
     def generate_samples(self, encoder, generator, dataloader, num_samples=None, device=None):
         """Generate samples using the trained model."""
         if device is None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            
+        
+        # Move models to device and set eval mode
         encoder.to(device)
         generator.to(device)
-        
         encoder.eval()
         generator.eval()
+        
+        # Helper to decode tensors of ids into nested lists of strings [batch][set]
+        def _decode_token_ids_to_texts(token_ids_tensor, tokenizer):
+            texts_nested = []
+            if token_ids_tensor.dim() == 3:
+                batch_size, set_size, _ = token_ids_tensor.shape
+                for b in range(batch_size):
+                    row = []
+                    for s in range(set_size):
+                        ids = token_ids_tensor[b, s]
+                        row.append(tokenizer.decode(ids, skip_special_tokens=True))
+                    texts_nested.append(row)
+            elif token_ids_tensor.dim() == 2:
+                batch_size, _ = token_ids_tensor.shape
+                for b in range(batch_size):
+                    ids = token_ids_tensor[b]
+                    texts_nested.append([tokenizer.decode(ids, skip_special_tokens=True)])
+            else:
+                # Unsupported shape; return empty
+                return []
+            return texts_nested
         
         with torch.no_grad():
             for batch in dataloader:
@@ -564,19 +770,58 @@ class Trainer:
                     if isinstance(generated, tuple):
                         # If generator returns both token ids and decoded texts
                         generated_ids, generated_texts = generated
+
                         return {
-                            'source': source_samples,
-                            'target': target_samples,
-                            'generated': generated_ids.cpu(),
-                            'source_texts': source_raw_texts,
-                            'target_texts': target_raw_texts,
-                            'generated_texts': generated_texts
+                            'source': source_samples.cpu(),
+                            'target': target_samples.cpu(),
+                            'generated': generated.cpu(),
                         }
                     else:
-                        return {
+                        # Dictionary samples (ProGen2 proteins)
+                        source_samples = {}
+                        target_samples = {}
+                        for key, value in batch['source_samples'].items():
+                            source_samples[key] = value.to(device) if isinstance(value, torch.Tensor) else value
+                        for key, value in batch['target_samples'].items():
+                            target_samples[key] = value.to(device) if isinstance(value, torch.Tensor) else value
+                        
+                        # Compute latents
+                        source_latent = encoder(source_samples)
+                        target_latent = encoder(target_samples)
+                        
+                        # Determine how many samples per example to generate (use set size if available)
+                        set_size = 6
+                        
+                        # Generate sequences, leveraging multiple prompts from the set if available
+                        generated = generator.sample(
+                            source_samples,
+                            source_latent,
+                            target_latent,
+                            num_samples=set_size,
+                            return_texts=True
+                        )
+                        
+                        if isinstance(generated, tuple):
+                            generated_ids, generated_texts = generated
+                        else:
+                            generated_ids, generated_texts = generated, None
+                        
+                        src_ids = source_samples.get('esm_input_ids', None)
+                        tgt_ids = target_samples.get('esm_input_ids', None)
+                        # Prefer dataset's ESM tokenizer when available
+                        dataset_tok = getattr(getattr(dataloader, 'dataset'), 'esm_tokenizer')
+                        decode_tokenizer = dataset_tok
+                        
+                        source_texts = _decode_token_ids_to_texts(src_ids, decode_tokenizer)
+                        target_texts = _decode_token_ids_to_texts(tgt_ids, decode_tokenizer)
+                        
+                        result = {
                             'source': source_samples,
                             'target': target_samples,
-                            'generated': generated.cpu(),
-                            'source_texts': source_raw_texts,
-                            'target_texts': target_raw_texts
+                            'generated': generated_ids.cpu() if isinstance(generated_ids, torch.Tensor) else generated_ids,
                         }
+                        result['generated_texts'] = generated_texts
+                        result['source_texts'] = source_texts
+                        print("!!!!!!!!!!!", source_texts)
+                        result['target_texts'] = target_texts
+                        return result

@@ -16,6 +16,7 @@ defaults:
 # sampling parameters
 weight_mode: "uniform"
 num_samples: 50000   # number of pairs drawn from dataset each epoch
+
 unidirectional: false
 exponential_weight_scale: 1.0
 selective_pairing_mode: null

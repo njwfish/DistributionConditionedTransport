@@ -1,7 +1,7 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: virus
+name: virus_single_step
 description: "full dataset of virus evolution"
 
 # Override defaults from config.yaml
@@ -38,7 +38,7 @@ predictor_model_args:
 weight_mode: "uniform"
 num_samples: 50
 exponential_weight_scale: 1.0
-selective_pairing_mode: null
+selective_pairing_mode: "single_step"
 
 # Experiment-specific parameters
 latent_dim: 128 # TODO: make sure that this is really the correct latent_dim for the ESM2 8M model. Also make sure that there is no conflict due to double usage.

@@ -1,14 +1,14 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: virus
-description: "full dataset of virus evolution"
+name: virus_esm_synthetic
+description: "synthetic dataset of virus evolution using ESM2 DFM"
 
 # Override defaults from config.yaml
 defaults:
-  - /dataset: virus
-  - /encoder: esm
-  - /generator: progen2
+  - /dataset: synthetic_protein
+  - /encoder: esm 
+  - /generator: esm2_dfm
   - /scheduler: cosine
   - /training: default_virus
   - /loss: predictor
@@ -19,7 +19,7 @@ defaults:
 
 
 # TODO: change to the full data file once you are done with debugging
-data_file: virus_tokenized_data_for_tde_filtered.pt
+data_file: virus_tokenized_data_for_tde.pt
 
 # Experiment-specific parameters
 use_predicted_latent: true
@@ -54,16 +54,14 @@ freeze_esm2: false
 
 # ProGen2 settings
 progen2_model_name: 'hugohrban/progen2-base'
-seq_length: 1000
+seq_length: 12
 tokenize: false 
 condition_dim: 32
 freeze_progen2: false
 gradient_accumulation_steps: 1
-set_microbatch_size: 1 # microbatch size over set dimension in trainer (only value of 1 is working right now, larger gives OOM)
+set_microbatch_size: 2
 debug_memory_logging: false  # enable/disable GPU debug memory logger
-condition_method: prefix
+condition_method: "additive"
 temperature: 1.0
-
 use_esm_tokens: true
-
 #precomputed_d_values_pth: /orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430/virus_all_d_values.npz

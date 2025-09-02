@@ -1,4 +1,5 @@
 import torch
+import math
 import os
 import time
 import shutil
@@ -9,6 +10,7 @@ from utils.hash_utils import get_output_dir
 from utils.visualization import visualize_text_data, visualize_coupled_data
 from omegaconf import OmegaConf, DictConfig
 import contextlib
+from utils.nan_debug import set_nan_logger, get_nan_logger
 
 class Trainer:
     def __init__(
@@ -224,6 +226,36 @@ class Trainer:
         else:
             os.makedirs(output_dir, exist_ok=True)
             self.logger.info(f"Using specified output directory: {output_dir}")
+
+        # Initialize NaN debug logger to a dedicated file under the run directory
+        try:
+            nan_log_path = os.path.join(output_dir, "nan_debug.log")
+            set_nan_logger(nan_log_path)
+            nan_logger = get_nan_logger()
+            # One-time environment snapshot
+            cuda_info = {
+                "cuda_available": torch.cuda.is_available(),
+                "device": str(device) if device is not None else str(torch.device("cuda" if torch.cuda.is_available() else "cpu")),
+                "amp_enabled": bool(self.use_amp),
+            }
+            if torch.cuda.is_available():
+                try:
+                    dev = torch.cuda.current_device()
+                    cuda_info.update({
+                        "device_index": dev,
+                        "device_name": torch.cuda.get_device_name(dev),
+                        "total_mem_gb": f"{torch.cuda.get_device_properties(dev).total_memory / 1024**3:.2f}",
+                    })
+                except Exception:
+                    pass
+            nan_logger.log("Training environment", cuda_info)
+            nan_logger.log_model_summary("encoder", encoder)
+            nan_logger.log_model_summary("generator", generator)
+            if predictor is not None:
+                nan_logger.log_model_summary("predictor", predictor)
+            nan_logger.log_optimizer(optimizer)
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize NaN debug logger: {e}")
         
         # Check for existing checkpoints in the output directory
         best_model_path = os.path.join(output_dir, "best_model.pt")
@@ -351,6 +383,23 @@ class Trainer:
                     if self.use_tqdm:
                         pbar.set_postfix(loss=f"{current_loss:.6f}")
                     
+                    # NaN/Inf detection and detailed dump
+                    try:
+                        nan_logger = get_nan_logger()
+                        if not math.isfinite(current_loss):
+                            nan_logger.log("Detected non-finite loss", {"epoch": epoch + 1, "batch_idx": batch_idx, "loss": current_loss})
+                            # Batch structure and shapes
+                            if isinstance(batch, dict):
+                                nan_logger.log_batch("BATCH_START", batch)
+                            # Gradient stats just after backward
+                            nan_logger.log_grad_stats("encoder", encoder)
+                            nan_logger.log_grad_stats("generator", generator)
+                            if predictor is not None:
+                                nan_logger.log_grad_stats("predictor", predictor)
+                            nan_logger.log_optimizer(optimizer)
+                    except Exception as e:
+                        self.logger.warning(f"NaN debug logging failed at batch {batch_idx}: {e}")
+
                     # Log batch metrics to W&B
                     if wandb.run is not None:
                         # Convert any tensor values in losses to floats
@@ -621,6 +670,14 @@ class Trainer:
                 with (torch.autocast(device_type='cuda', dtype=torch.bfloat16) if (bool(self.use_amp) and device.type == 'cuda') else contextlib.nullcontext()):
                     loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 total_loss += loss.item()
+                # Log when non-finite observed in eval
+                try:
+                    if not math.isfinite(float(loss.detach().cpu().item())):
+                        nan_logger = get_nan_logger()
+                        nan_logger.log("Non-finite eval loss", {"loss": float(loss.detach().cpu().item())})
+                        nan_logger.log_batch("EVAL_BATCH", batch)
+                except Exception:
+                    pass
                 num_batches += 1
         
         eval_loss = total_loss / num_batches

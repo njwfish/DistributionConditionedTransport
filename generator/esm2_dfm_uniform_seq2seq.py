@@ -6,6 +6,7 @@ from typing import Optional, Tuple
 from transformers import EsmConfig, EsmForMaskedLM, EsmTokenizer
 
 from utils.hf_local import resolve_local_or_repo
+from utils.nan_debug import get_nan_logger
 
 import math
 
@@ -97,17 +98,40 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
         # Encode tokens
         outputs = self.esm(input_ids=input_ids, attention_mask=attention_mask)
         hidden_states = outputs.last_hidden_state  # (B, L, D)
+        # Check early for non-finites from base ESM
+        try:
+            if torch.isnan(hidden_states).any() or torch.isinf(hidden_states).any():
+                nan_logger = get_nan_logger()
+                nan_logger.log("Non-finite hidden_states from ESM base")
+                nan_logger.log_tensor("taesmf.hidden_states_pre", hidden_states)
+        except Exception:
+            pass
 
         # Time embedding
         time_embed = transformer_timestep_embedding(t, self.hidden_size).to(hidden_states.dtype)[:, None, :]
 
         hidden_states = hidden_states + time_embed
+        try:
+            if torch.isnan(hidden_states).any() or torch.isinf(hidden_states).any():
+                nan_logger = get_nan_logger()
+                nan_logger.log("Non-finite after adding time embedding")
+                nan_logger.log_tensor("taesmf.time_embed", time_embed)
+                nan_logger.log_tensor("taesmf.hidden_plus_time", hidden_states)
+        except Exception:
+            pass
 
         # Latent conditioning
         if self.condition_method == "additive":
             combined_latent = torch.cat([latent_source, latent_target], dim=-1)
             cond = self.condition_proj(combined_latent)  # (B, D)
             hidden_states = hidden_states + cond.unsqueeze(1)
+            try:
+                if torch.isnan(hidden_states).any() or torch.isinf(hidden_states).any():
+                    nan_logger = get_nan_logger()
+                    nan_logger.log("Non-finite after additive conditioning")
+                    nan_logger.log_tensor("taesmf.cond_add", cond)
+            except Exception:
+                pass
         elif self.condition_method == "cross_attn":
             # Build latent memory tokens [src, tgt, (tgt - src)] → (B, M, D)
             src_token = self.latent_src_proj(latent_source)
@@ -125,14 +149,32 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
             else:
                 alpha = None
 
-            # Run through external conditioner blocks
-            for block in self.condition_blocks:
-                attn_out, _ = block["attn"](query=hidden_states, key=memory, value=memory, need_weights=False)
+            # Run conditioner in FP32 with autocast disabled to avoid bf16 NaNs
+            orig_dtype = hidden_states.dtype
+            with torch.autocast(device_type='cuda', enabled=False):
+                hidden_states = hidden_states.float()
+                memory = memory.float()
                 if alpha is not None:
-                    attn_out = attn_out * alpha
-                hidden_states = block["ln1"](hidden_states + attn_out)
-                ffn_out = block["ffn"](hidden_states)
-                hidden_states = block["ln2"](hidden_states + ffn_out)
+                    alpha = alpha.float()
+
+                # Run through external conditioner blocks
+                for block in self.condition_blocks:
+                    attn_out, _ = block["attn"](query=hidden_states, key=memory, value=memory, need_weights=False)
+                    if alpha is not None:
+                        attn_out = attn_out * alpha
+                    hidden_states = block["ln1"](hidden_states + attn_out)
+                    ffn_out = block["ffn"](hidden_states)
+                    hidden_states = block["ln2"](hidden_states + ffn_out)
+                    try:
+                        if torch.isnan(hidden_states).any() or torch.isinf(hidden_states).any():
+                            nan_logger = get_nan_logger()
+                            nan_logger.log("Non-finite inside cross-attn conditioning block")
+                            nan_logger.log_tensor("taesmf.attn_out", attn_out)
+                            nan_logger.log_tensor("taesmf.ffn_out", ffn_out)
+                            nan_logger.log_tensor("taesmf.hidden_post_block", hidden_states)
+                    except Exception:
+                        pass
+            hidden_states = hidden_states.to(orig_dtype)
         else:
             raise ValueError(f"Unknown conditioning method: {self.condition_method}")
         # Project to vocabulary logits
@@ -292,6 +334,14 @@ class ESM2_DFM_Generator(nn.Module):
             t=t,
             latent_source=latent_source,
             latent_target=latent_target)
+        # Early NaN check on logits to pinpoint source
+        try:
+            if torch.isnan(logits).any() or torch.isinf(logits).any():
+                nan_logger = get_nan_logger()
+                nan_logger.log("Non-finite logits from ESM forward")
+                nan_logger.log_tensor("gen.logits", logits)
+        except Exception:
+            pass
 
         # Cross-entropy to target tokens x1; ignore padded target positions
         labels = input_ids_target.clone()
@@ -303,6 +353,19 @@ class ESM2_DFM_Generator(nn.Module):
         
         # TODO: why are we transposing here?
         loss = F.cross_entropy(logits.transpose(1, 2), labels, ignore_index=-100, reduction='mean')
+        # If non-finite, dump detailed context
+        try:
+            if not torch.isfinite(loss):
+                nan_logger = get_nan_logger()
+                nan_logger.log("Non-finite generator loss detected")
+                nan_logger.log_tensor("gen.logits_sample", logits[..., : min(logits.size(-1), 64)])
+                nan_logger.log_tensor("gen.labels", labels)
+                nan_logger.log_tensor("gen.xt", xt)
+                nan_logger.log_tensor("gen.valid_mask", valid_mask)
+                nan_logger.log_tensor("gen.latent_source", latent_source)
+                nan_logger.log_tensor("gen.latent_target", latent_target)
+        except Exception:
+            pass
         return loss
 
     # TODO: force the last token to always be the EOS token.    

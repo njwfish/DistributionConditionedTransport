@@ -1,4 +1,6 @@
 import torch
+import math
+from utils.nan_debug import get_nan_logger
 
 
 # TODO: make sure all your modifications here below are sensible.
@@ -25,6 +27,17 @@ class PredictorLossManager:
             source_latent = encoder(source_samples)
             target_latent = encoder(target_samples)
 
+            # Log latent anomalies
+            try:
+                nan_logger = get_nan_logger()
+                if (source_latent.is_floating_point() and (torch.isnan(source_latent).any() or torch.isinf(source_latent).any())) or \
+                   (target_latent.is_floating_point() and (torch.isnan(target_latent).any() or torch.isinf(target_latent).any())):
+                    nan_logger.log("Non-finite encoder latents (tensor path)", {"device": str(device)})
+                    nan_logger.log_tensor("encoder.source_latent", source_latent)
+                    nan_logger.log_tensor("encoder.target_latent", target_latent)
+            except Exception:
+                pass
+
             # compute predictor loss and get predicted target latent
             if predictor.requires_condition:
                 condition_scalars = (batch['source_idx'].to(device), batch['target_idx'].to(device))
@@ -40,6 +53,15 @@ class PredictorLossManager:
                 source_latent,
                 target_latent_for_generator
             )
+            # Log component anomalies
+            try:
+                nan_logger = get_nan_logger()
+                if not torch.isfinite(recon_loss):
+                    nan_logger.log("Non-finite recon loss (tensor path)", {"recon_loss": float(recon_loss.detach().cpu().item()) if recon_loss.numel()==1 else "tensor"})
+                if not torch.isfinite(predictor_loss):
+                    nan_logger.log("Non-finite predictor loss (tensor path)", {"predictor_loss": float(predictor_loss.detach().cpu().item()) if predictor_loss.numel()==1 else "tensor"})
+            except Exception:
+                pass
             if torch.is_grad_enabled():
                 (recon_loss + self.predictor_loss_weight * predictor_loss).backward()
             loss = recon_loss + self.predictor_loss_weight * predictor_loss
@@ -67,6 +89,17 @@ class PredictorLossManager:
             # Encode samples to latent space
             source_latent = encoder(source_samples)
             target_latent = encoder(target_samples)
+
+            # Log latent anomalies
+            try:
+                nan_logger = get_nan_logger()
+                if (source_latent.is_floating_point() and (torch.isnan(source_latent).any() or torch.isinf(source_latent).any())) or \
+                   (target_latent.is_floating_point() and (torch.isnan(target_latent).any() or torch.isinf(target_latent).any())):
+                    nan_logger.log("Non-finite encoder latents (dict path)", {"device": str(device)})
+                    nan_logger.log_tensor("encoder.source_latent", source_latent)
+                    nan_logger.log_tensor("encoder.target_latent", target_latent)
+            except Exception:
+                pass
 
             # Compute predictor loss/predicted latent
             if predictor.requires_condition:
@@ -109,6 +142,14 @@ class PredictorLossManager:
                         source_latent_detached,
                         target_latent_detached,
                     )
+                    try:
+                        if not torch.isfinite(loss_mb):
+                            nan_logger = get_nan_logger()
+                            nan_logger.log("Non-finite microbatch recon loss", {"start_s": start_s, "end_s": end_s})
+                            nan_logger.log_batch("MICROBATCH_SOURCE", x_source_mb)
+                            nan_logger.log_batch("MICROBATCH_TARGET", x_target_mb)
+                    except Exception:
+                        pass
                     # Normalize by total set_size to keep loss scale consistent
                     frac = (end_s - start_s) / max(set_size, 1)
                     loss_mb_scaled = loss_mb * frac
@@ -138,6 +179,14 @@ class PredictorLossManager:
             # No microbatching requested: single pass
             target_latent_for_generator = target_latent if not self.use_predicted_latent else pred_target_latent
             recon_loss = generator.loss(source_samples, target_samples, source_latent, target_latent_for_generator)
+            try:
+                nan_logger = get_nan_logger()
+                if not torch.isfinite(recon_loss):
+                    nan_logger.log("Non-finite recon loss (dict path)")
+                    nan_logger.log_batch("RECON_SOURCE", source_samples)
+                    nan_logger.log_batch("RECON_TARGET", target_samples)
+            except Exception:
+                pass
             total = recon_loss + self.predictor_loss_weight * predictor_loss
             if torch.is_grad_enabled():
                 total.backward()

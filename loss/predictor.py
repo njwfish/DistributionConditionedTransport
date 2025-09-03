@@ -1,9 +1,7 @@
 import torch
-import math
+from utils.conditioning import build_condition_tuple
 from utils.nan_debug import get_nan_logger
 
-
-# TODO: make sure all your modifications here below are sensible.
 # TODO: remove conditioning on predictor during training as an option.
 
 class PredictorLossManager:
@@ -39,11 +37,14 @@ class PredictorLossManager:
                 pass
 
             # compute predictor loss and get predicted target latent
-            if predictor.requires_condition:
-                condition_scalars = (batch['source_idx'].to(device), batch['target_idx'].to(device))
-                predictor_loss, pred_target_latent = predictor.loss(source_latent, target_latent, condition_scalars)
-            else:
-                predictor_loss, pred_target_latent = predictor.loss(source_latent, target_latent)
+            # Build conditioning tuple per predictor.condition_type
+            condition_scalars = build_condition_tuple(batch, device, getattr(predictor, 'condition_type', 'none'))
+            predictor_loss, pred_target_latent = predictor.loss(
+                source_latent,
+                target_latent,
+                condition_scalars,
+            )
+
 
             target_latent_for_generator = target_latent if not self.use_predicted_latent else pred_target_latent
 
@@ -90,23 +91,14 @@ class PredictorLossManager:
             source_latent = encoder(source_samples)
             target_latent = encoder(target_samples)
 
-            # Log latent anomalies
-            try:
-                nan_logger = get_nan_logger()
-                if (source_latent.is_floating_point() and (torch.isnan(source_latent).any() or torch.isinf(source_latent).any())) or \
-                   (target_latent.is_floating_point() and (torch.isnan(target_latent).any() or torch.isinf(target_latent).any())):
-                    nan_logger.log("Non-finite encoder latents (dict path)", {"device": str(device)})
-                    nan_logger.log_tensor("encoder.source_latent", source_latent)
-                    nan_logger.log_tensor("encoder.target_latent", target_latent)
-            except Exception:
-                pass
+            # Build conditioning tuple per predictor.condition_type
+            condition_scalars = build_condition_tuple(batch, device, getattr(predictor, 'condition_type', 'none'))
+            predictor_loss, pred_target_latent = predictor.loss(
+                source_latent,
+                target_latent,
+                condition_scalars,
+            )
 
-            # Compute predictor loss/predicted latent
-            if predictor.requires_condition:
-                condition_scalars = (batch['source_idx'].to(device), batch['target_idx'].to(device))
-                predictor_loss, pred_target_latent = predictor.loss(source_latent, target_latent, condition_scalars)
-            else:
-                predictor_loss, pred_target_latent = predictor.loss(source_latent, target_latent)
 
             # Microbatch across set dimension when requested
             if self.use_microbatching:

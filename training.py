@@ -10,6 +10,7 @@ from utils.hash_utils import get_output_dir
 from utils.visualization import visualize_text_data, visualize_coupled_data
 from omegaconf import OmegaConf, DictConfig
 import contextlib
+
 from utils.nan_debug import set_nan_logger, get_nan_logger
 
 class Trainer:
@@ -58,7 +59,9 @@ class Trainer:
         self.mask_context_prob = mask_context_prob
         self.gradient_accumulation_steps = gradient_accumulation_steps
         self.use_amp = use_amp
+
         self.use_esm_tokens = use_esm_tokens
+
         self.logger = logging.getLogger(__name__)
         self.best_loss = float('inf')
         self.no_improve_count = 0
@@ -362,7 +365,8 @@ class Trainer:
             
             for batch_idx, batch in enumerate(pbar):
                 # Handle samples which can be either a tensor or a dictionary
-                
+                batch_loss_start = time.time()
+
                 optimizer.zero_grad(set_to_none=True)
                 
                 # Forward (and backward inside loss manager) under autocast when enabled
@@ -427,25 +431,6 @@ class Trainer:
                         scheduler.step()
                         current_lr = scheduler.get_last_lr()[0]
                         self.logger.info(f"Learning rate: {current_lr:.6f}")
-                    if (sub_epoch + 1) % self.save_interval == 0:
-                        checkpoint_path = os.path.join(output_dir, f"checkpoint_epoch_{epoch+1}.pt")
-
-                        generator_state = generator.state_dict()
-                        
-                        checkpoint_data = {
-                            'epoch': epoch + 1,
-                            'encoder_state_dict': encoder.state_dict(),
-                            'generator_state_dict': generator_state,
-                            'optimizer_state_dict': optimizer.state_dict(),
-                            'scheduler_state_dict': scheduler.state_dict(),
-                            'step': step,
-                        }
-                        
-                        if predictor is not None:
-                            checkpoint_data['predictor_state_dict'] = predictor.state_dict()
-                        
-                        torch.save(checkpoint_data, checkpoint_path)
-                        self.logger.info(f"Saved checkpoint to {checkpoint_path}")      
 
                         # Prune older checkpoints beyond patience
                         self._cleanup_old_checkpoints(output_dir, keep_last_n=self.patience)
@@ -483,7 +468,7 @@ class Trainer:
                 checkpoint_path = os.path.join(output_dir, f"checkpoint_epoch_{epoch+1}.pt")
                 
                 generator_state = generator.state_dict()
-
+                
                 checkpoint_data = {
                     'epoch': epoch + 1,
                     'encoder_state_dict': encoder.state_dict(),
@@ -503,7 +488,7 @@ class Trainer:
                 # Prune older checkpoints beyond patience
                 self._cleanup_old_checkpoints(output_dir, keep_last_n=self.patience)
                 
-                # Log model checkpoint to W&B
+                # Log model checkpoint to W&B at the end of training
                 if wandb.run is not None and (epoch + 1) == self.num_epochs:
                     wandb.save(checkpoint_path)
             
@@ -718,18 +703,73 @@ class Trainer:
         with torch.no_grad():
             for batch in dataloader:
                 # Handle samples which can be either a tensor or a dictionary
-                with (torch.autocast(device_type='cuda', dtype=torch.bfloat16) if (bool(self.use_amp) and device.type == 'cuda') else contextlib.nullcontext()):
-                    if isinstance(batch['source_samples'], torch.Tensor):
-                    # Legacy numeric/image path (not used for ProGen2 proteins)
-                        source_samples = batch['source_samples'].to(device)
-                        target_samples = batch['target_samples'].to(device)
-                        
-                        # Encode to latents
+                if isinstance(batch['source_samples'], torch.Tensor):
+                    source_samples = batch['source_samples'].to(device)
+                    target_samples = batch['target_samples'].to(device)
+                    batch_size, set_size, *data_shape = source_samples.shape
+                    
+                    # Encode samples to latent space
+                    with (torch.autocast(device_type='cuda', dtype=torch.bfloat16) if (bool(self.use_amp) and device.type == 'cuda') else contextlib.nullcontext()):
                         source_latent = encoder(source_samples)
                         target_latent = encoder(target_samples)
-                        
-                        # If a generator supports direct tensor sampling, attempt it; otherwise skip
-                        generated = generator.sample(source_samples, source_latent, target_latent)
+
+                        # TODO: if we actually want to call the generate_samples mehtod here, we need to make sure that this line is still up to date.
+                        generated = generator.sample(source_samples.reshape(-1, *data_shape), source_latent, target_latent)
+                    
+                    return {
+                        'source': source_samples.cpu(),
+                        'target': target_samples.cpu(),
+                        'generated': generated.cpu()
+                    }
+                else:
+                    # For dictionary samples (like PubMed dataset), move tensors to device
+                    source_samples = {}
+                    target_samples = {}
+                    
+                    for key, value in batch['source_samples'].items():
+                        if isinstance(value, torch.Tensor):
+                            source_samples[key] = value.to(device)
+                        else:
+                            source_samples[key] = value
+                            
+                    for key, value in batch['target_samples'].items():
+                        if isinstance(value, torch.Tensor):
+                            target_samples[key] = value.to(device)
+                        else:
+                            target_samples[key] = value
+                    
+                    # Keep raw texts for reference
+                    source_raw_texts = batch.get('source_raw_texts', None)
+                    target_raw_texts = batch.get('target_raw_texts', None)
+                    
+                    if source_raw_texts is not None:
+                        set_size = len(source_raw_texts)
+                        num_sets = len(source_raw_texts[0])
+                        # reshape raw_texts list from [set_size, num_samples] to [num_samples, set_size]
+                        source_raw_texts = [[source_raw_texts[j][i] for j in range(set_size)] for i in range(num_sets)]
+                        target_raw_texts = [[target_raw_texts[j][i] for j in range(set_size)] for i in range(num_sets)]
+
+                    # Encode samples to latent space
+                    with (torch.autocast(device_type='cuda', dtype=torch.bfloat16) if (bool(self.use_amp) and device.type == 'cuda') else contextlib.nullcontext()):
+                        source_latent = encoder(source_samples)
+                        target_latent = encoder(target_samples)
+                    
+                    # For dictionary data, we need to extract a representative source sample
+                    # This is a simplified approach - in practice you might want something more sophisticated
+                    source_sample = {}
+                    for key, value in source_samples.items():
+                        if isinstance(value, torch.Tensor) and value.ndim >= 2:
+                            source_sample[key] = value[:, 0]  # Take first sample from each set
+                        else:
+                            source_sample[key] = value
+                    
+                    # Generate new samples
+                    with (torch.autocast(device_type='cuda', dtype=torch.bfloat16) if (bool(self.use_amp) and device.type == 'cuda') else contextlib.nullcontext()):
+                        generated = generator.sample(source_sample, source_latent, target_latent, num_samples=set_size, return_texts=True)
+                    
+                    if isinstance(generated, tuple):
+                        # If generator returns both token ids and decoded texts
+                        generated_ids, generated_texts = generated
 
                         return {
                             'source': source_samples.cpu(),

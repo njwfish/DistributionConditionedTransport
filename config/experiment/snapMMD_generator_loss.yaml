@@ -14,7 +14,7 @@ defaults:
   - /loss: default
   - /predictor: default  # use unified predictor
   - /predictor_sampling: default
-  - /predictor_training: default
+  - /predictor_training: default_generator_loss
   - /sampling: default
 
 ot_coupling: false
@@ -42,7 +42,7 @@ predictor_model_args:
 weight_mode: "uniform"
 num_samples: null
 exponential_weight_scale: 1.44  # approx ln(2)
-selective_pairing_mode: null
+selective_pairing_mode: "single_step"
 
 # Experiment-specific parameters
 latent_dim: 16

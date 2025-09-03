@@ -7,4 +7,4 @@ eval_interval: 100
 early_stopping: true
 patience: 20
 use_tqdm: false
-use_generator_loss: false
+use_generator_loss: true

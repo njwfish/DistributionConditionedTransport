@@ -8,10 +8,10 @@ description: "SnapMMD ${dataset_name} experiment with unified dataset class"
 defaults:
   - /dataset: snapMMD_unified
   - /encoder: gnn
-  - /model: diffusion_mlp
-  - /generator: flow_matching  # Use flow matching for coupled embeddings
-  - /training: default10000
-  - /loss: default
+  - /model: noise_mlp
+  - /generator: energy  # Use flow matching for coupled embeddings
+  - /training: default_inpatient
+  - /loss: predictor
   - /predictor: default  # use unified predictor
   - /predictor_sampling: default
   - /predictor_training: default
@@ -20,23 +20,23 @@ defaults:
 ot_coupling: false
 
 # predictor parameters
-use_predicted_latent: true
-predictor_loss_weight: 0
+use_predicted_latent: false
+predictor_loss_weight: 1
 
-train_predictor_posthoc: true
+train_predictor_posthoc: false
 
-
-predictor_model_type: "mlp"
-predictor_conditioning_mode: "sinusoidal"
-predictor_condition_type: "none"
-predictor_model_args:
-  hidden_dim: 128
-  num_layers: 2
-
-#predictor_model_type: "ridge"
+#predictor_model_type: "mlp"
 #predictor_conditioning_mode: "sinusoidal"
+#predictor_condition_type: "none"
 #predictor_model_args:
-#  ridge_alpha: 1e-3
+#  hidden_dim: 128
+#  num_layers: 2
+
+predictor_model_type: "ridge"
+predictor_conditioning_mode: "concat"
+predictor_condition_type: "scalar_d"
+predictor_model_args:
+  ridge_alpha: 1e-3
 
 # sampling parameters
 weight_mode: "uniform"

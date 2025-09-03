@@ -5,6 +5,7 @@ defaults:
   - dataset: none  # Dataset-specific config
   - encoder: none  # Default encoder
   - model: none  # Default model for DDPM
+  - coupling: none  # Default coupling function
   - generator: none  # Default generator
   - optimizer: adam  # Default optimizer
   - scheduler: none  # Default scheduler

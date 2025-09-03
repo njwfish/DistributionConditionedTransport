@@ -60,7 +60,7 @@ gradient_accumulation_steps: 1
 set_microbatch_size: 1
 debug_memory_logging: false  # enable/disable GPU debug memory logger
 
-condition_method: "cross_attn"
+condition_method: "additive"
 temperature: 1.0
 
 use_esm_tokens: true

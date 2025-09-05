@@ -17,6 +17,43 @@ except Exception as exc:  # pragma: no cover
     ) from exc
 
 
+## TODO: make sure this is the correct distance metric
+#def alignment_distance(seq1: str, seq2: str) -> float:
+#    """Compute 1 - identity via global alignment, excluding positions with X.
+#    
+#    The letter X represents ambiguous residues. Positions where either sequence
+#    has 'X' are excluded from the distance calculation. Identity is normalized
+#    by the number of comparable aligned positions (positions where neither 
+#    aligned character is 'X' or a gap).
+#    """
+#    if not seq1 and not seq2:
+#        return 0.0
+#    
+#    # Get the best alignment
+#    alignments = pairwise2.align.globalxx(seq1, seq2)
+#    if not alignments:
+#        return 1.0  # No alignment possible
+#    
+#    best_alignment = alignments[0]
+#    aligned_seq1, aligned_seq2, score, start, end = best_alignment
+#    
+#    # Count matches, excluding positions with 'X'
+#    matches = 0
+#    comparable_positions = 0
+#    
+#    for c1, c2 in zip(aligned_seq1, aligned_seq2):
+#        # Skip positions where either character is 'X' or a gap
+#        if c1 != 'X' and c2 != 'X' and c1 != '-' and c2 != '-':
+#            comparable_positions += 1
+#            if c1 == c2:
+#                matches += 1
+#    
+#    if comparable_positions == 0:
+#        return 0.0  # No comparable positions, treat as identical
+#    
+#    identity = float(matches) / float(comparable_positions)
+#    return 1.0 - identity
+
 def alignment_distance(seq1: str, seq2: str) -> float:
     """Compute 1 - identity via global alignment (globalxx) as described.
 
@@ -79,6 +116,106 @@ def load_last_two_token_tensors(dataset_path: Path) -> Tuple[Dict[str, torch.Ten
             raise KeyError("Expected 'esm_input_ids' and 'esm_attention_mask' in samples for encoder")
         return out
     return _extract(second_last), _extract(last)
+
+
+def sequences_equivalent_with_x(seq1: str, seq2: str) -> bool:
+    """Check if two sequences are equivalent considering X as wildcard.
+    
+    Two sequences are considered equivalent if they match at every position,
+    where X in either sequence matches any amino acid (including X).
+    Uses alignment to handle length differences.
+    """
+    if seq1 == seq2:
+        return True
+    
+    # Get alignment
+    alignments = pairwise2.align.globalxx(seq1, seq2)
+    if not alignments:
+        return False
+    
+    aligned_seq1, aligned_seq2, score, start, end = alignments[0]
+    
+    # Check if sequences match considering X as wildcard
+    for c1, c2 in zip(aligned_seq1, aligned_seq2):
+        # Skip gaps for now - we'll consider sequences with gaps as different
+        if c1 == '-' or c2 == '-':
+            return False
+        
+        # If neither is X, they must match exactly
+        if c1 != 'X' and c2 != 'X' and c1 != c2:
+            return False
+        
+        # If one is X, that's fine (X matches anything)
+    
+    return True
+
+
+def count_unique_sequences_with_x_wildcard(all_sequences: List[str]) -> int:
+    """Count unique sequences treating X as wildcard that matches any amino acid."""
+    if not all_sequences:
+        return 0
+    
+    unique_seqs = []
+    total = len(all_sequences)
+    
+    print(f"Analyzing {total} sequences for uniqueness (treating X as wildcard)...", file=sys.stderr)
+    
+    for i, seq in enumerate(all_sequences):
+        is_unique = True
+        
+        # Check against all previously found unique sequences
+        for unique_seq in unique_seqs:
+            if sequences_equivalent_with_x(seq, unique_seq):
+                is_unique = False
+                break
+        
+        if is_unique:
+            unique_seqs.append(seq)
+        
+        if (i + 1) % 10 == 0 or (i + 1) == total:
+            print(f"Processed {i+1}/{total} sequences, found {len(unique_seqs)} unique so far", 
+                  end="\r", file=sys.stderr)
+    
+    print(file=sys.stderr)
+    return len(unique_seqs)
+
+
+def analyze_mismatch_patterns(seqs_a: List[str], seqs_b: List[str]) -> Dict[str, int]:
+    """Analyze which amino acids in seqs_a cause the most mismatches vs seqs_b.
+    
+    Returns a dict mapping amino acid -> mismatch count for generated sequences.
+    """
+    mismatch_counts: Dict[str, int] = {}
+    
+    print("Analyzing mismatch patterns...", file=sys.stderr)
+    total_pairs = len(seqs_a) * len(seqs_b)
+    processed = 0
+    
+    for sa in seqs_a:
+        for sb in seqs_b:
+            # Get alignment
+            alignments = pairwise2.align.globalxx(sa, sb)
+            if not alignments:
+                continue
+            
+            aligned_a, aligned_b, score, start, end = alignments[0]
+            
+            # Count mismatches for each amino acid in seqs_a
+            for c_a, c_b in zip(aligned_a, aligned_b):
+                # Skip gaps and X's as before
+                if c_a != 'X' and c_b != 'X' and c_a != '-' and c_b != '-':
+                    if c_a != c_b:  # Mismatch
+                        if c_a not in mismatch_counts:
+                            mismatch_counts[c_a] = 0
+                        mismatch_counts[c_a] += 1
+            
+            processed += 1
+            if processed % 100 == 0:
+                print(f"Processed {processed}/{total_pairs} alignment pairs for mismatch analysis", 
+                      end="\r", file=sys.stderr)
+    
+    print(file=sys.stderr)
+    return mismatch_counts
 
 
 def compute_distance_matrix(
@@ -239,7 +376,7 @@ def main() -> None:
         type=str,
         default=(
             "/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/"
-            "data/spikeprot0430/virus_tokenized_data_for_tde_downsampled100_filtered_test.pt"
+            "data/spikeprot0430/virus_tokenized_data_for_tde_downsampled100_filtered_extreme.pt"
         ),
         help="Absolute path to the .pt dataset file to load.",
     )
@@ -270,10 +407,32 @@ def main() -> None:
     print(f"Loading dataset from: {dataset_path}")
     if args.compare_mode == "second_last":
         seqs_a, seqs_b = load_last_two_raw_texts(dataset_path)
+        
+        print("SEQUENCES CHECKING")
+        for i, seq in enumerate(seqs_a):
+            print(f"Sequence {i}: {seq}")
+        for i, seq in enumerate(seqs_b):
+            print(f"Sequence {i}: {seq}")
+        print("SEQUENCES CHECKING")
+
         n, m = len(seqs_a), len(seqs_b)
         print(f"Length of second_last raw_texts: {n}")
         print(f"Length of last raw_texts: {m}")
         print(f"Loaded last two raw_texts lists with sizes: N={n} (second_last), M={m} (last)")
+
+        # Analyze unique sequences across both datasets
+        print("\n=== Unique Sequence Analysis ===")
+        all_sequences = seqs_a + seqs_b  # Combine both datasets
+        total_sequences = len(all_sequences)
+        unique_count = count_unique_sequences_with_x_wildcard(all_sequences)
+        duplicate_count = total_sequences - unique_count
+        
+        print(f"Total sequences (second_last + last): {total_sequences}")
+        print(f"Unique sequences (treating X as wildcard): {unique_count}")
+        print(f"Duplicate sequences: {duplicate_count}")
+        if total_sequences > 0:
+            uniqueness_ratio = (unique_count / total_sequences) * 100
+            print(f"Uniqueness ratio: {uniqueness_ratio:.1f}%")
 
         # Compute NxM distance matrix
         start = time.time()
@@ -477,6 +636,30 @@ def main() -> None:
         dist = compute_distance_matrix(seqs_a, seqs_b, show_progress=True)
         elapsed = time.time() - start
         print(f"Computed distance matrix in {elapsed:.2f}s")
+        
+        # Analyze mismatch patterns for generated sequences
+        print("\n=== Mismatch Pattern Analysis ===")
+        mismatch_counts = analyze_mismatch_patterns(seqs_a, seqs_b)
+        
+        if mismatch_counts:
+            # Sort by mismatch count (descending) and get top 5
+            sorted_mismatches = sorted(mismatch_counts.items(), key=lambda x: x[1], reverse=True)
+            top_5 = sorted_mismatches[:5]
+            
+            print("Top 5 amino acids in generated sequences causing most mismatches:")
+            for i, (aa, count) in enumerate(top_5, 1):
+                print(f"  {i}. {aa}: {count} mismatches")
+            
+            # Also show total mismatches and amino acid distribution
+            total_mismatches = sum(mismatch_counts.values())
+            print(f"\nTotal mismatches analyzed: {total_mismatches}")
+            if total_mismatches > 0:
+                print("Percentage contribution of top 5:")
+                for i, (aa, count) in enumerate(top_5, 1):
+                    pct = (count / total_mismatches) * 100
+                    print(f"  {i}. {aa}: {pct:.1f}%")
+        else:
+            print("No mismatches found in comparable positions.")
 
     # Optionally print matrix
     if args.print_matrix:

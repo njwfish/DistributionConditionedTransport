@@ -2,10 +2,12 @@ import argparse
 import sys
 import time
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Any
 
 import numpy as np
 import torch
+from omegaconf import OmegaConf
+import hydra
 
 try:
     from Bio import pairwise2  # type: ignore
@@ -51,6 +53,32 @@ def load_last_two_raw_texts(dataset_path: Path) -> Tuple[List[str], List[str]]:
     list_a = [str(x) for x in list_a]
     list_b = [str(x) for x in list_b]
     return list_a, list_b
+
+
+def load_last_two_token_tensors(dataset_path: Path) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+    if not dataset_path.exists():
+        raise FileNotFoundError(f"Dataset not found at: {dataset_path}")
+    data = torch.load(str(dataset_path), map_location="cpu")
+    if not isinstance(data, list) or len(data) < 2:
+        raise ValueError("Expected a list with at least two elements in the dataset file.")
+    last = data[-1]
+    second_last = data[-2]
+    # Expect progen ids/masks to be present for generator prompts; if not, raise
+    def _extract(x: Dict[str, Any]) -> Dict[str, torch.Tensor]:
+        s = x.get("samples", {})
+        if not isinstance(s, dict):
+            raise KeyError("'samples' missing or not a dict in dataset entries")
+        keys = ["progen_input_ids", "progen_attention_mask", "esm_input_ids", "esm_attention_mask"]
+        out: Dict[str, torch.Tensor] = {}
+        for k in keys:
+            if k in s and isinstance(s[k], torch.Tensor):
+                out[k] = s[k]
+        if "progen_input_ids" not in out or "progen_attention_mask" not in out:
+            raise KeyError("Expected 'progen_input_ids' and 'progen_attention_mask' in samples")
+        if "esm_input_ids" not in out or "esm_attention_mask" not in out:
+            raise KeyError("Expected 'esm_input_ids' and 'esm_attention_mask' in samples for encoder")
+        return out
+    return _extract(second_last), _extract(last)
 
 
 def compute_distance_matrix(
@@ -220,19 +248,235 @@ def main() -> None:
         action="store_true",
         help="Print the full NxM matrix (careful if large).",
     )
+    parser.add_argument(
+        "--compare_mode",
+        type=str,
+        choices=["second_last", "generated"],
+        default="second_last",
+        help="Compare last vs second_last (default) or last vs generated sequences.",
+    )
+    parser.add_argument(
+        "--run_dir",
+        type=str,
+        default=None,
+        help=(
+            "Absolute path to hashed outputs subdirectory containing best_model.pt and config.yaml. "
+            "Required if --compare_mode=generated."
+        ),
+    )
     args = parser.parse_args()
 
     dataset_path = Path(args.dataset)
     print(f"Loading dataset from: {dataset_path}")
-    seqs_a, seqs_b = load_last_two_raw_texts(dataset_path)
-    n, m = len(seqs_a), len(seqs_b)
-    print(f"Loaded last two raw_texts lists with sizes: N={n}, M={m}")
+    if args.compare_mode == "second_last":
+        seqs_a, seqs_b = load_last_two_raw_texts(dataset_path)
+        n, m = len(seqs_a), len(seqs_b)
+        print(f"Length of second_last raw_texts: {n}")
+        print(f"Length of last raw_texts: {m}")
+        print(f"Loaded last two raw_texts lists with sizes: N={n} (second_last), M={m} (last)")
 
-    # Compute NxM distance matrix
-    start = time.time()
-    dist = compute_distance_matrix(seqs_a, seqs_b, show_progress=True)
-    elapsed = time.time() - start
-    print(f"Computed distance matrix in {elapsed:.2f}s")
+        # Compute NxM distance matrix
+        start = time.time()
+        dist = compute_distance_matrix(seqs_a, seqs_b, show_progress=True)
+        elapsed = time.time() - start
+        print(f"Computed distance matrix in {elapsed:.2f}s")
+    else:
+        # Generated mode
+        if not args.run_dir:
+            raise ValueError("--run_dir is required for --compare_mode=generated")
+        run_dir = Path(args.run_dir)
+        cfg_path = run_dir / "config.yaml"
+        ckpt_path = run_dir / "best_model.pt"
+        if not cfg_path.exists():
+            raise FileNotFoundError(f"config.yaml not found in run dir: {run_dir}")
+        if not ckpt_path.exists():
+            raise FileNotFoundError(f"best_model.pt not found in run dir: {run_dir}")
+
+        # Load tokens and texts from dataset
+        second_last_tokens, last_tokens = load_last_two_token_tensors(dataset_path)
+        second_last_texts, last_texts = load_last_two_raw_texts(dataset_path)
+        
+        # Print lengths for both datasets
+        print(f"Length of second_last raw_texts: {len(second_last_texts)}")
+        print(f"Length of last raw_texts: {len(last_texts)}")
+
+        # Instantiate models from saved cfg
+        cfg = OmegaConf.load(str(cfg_path))
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        encoder = hydra.utils.instantiate(cfg.encoder)
+        generator = hydra.utils.instantiate(cfg.generator)
+        encoder = encoder.to(device)
+        generator = generator.to(device)
+        encoder.eval()
+        generator.eval()
+
+        # Load weights from checkpoint
+        # PyTorch 2.6 defaults weights_only=True, which can fail for configs in checkpoints.
+        # Load with weights_only=False (trusted local checkpoint). Fallback for older PyTorch.
+        try:
+            state = torch.load(str(ckpt_path), map_location=device, weights_only=False)
+        except TypeError:
+            # Older PyTorch without weights_only kwarg
+            state = torch.load(str(ckpt_path), map_location=device)
+        if 'encoder_state_dict' not in state or 'generator_state_dict' not in state:
+            raise KeyError("Checkpoint must contain 'encoder_state_dict' and 'generator_state_dict'")
+        encoder.load_state_dict(state['encoder_state_dict'])
+        generator.load_state_dict(state['generator_state_dict'])
+
+        # Determine set_size from cfg
+        try:
+            set_size = int(cfg.experiment.set_size)
+        except Exception as exc:
+            raise KeyError("cfg.experiment.set_size not found in config.yaml") from exc
+
+        # Prepare tensors
+        src_ids_all = second_last_tokens["progen_input_ids"]  # [set_size_like, L]
+        src_mask_all = second_last_tokens["progen_attention_mask"]
+        src_esm_ids_all = second_last_tokens["esm_input_ids"]
+        src_esm_mask_all = second_last_tokens["esm_attention_mask"]
+
+        tgt_ids_all = last_tokens["progen_input_ids"]
+        tgt_mask_all = last_tokens["progen_attention_mask"]
+        tgt_esm_ids_all = last_tokens["esm_input_ids"]
+        tgt_esm_mask_all = last_tokens["esm_attention_mask"]
+
+        num_src = int(src_esm_ids_all.shape[0])
+        seq_len = int(src_ids_all.shape[1])
+        if hasattr(cfg.generator, 'seq_length'):
+            expected_L = int(cfg.generator.seq_length)
+            if expected_L != seq_len:
+                print(f"Warning: generator.seq_length={expected_L} but dataset L={seq_len}")
+
+        # Partition into batches of set_size
+        full_batches = num_src // set_size
+        remainder = num_src % set_size
+
+        # Helper to encode a set of size set_size: expects tensors [set_size, L] -> batch dict with [1, set_size, L]
+        def encode_set(esm_ids: torch.Tensor, esm_mask: torch.Tensor) -> torch.Tensor:
+            batch = {
+                'esm_input_ids': esm_ids.unsqueeze(0).to(device),
+                'esm_attention_mask': esm_mask.unsqueeze(0).to(device),
+            }
+            with torch.no_grad():
+                lat = encoder(batch)
+            if lat.dim() == 2 and lat.size(0) == 1:
+                lat = lat
+            elif lat.dim() == 1:
+                lat = lat.unsqueeze(0)
+            return lat  # shape [1, latent_dim]
+
+        generated_texts: List[str] = []
+
+        # For each full batch
+        for b in range(full_batches):
+            start_idx = b * set_size
+            end_idx = start_idx + set_size
+            cur_src_ids = src_ids_all[start_idx:end_idx]
+            cur_src_mask = src_mask_all[start_idx:end_idx]
+            cur_src_esm_ids = src_esm_ids_all[start_idx:end_idx]
+            cur_src_esm_mask = src_esm_mask_all[start_idx:end_idx]
+
+            # Random target subset of size set_size from last
+            perm_tgt = torch.randperm(tgt_esm_ids_all.shape[0])[:set_size]
+            cur_tgt_esm_ids = tgt_esm_ids_all[perm_tgt]
+            cur_tgt_esm_mask = tgt_esm_mask_all[perm_tgt]
+
+            # Encode latents
+            lat_src = encode_set(cur_src_esm_ids, cur_src_esm_mask)  # [1, d]
+            lat_tgt = encode_set(cur_tgt_esm_ids, cur_tgt_esm_mask)  # [1, d]
+
+            # Build x_source dict as expected by generator.sample with batch size 1 and set_size
+            x_source = {
+                'esm_input_ids': cur_src_esm_ids.unsqueeze(0).to(device),
+                'esm_attention_mask': cur_src_esm_mask.unsqueeze(0).to(device),
+                'progen_input_ids': cur_src_ids.unsqueeze(0).to(device),
+                'progen_attention_mask': cur_src_mask.unsqueeze(0).to(device),
+            }
+
+            # Sample 1 sequence per source element by generating one set and decoding each set element prompt
+            # The generator's sample returns [batch, num_samples, seq_len] token ids of target (with BOS)
+            out_ids = generator.sample(x_source, lat_src, lat_tgt, num_samples=1, return_texts=False)
+            # Decode each target generated for this set
+            # out_ids: [1, 1, seq_len]; we want strings for each of set_size prompts
+            # But sample currently generates one sequence per batch, not per set element. Use internal prompt selection logic:
+            # To ensure one per element, call sample repeatedly with different set element prompts using slicing
+            if isinstance(out_ids, torch.Tensor) and out_ids.dim() == 3 and out_ids.size(0) == 1 and out_ids.size(1) == 1:
+                # Decode single sequence for the entire set; replicate as conservative fallback
+                decoded = generator.tokenizer.decode(out_ids[0, 0].detach().cpu(), skip_special_tokens=True)
+                # We need one generated per source. To adhere to requirement, generate per element using loop
+                generated_set_texts: List[str] = []
+                for set_idx in range(set_size):
+                    x_source_elem = {
+                        'esm_input_ids': cur_src_esm_ids[set_idx:set_idx+1].to(device),
+                        'esm_attention_mask': cur_src_esm_mask[set_idx:set_idx+1].to(device),
+                        'progen_input_ids': cur_src_ids[set_idx:set_idx+1].to(device),
+                        'progen_attention_mask': cur_src_mask[set_idx:set_idx+1].to(device),
+                    }
+                    out_ids_elem = generator.sample(x_source_elem, lat_src, lat_tgt, num_samples=1, return_texts=False)
+                    if isinstance(out_ids_elem, torch.Tensor) and out_ids_elem.dim() == 3:
+                        txt = generator.tokenizer.decode(out_ids_elem[0, 0].detach().cpu(), skip_special_tokens=True)
+                    else:
+                        # If returns ids without extra dims
+                        ids = out_ids_elem.squeeze(0).squeeze(0) if isinstance(out_ids_elem, torch.Tensor) else out_ids_elem
+                        txt = generator.tokenizer.decode(ids.detach().cpu(), skip_special_tokens=True)
+                    generated_set_texts.append(txt)
+                generated_texts.extend(generated_set_texts)
+            else:
+                # Fallback: try to decode assuming [1, 1, L]
+                ids = out_ids[0, 0] if isinstance(out_ids, torch.Tensor) else out_ids
+                decoded = generator.tokenizer.decode(ids.detach().cpu(), skip_special_tokens=True)
+                generated_texts.append(decoded)
+
+        # Handle remainder by padding with repeats up to set_size
+        if remainder > 0:
+            cur_src_ids = src_ids_all[-remainder:]
+            cur_src_mask = src_mask_all[-remainder:]
+            cur_src_esm_ids = src_esm_ids_all[-remainder:]
+            cur_src_esm_mask = src_esm_mask_all[-remainder:]
+
+            # pad indices by random sampling from these remainder indices
+            pad_needed = set_size - remainder
+            pad_idx = torch.randint(low=0, high=remainder, size=(pad_needed,))
+            cur_src_ids = torch.cat([cur_src_ids, cur_src_ids[pad_idx]], dim=0)
+            cur_src_mask = torch.cat([cur_src_mask, cur_src_mask[pad_idx]], dim=0)
+            cur_src_esm_ids = torch.cat([cur_src_esm_ids, cur_src_esm_ids[pad_idx]], dim=0)
+            cur_src_esm_mask = torch.cat([cur_src_esm_mask, cur_src_esm_mask[pad_idx]], dim=0)
+
+            # Random target subset of size set_size
+            perm_tgt = torch.randperm(tgt_esm_ids_all.shape[0])[:set_size]
+            cur_tgt_esm_ids = tgt_esm_ids_all[perm_tgt]
+            cur_tgt_esm_mask = tgt_esm_mask_all[perm_tgt]
+
+            # Encode latents
+            lat_src = encode_set(cur_src_esm_ids, cur_src_esm_mask)
+            lat_tgt = encode_set(cur_tgt_esm_ids, cur_tgt_esm_mask)
+
+            # Generate per original remainder element exactly once
+            for set_idx in range(remainder):
+                x_source_elem = {
+                    'esm_input_ids': cur_src_esm_ids[set_idx:set_idx+1].to(device),
+                    'esm_attention_mask': cur_src_esm_mask[set_idx:set_idx+1].to(device),
+                    'progen_input_ids': cur_src_ids[set_idx:set_idx+1].to(device),
+                    'progen_attention_mask': cur_src_mask[set_idx:set_idx+1].to(device),
+                }
+                out_ids_elem = generator.sample(x_source_elem, lat_src, lat_tgt, num_samples=1, return_texts=False)
+                if isinstance(out_ids_elem, torch.Tensor) and out_ids_elem.dim() >= 2:
+                    ids = out_ids_elem.squeeze(0).squeeze(0)
+                else:
+                    ids = out_ids_elem
+                txt = generator.tokenizer.decode(ids.detach().cpu(), skip_special_tokens=True)
+                generated_texts.append(txt)
+
+        # Now compare last_texts vs generated_texts
+        seqs_a = generated_texts
+        seqs_b = last_texts
+        print(f"Length of generated sequences: {len(seqs_a)}")
+        print(f"Length of last raw_texts: {len(seqs_b)}")
+        print(f"Generated {len(seqs_a)} sequences. Comparing to last ({len(seqs_b)} sequences)")
+        start = time.time()
+        dist = compute_distance_matrix(seqs_a, seqs_b, show_progress=True)
+        elapsed = time.time() - start
+        print(f"Computed distance matrix in {elapsed:.2f}s")
 
     # Optionally print matrix
     if args.print_matrix:

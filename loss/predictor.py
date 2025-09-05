@@ -112,18 +112,18 @@ class PredictorLossManager:
                 target_latent_detached = target_for_gen.detach().requires_grad_(True)
 
                 total_recon_value = 0.0
-                for start_s in range(0, set_size, self.microbatch_set_size):
-                    end_s = min(start_s + self.microbatch_set_size, set_size)
+                for start_s in range(0, self.set_size, self.microbatch_set_size):
+                    end_s = min(start_s + self.microbatch_set_size, self.set_size)
 
                     x_source_mb = {}
                     x_target_mb = {}
                     for key, v in source_samples.items():
-                        if isinstance(v, torch.Tensor) and v.dim() >= 3 and v.shape[1] == set_size:
+                        if isinstance(v, torch.Tensor) and v.dim() >= 3 and v.shape[1] == self.set_size:
                             x_source_mb[key] = v[:, start_s:end_s, ...]
                         else:
                             x_source_mb[key] = v
                     for key, v in target_samples.items():
-                        if isinstance(v, torch.Tensor) and v.dim() >= 3 and v.shape[1] == set_size:
+                        if isinstance(v, torch.Tensor) and v.dim() >= 3 and v.shape[1] == self.set_size:
                             x_target_mb[key] = v[:, start_s:end_s, ...]
                         else:
                             x_target_mb[key] = v
@@ -143,15 +143,15 @@ class PredictorLossManager:
                     except Exception:
                         pass
                     # Normalize by total set_size to keep loss scale consistent
-                    frac = (end_s - start_s) / max(set_size, 1)
+                    frac = (end_s - start_s) / max(self.set_size, 1)
                     loss_mb_scaled = loss_mb * frac
                     if torch.is_grad_enabled():
                         loss_mb_scaled.backward()
                     total_recon_value += float(loss_mb_scaled.detach().item())
 
                     del x_source_mb, x_target_mb, loss_mb, loss_mb_scaled
-                    if self.empty_cache_between_microbatches and torch.cuda.is_available():
-                        torch.cuda.empty_cache()
+                    #if self.empty_cache_between_microbatches and torch.cuda.is_available():
+                    #    torch.cuda.empty_cache()
 
                 # Backprop latent grads to encoder/predictor once (retain graph for predictor loss)
                 if torch.is_grad_enabled():
@@ -163,8 +163,9 @@ class PredictorLossManager:
                     # Now backprop predictor loss
                     (self.predictor_loss_weight * predictor_loss).backward()
 
-                total_tensor = torch.tensor(total_recon_value, device=device) + (self.predictor_loss_weight * predictor_loss.detach())
-                losses['reconstruction_loss'] = torch.tensor(total_recon_value, device=device)
+                recon_tensor = torch.tensor(total_recon_value, device=device)
+                total_tensor = recon_tensor + (self.predictor_loss_weight * predictor_loss.detach())
+                losses['reconstruction_loss'] = recon_tensor.detach()
                 losses['predictor_loss'] = (self.predictor_loss_weight * predictor_loss).detach()
                 return total_tensor.detach(), losses
 

@@ -83,7 +83,7 @@ class ViralDataset(Dataset):
         return datetime.strptime(date_str, "%Y-%m")
 
 
-    def _calculate_month_difference(self, time_loc_1, time_loc_2):
+    def d_fun(self, time_loc_1, time_loc_2):
         """
         Calculate the difference in months between two time-loc strings.
         
@@ -156,7 +156,7 @@ class ViralDataset(Dataset):
         progen_attention_mask_target = progen_attention_mask_target[subset_indices_target]
 
         # Calculate month difference between source and target times
-        month_difference = self._calculate_month_difference(
+        month_difference = self.d_fun(
             item_source['time'], 
             item_target['time']
         )

@@ -78,14 +78,6 @@ class SyntheticProteinDataset(Dataset):
         
         # Generate the dataset
         self._generate_data()
-
-        self.index_pairs = np.array(
-            [
-                (i, j)
-                for i in range(len(self.data))
-                for j in range(len(self.data))
-                if i != j
-            ])
     
     def _generate_pattern(self):
         """Generate a random protein motif pattern of specified length."""
@@ -197,8 +189,8 @@ class SyntheticProteinDataset(Dataset):
         if bos_token and not sequence.startswith(bos_token):
             sequence = bos_token + sequence
         
-        #if eos_token and not sequence.endswith(eos_token):
-        #    sequence = sequence + eos_token
+        if eos_token and not sequence.endswith(eos_token):
+            sequence = sequence + eos_token
         
         # Tokenize with appropriate settings
         # Set add_special_tokens=False since we've manually added them
@@ -220,76 +212,43 @@ class SyntheticProteinDataset(Dataset):
         return tokens.input_ids[0], tokens.attention_mask[0]
     
     def __len__(self):
-        n = len(self.data)
-        return n * (n - 1)
+        return len(self.data)
     
     def __getitem__(self, idx):
-        source_idx, target_idx = self.index_pairs[idx]
-        
-        item_source = self.data[source_idx]
-        item_target = self.data[target_idx]
-        
-        sequences_source = item_source["sequences"]
-        sequences_target = item_target["sequences"]
+        item = self.data[idx]
+        sequences = item["sequences"]
         
         # Tokenize sequences for ESM (encoder)
-        esm_input_ids_source = []
-        esm_attention_mask_source = []
+        esm_input_ids = []
+        esm_attention_masks = []
         
-        for seq in sequences_source:
+        for seq in sequences:
             input_ids, attention_mask = self._tokenize_for_esm(seq)
-            esm_input_ids_source.append(input_ids)
-            esm_attention_mask_source.append(attention_mask)
+            esm_input_ids.append(input_ids)
+            esm_attention_masks.append(attention_mask)
         
-        esm_input_ids_source = torch.stack(esm_input_ids_source)
-        esm_attention_mask_source = torch.stack(esm_attention_mask_source)
+        esm_input_ids = torch.stack(esm_input_ids)
+        esm_attention_masks = torch.stack(esm_attention_masks)
         
         # Tokenize sequences for Progen (generator)
-        progen_input_ids_source = []
-        progen_attention_mask_source = []
+        progen_input_ids = []
+        progen_attention_masks = []
         
-        for seq in sequences_source:
+        for seq in sequences:
             input_ids, attention_mask = self._tokenize_for_progen(seq)
-            progen_input_ids_source.append(input_ids)
-            progen_attention_mask_source.append(attention_mask)
+            progen_input_ids.append(input_ids)
+            progen_attention_masks.append(attention_mask)
         
-        progen_input_ids_source = torch.stack(progen_input_ids_source)
-        progen_attention_mask_source = torch.stack(progen_attention_mask_source)
+        progen_input_ids = torch.stack(progen_input_ids)
+        progen_attention_masks = torch.stack(progen_attention_masks)
         
-        esm_input_ids_target = []
-        esm_attention_mask_target = []
-        
-        for seq in sequences_target:
-            input_ids, attention_mask = self._tokenize_for_esm(seq)
-            esm_input_ids_target.append(input_ids)
-            esm_attention_mask_target.append(attention_mask)
-        
-        esm_input_ids_target = torch.stack(esm_input_ids_target)
-        esm_attention_mask_target = torch.stack(esm_attention_mask_target)
-        
-        progen_input_ids_target = []
-        progen_attention_mask_target = []
-        
-        for seq in sequences_target:
-            input_ids, attention_mask = self._tokenize_for_progen(seq)
-            progen_input_ids_target.append(input_ids)
-            progen_attention_mask_target.append(attention_mask)
-        
-        progen_input_ids_target = torch.stack(progen_input_ids_target)
-        progen_attention_mask_target = torch.stack(progen_attention_mask_target)
-        
-        return { 'source_samples' : {
-            'esm_input_ids': esm_input_ids_source,
-            'esm_attention_mask': esm_attention_mask_source,
-            'progen_input_ids': progen_input_ids_source,
-            'progen_attention_mask': progen_attention_mask_source,
+        return {
+            'set_id': item["set_id"],
+            'samples': {
+                'esm_input_ids': esm_input_ids,
+                'esm_attention_mask': esm_attention_masks,
+                'progen_input_ids': progen_input_ids,
+                'progen_attention_mask': progen_attention_masks
             },
-            'target_samples' : {
-                'esm_input_ids': esm_input_ids_target,
-                'esm_attention_mask': esm_attention_mask_target,
-                'progen_input_ids': progen_input_ids_target,
-                'progen_attention_mask': progen_attention_mask_target,
-            },
-            'source_idx': source_idx,
-            'target_idx': target_idx,
-            }
+            'raw_texts': sequences
+        } 

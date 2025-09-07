@@ -124,7 +124,6 @@ class SnapMMDUnified(Dataset):
             source_samples = torch.tensor(self.data[source_idx], dtype=torch.float)
             target_samples = torch.tensor(self.data[target_idx], dtype=torch.float)
             
-
             subset_indices = np.random.choice(source_samples.shape[0], size=self.set_size, replace=False)
             
             source_samples = source_samples[subset_indices]

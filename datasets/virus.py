@@ -21,7 +21,6 @@ class ViralDataset(Dataset):
                  set_size: int = 10,
                  esm_name: str = 'facebook/esm2_t6_8M_UR50D',
                  progen_name: str = 'hugohrban/progen2-medium',
-                 seq_length: int = 1200,
                  max_length: int = 1200,
                  seed: Optional[int] = 212121,
                  tokenize: bool = False,
@@ -52,10 +51,9 @@ class ViralDataset(Dataset):
 
         self.tokenized_data_file = f'{self.data_dir}/{self.data_file}' #virus_tokenized_data_for_tde.pt'
 
-        # NOTE: Important, hold out last time point for forecasting benchmarks.
-        self.data = torch.load(self.tokenized_data_file)[:-1]
-        #with open("auxillary_log.log", "a") as f:
-        #    f.write(f"len(self.data): {len(self.data)}\n")
+        self.data = torch.load(self.tokenized_data_file)
+        with open("auxillary_log.log", "a") as f:
+            f.write(f"len(self.data): {len(self.data)}\n")
         # Build index pairs after data is loaded
         self.index_pairs = np.array(
             [
@@ -118,13 +116,12 @@ class ViralDataset(Dataset):
     def __getitem__(self, idx):
         # TODO: need to change this if you ever want to sample pairs from identical time-points.
         # TODO: make sure this is correct.
-        #n = len(self.data)
-        #i = idx // (n - 1)
-        #j = idx % (n - 1)
-        #if j >= i:
-        #    j += 1
-        #source_idx, target_idx = i, j
-        source_idx, target_idx = self.index_pairs[idx]
+        n = len(self.data)
+        i = idx // (n - 1)
+        j = idx % (n - 1)
+        if j >= i:
+            j += 1
+        source_idx, target_idx = i, j
         
         item_source = self.data[source_idx]
         item_target = self.data[target_idx]
@@ -140,7 +137,6 @@ class ViralDataset(Dataset):
         progen_input_ids_target = item_target['samples']['progen_input_ids']
         progen_attention_mask_target = item_target['samples']['progen_attention_mask']
 
-        # TODO: implement optimal pairing here.
         subset_indices_source = np.random.choice(esm_input_ids_source.shape[0], size=self.set_size, replace=False)
 
         esm_input_ids_source = esm_input_ids_source[subset_indices_source]
@@ -174,7 +170,7 @@ class ViralDataset(Dataset):
                 'progen_input_ids': progen_input_ids_target,
                 'progen_attention_mask': progen_attention_mask_target,
             },
-            'source_idx': source_idx,
-            'target_idx': target_idx,
-            'd': month_difference, 
+            'source_time': item_source['time'],
+            'target_time': item_target['time'],
+            'dt': month_difference, 
             }

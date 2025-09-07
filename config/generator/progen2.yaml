@@ -6,4 +6,6 @@ condition_dim: ${experiment.condition_dim}
 freeze_progen2: ${experiment.freeze_progen2}
 condition_method: ${experiment.condition_method}
 temperature: ${experiment.temperature}
-seq_length: ${experiment.seq_length}
+max_length: ${experiment.max_length}
+use_gradient_checkpointing: ${experiment.use_gradient_checkpointing}
+precision: ${experiment.precision}

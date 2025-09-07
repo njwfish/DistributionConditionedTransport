@@ -1,8 +1,8 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: virus
-description: "full dataset of virus evolution"
+name: evolvepro_bin2bin
+description: "bin-to-bin optimization of protein fitness now with actual bin jumping"
 
 # Override defaults from config.yaml
 defaults:
@@ -10,35 +10,21 @@ defaults:
   - /encoder: esm
   - /generator: progen2
   - /scheduler: cosine
-  - /training: default_virus
   - /loss: predictor
-  - /predictor: default  # use unified predictor
-  - /predictor_sampling: default
-  - /predictor_training: default
-  - /sampling: default
-
-
-# TODO: change to the full data file once you are done with debugging
-data_file: virus_tokenized_data_for_tde_filtered.pt
+  - /predictor: dt_mlp_sinusoidal  # Use dt-conditioned MLP with sinusoidal encoding
+  - /sampling: unidirectional
+  - /training: default_virus
 
 # Experiment-specific parameters
 use_predicted_latent: true
 predictor_loss_weight: 0
 
-train_predictor_posthoc: true
-
-
-predictor_model_type: "mlp"
-predictor_conditioning_mode: "sinusoidal"
-predictor_model_args:
-  hidden_dim: 128
-  num_layers: 2
-
-# sampling parameters
-weight_mode: "uniform"
+# Time scaling for dt computed from month indices
+# TODO: change time_scale.
+time_index_path: /orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430/virus_month_index.npz
 num_samples: 50
-exponential_weight_scale: 1.0
-selective_pairing_mode: null
+sampling_exponential_weight_scale: 1.0
+num_time_points: 64
 
 # Experiment-specific parameters
 latent_dim: 128 # TODO: make sure that this is really the correct latent_dim for the ESM2 8M model. Also make sure that there is no conflict due to double usage.
@@ -53,17 +39,18 @@ esm_model_name: 'facebook/esm2_t6_8M_UR50D'
 freeze_esm2: false
 
 # ProGen2 settings
-progen2_model_name: 'hugohrban/progen2-base'
-seq_length: 1000
+progen2_model_name: 'hugohrban/progen2-small'
+max_length: 1000
 tokenize: false 
 condition_dim: 32
 freeze_progen2: false
-gradient_accumulation_steps: 1
-set_microbatch_size: 1 # microbatch size over set dimension in trainer (only value of 1 is working right now, larger gives OOM)
-debug_memory_logging: false  # enable/disable GPU debug memory logger
+# Memory optimization settings  
+use_gradient_checkpointing: true
+precision: fp32
+gradient_accumulation_steps: 4  # Accumulate gradients to reduce memory per step
 condition_method: prefix
 temperature: 1.0
 
-use_esm_tokens: true
 
-#precomputed_d_values_pth: /orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430/virus_all_d_values.npz
+
+

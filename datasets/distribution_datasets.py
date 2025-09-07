@@ -235,9 +235,12 @@ class MultivariateNormalDistributionDataset(Dataset):
         """
         prior_cov_df = prior_cov_df * (data_shape[0] - 1)
         self.n_sets = n_sets
+        self.set_size = set_size
         
         if seed is not None:
             np.random.seed(seed)
+
+        self.delta = prior_mu[1] - prior_mu[0]
             
         self.mu = np.random.uniform(prior_mu[0], prior_mu[1], (n_sets, data_shape[0]))
         # sample covariance matrix from inverse wishart distribution
@@ -300,10 +303,10 @@ class MultivariateNormalDistributionDataset(Dataset):
         source_samples = torch.tensor(self.data[source_idx], dtype=torch.float)
         target_samples = torch.tensor(self.data[target_idx], dtype=torch.float)
         
-        #subset_indices = np.random.choice(source_samples.shape[0], size=self.set_size, replace=False)
+        subset_indices = np.random.choice(source_samples.shape[0], size=self.set_size, replace=False)
         #
-        #source_samples = source_samples[subset_indices]
-        #target_samples = target_samples[subset_indices]
+        source_samples = source_samples[subset_indices]
+        target_samples = target_samples[subset_indices]
         
         # Compute Wasserstein distance between the two distributions using their parameters
         source_mu = self.mu[source_idx]
@@ -341,7 +344,7 @@ class LowRankMultivariateNormalDistributionDataset(Dataset):
         self.n_sets = n_sets
         self.set_size = set_size
         self.dim = data_shape[0]
-
+        
         if seed is not None:
             np.random.seed(seed)
 

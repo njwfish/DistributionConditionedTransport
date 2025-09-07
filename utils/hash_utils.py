@@ -46,18 +46,9 @@ def hash_config(
             if key in filtered_config:
                 del filtered_config[key]
     
-    # Remove non-deterministic or irrelevant keys
+
     default_exclude = ['hydra', 'device', 'wandb', 'output_dir']
-    if exclude_predictor:
-        # NOTE: excluding predictor-related keys to make search for good predictor parameters easier.
-        default_exclude.extend([
-            'predictor_training',
-            'predictor',
-            'predictor_sampling',
-            'predictor_model_type',
-            'predictor_conditioning_mode',
-            'predictor_model_args',
-        ])
+    
     for key in default_exclude:
         if key in filtered_config:
             del filtered_config[key]
@@ -74,6 +65,7 @@ def hash_config(
         for key in experiment_exclude:
             if key in filtered_config['experiment']:
                 del filtered_config['experiment'][key]
+
     
     # Sort keys for deterministic ordering
     sorted_dict = json.dumps(filtered_config, sort_keys=True)

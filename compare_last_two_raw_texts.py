@@ -440,6 +440,15 @@ def main() -> None:
             "Required if --compare_mode=generated."
         ),
     )
+    parser.add_argument(
+        "--num_generate",
+        type=int,
+        default=None,
+        help=(
+            "Number of sequences to generate when --compare_mode=generated. "
+            "If not specified, generates one sequence for each sequence in second_last dataset."
+        ),
+    )
     args = parser.parse_args()
 
     dataset_path = Path(args.dataset)
@@ -545,9 +554,17 @@ def main() -> None:
             if expected_L != seq_len:
                 print(f"Warning: generator.seq_length={expected_L} but dataset L={seq_len}")
 
+        # Determine how many sequences to actually generate
+        if args.num_generate is not None:
+            num_to_generate = min(args.num_generate, num_src)
+            print(f"Generating {num_to_generate} sequences (requested: {args.num_generate}, available: {num_src})")
+        else:
+            num_to_generate = num_src
+            print(f"Generating {num_to_generate} sequences (one for each sequence in second_last)")
+
         # Partition into batches of set_size
-        full_batches = num_src // set_size
-        remainder = num_src % set_size
+        full_batches = num_to_generate // set_size
+        remainder = num_to_generate % set_size
 
         # Helper to encode a set of size set_size: expects tensors [set_size, L] -> batch dict with [1, set_size, L]
         def encode_set(esm_ids: torch.Tensor, esm_mask: torch.Tensor) -> torch.Tensor:
@@ -602,12 +619,15 @@ def main() -> None:
 
         # Handle remainder by padding with repeats up to set_size
         if remainder > 0:
-            cur_src_ids = src_ids_all[-remainder:]
-            cur_src_mask = src_mask_all[-remainder:]
-            cur_src_esm_ids = src_esm_ids_all[-remainder:]
-            cur_src_esm_mask = src_esm_mask_all[-remainder:]
+            # Get the last remainder sequences from our limited set
+            start_idx = full_batches * set_size
+            end_idx = start_idx + remainder
+            cur_src_ids = src_ids_all[start_idx:end_idx]
+            cur_src_mask = src_mask_all[start_idx:end_idx]
+            cur_src_esm_ids = src_esm_ids_all[start_idx:end_idx]
+            cur_src_esm_mask = src_esm_mask_all[start_idx:end_idx]
 
-            # pad indices by random sampling from these remainder indices
+            # pad indices by random sampling from the available sequences (up to num_to_generate)
             pad_needed = set_size - remainder
             pad_idx = torch.randint(low=0, high=num_src, size=(pad_needed,))
             cur_src_ids_padded = torch.cat([cur_src_ids, src_ids_all[pad_idx]], dim=0)
@@ -635,7 +655,8 @@ def main() -> None:
             print(type(out_texts), len(out_texts), len(out_texts[0]), type(out_texts[0]))
             print(out_texts)
             # NOTE: indexing out_texts[0] because we have always batch_size=1 here.
-            generated_texts.extend(out_texts[0])# Generate per original remainder element exactly once
+            # Generate one sequence per original remainder element (exactly remainder sequences)
+            generated_texts.extend(out_texts[0])
        
 
         # Now compare last_texts vs generated_texts

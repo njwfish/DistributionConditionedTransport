@@ -142,12 +142,10 @@ def main(cfg: DictConfig):
         optimizer = hydra.utils.instantiate(cfg.optimizer)(params=model_parameters)
         scheduler = hydra.utils.instantiate(cfg.scheduler)(optimizer=optimizer)
 
-        # TODO: make sure this is correct
-        # Use simple reconstruction loss when predictor is trained posthoc
-        if train_predictor_posthoc:
-            loss_manager = DefaultLossManager()
-        else:
-            loss_manager = hydra.utils.instantiate(cfg.loss)
+        if train_predictor_posthoc and cfg.loss._target_ != "loss.default.LossManager":
+            raise ValueError("Cannot train predictor posthoc with non-default loss")
+        
+        loss_manager = hydra.utils.instantiate(cfg.loss)
 
         # Create trainer
         trainer = hydra.utils.instantiate(cfg.training)

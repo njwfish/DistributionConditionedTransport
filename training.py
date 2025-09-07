@@ -11,6 +11,7 @@ import wandb
 from utils.hash_utils import get_output_dir, find_matching_output_dir
 from utils.visualization import visualize_text_data, visualize_coupled_data
 from omegaconf import OmegaConf, DictConfig
+import contextlib
 
 class Trainer:
     def __init__(
@@ -26,6 +27,7 @@ class Trainer:
         mask_context_prob=0.0,
         sub_epoch=None,
         gradient_accumulation_steps=1,
+        use_amp=True,
     ):
         """
         Initialize the trainer.
@@ -53,6 +55,7 @@ class Trainer:
         self.use_tqdm = use_tqdm
         self.mask_context_prob = mask_context_prob
         self.gradient_accumulation_steps = gradient_accumulation_steps
+        self.use_amp = use_amp
         
         self.logger = logging.getLogger(__name__)
         self.best_loss = float('inf')
@@ -273,6 +276,10 @@ class Trainer:
         start_time = time.time()
         self.logger.info(f"Starting training on {device}...")
         
+        # Configure AMP (prefer BF16 on CUDA if enabled)
+        use_amp = bool(self.use_amp) and (device.type == "cuda")
+        autocast_context = torch.autocast(device_type='cuda', dtype=torch.bfloat16) if use_amp else contextlib.nullcontext()
+
         # Main training loop
         for epoch in range(start_epoch, self.num_epochs):
             epoch_start = time.time()
@@ -294,8 +301,9 @@ class Trainer:
             for batch_idx, batch in enumerate(pbar):
                 # Handle samples which can be either a tensor or a dictionary
                 batch_loss_start = time.time()
-                optimizer.zero_grad()
-                loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
+                optimizer.zero_grad(set_to_none=True)
+                with autocast_context:
+                    loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 
                 # Standard backward and optimizer step per batch
                 loss.backward()
@@ -325,25 +333,6 @@ class Trainer:
                         scheduler.step()
                         current_lr = scheduler.get_last_lr()[0]
                         self.logger.info(f"Learning rate: {current_lr:.6f}")
-                    if (sub_epoch + 1) % self.save_interval == 0:
-                        checkpoint_path = os.path.join(output_dir, f"checkpoint_epoch_{epoch+1}.pt")
-
-                        generator_state = generator.state_dict()
-                        
-                        checkpoint_data = {
-                            'epoch': epoch + 1,
-                            'encoder_state_dict': encoder.state_dict(),
-                            'generator_state_dict': generator_state,
-                            'optimizer_state_dict': optimizer.state_dict(),
-                            'scheduler_state_dict': scheduler.state_dict(),
-                            'step': step,
-                        }
-                        
-                        if predictor is not None:
-                            checkpoint_data['predictor_state_dict'] = predictor.state_dict()
-                        
-                        torch.save(checkpoint_data, checkpoint_path)
-                        self.logger.info(f"Saved checkpoint to {checkpoint_path}")      
 
                 step += 1
             
@@ -377,7 +366,7 @@ class Trainer:
                 checkpoint_path = os.path.join(output_dir, f"checkpoint_epoch_{epoch+1}.pt")
                 
                 generator_state = generator.state_dict()
-
+                
                 checkpoint_data = {
                     'epoch': epoch + 1,
                     'encoder_state_dict': encoder.state_dict(),
@@ -394,7 +383,7 @@ class Trainer:
                 torch.save(checkpoint_data, checkpoint_path)
                 self.logger.info(f"Saved checkpoint to {checkpoint_path}")
                 
-                # Log model checkpoint to W&B
+                # Log model checkpoint to W&B at the end of training
                 if wandb.run is not None and (epoch + 1) == self.num_epochs:
                     wandb.save(checkpoint_path)
             
@@ -487,7 +476,8 @@ class Trainer:
             for batch in dataloader:
                 # TODO: legacy code was not using loss manager here, is there any specific reason for this?
                 # Use loss manager for consistent loss computation
-                loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
+                with (torch.autocast(device_type='cuda', dtype=torch.bfloat16) if (bool(self.use_amp) and device.type == 'cuda') else contextlib.nullcontext()):
+                    loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 total_loss += loss.item()
                 num_batches += 1
         
@@ -513,11 +503,12 @@ class Trainer:
                     batch_size, set_size, *data_shape = source_samples.shape
                     
                     # Encode samples to latent space
-                    source_latent = encoder(source_samples)
-                    target_latent = encoder(target_samples)
+                    with (torch.autocast(device_type='cuda', dtype=torch.bfloat16) if (bool(self.use_amp) and device.type == 'cuda') else contextlib.nullcontext()):
+                        source_latent = encoder(source_samples)
+                        target_latent = encoder(target_samples)
 
-                    # TODO: if we actually want to call the generate_samples mehtod here, we need to make sure that this line is still up to date.
-                    generated = generator.sample(source_samples.reshape(-1, *data_shape), source_latent, target_latent)
+                        # TODO: if we actually want to call the generate_samples mehtod here, we need to make sure that this line is still up to date.
+                        generated = generator.sample(source_samples.reshape(-1, *data_shape), source_latent, target_latent)
                     
                     return {
                         'source': source_samples.cpu(),
@@ -553,8 +544,9 @@ class Trainer:
                         target_raw_texts = [[target_raw_texts[j][i] for j in range(set_size)] for i in range(num_sets)]
 
                     # Encode samples to latent space
-                    source_latent = encoder(source_samples)
-                    target_latent = encoder(target_samples)
+                    with (torch.autocast(device_type='cuda', dtype=torch.bfloat16) if (bool(self.use_amp) and device.type == 'cuda') else contextlib.nullcontext()):
+                        source_latent = encoder(source_samples)
+                        target_latent = encoder(target_samples)
                     
                     # For dictionary data, we need to extract a representative source sample
                     # This is a simplified approach - in practice you might want something more sophisticated
@@ -566,7 +558,8 @@ class Trainer:
                             source_sample[key] = value
                     
                     # Generate new samples
-                    generated = generator.sample(source_sample, source_latent, target_latent, num_samples=set_size, return_texts=True)
+                    with (torch.autocast(device_type='cuda', dtype=torch.bfloat16) if (bool(self.use_amp) and device.type == 'cuda') else contextlib.nullcontext()):
+                        generated = generator.sample(source_sample, source_latent, target_latent, num_samples=set_size, return_texts=True)
                     
                     if isinstance(generated, tuple):
                         # If generator returns both token ids and decoded texts

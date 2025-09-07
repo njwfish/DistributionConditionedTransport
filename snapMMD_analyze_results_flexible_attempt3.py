@@ -12,11 +12,15 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
+import joblib
 
 from utils.snapMMD import MMDLoss, RBF
 from utils.experiment_utils import load_best_model, get_experiment_info
 import hydra
 from omegaconf import OmegaConf
+
+from TrajectoryNet.optimal_transport.emd import earth_mover_distance
+
 
 
 # -----------------------------
@@ -167,7 +171,7 @@ DATASET_CONFIGS: Dict[str, Dict[str, Any]] = {
 # Model loading and forecasting (CDE only)
 # -----------------------------
 
-def load_models_from_experiment(experiment_dir: str, device: torch.device, predictor_source: str = 'separate', predictor_dir: Optional[str] = None, use_true_target_latent: bool = False):
+def load_models_from_experiment(experiment_dir: str, device: torch.device, predictor_source: str = 'separate', predictor_dir: Optional[str] = None, use_true_target_latent: bool = False, use_separate_predictor_dir: bool = True):
     info = get_experiment_info(experiment_dir, load_checkpoints=False)
     cfg = info['config']
 
@@ -180,101 +184,109 @@ def load_models_from_experiment(experiment_dir: str, device: torch.device, predi
     experiment_cfg = cfg_resolved.get('experiment', {}) if isinstance(cfg_resolved, dict) else {}
     train_predictor_posthoc = bool(experiment_cfg.get('train_predictor_posthoc', False))
 
-    # Instantiate predictor from predictor subdir config if provided, else from main cfg if present
+    # Instantiate predictor based on predictor_source
     predictor = None
 
     if not use_true_target_latent:
-        if predictor_dir is not None:
-            pred_cfg_path = os.path.join(predictor_dir, 'config.yaml')
-
-            pred_cfg_oc = OmegaConf.load(pred_cfg_path)
-            pred_cfg_node = pred_cfg_oc.get('predictor')
+        if predictor_source == 'separate':
+            if predictor_dir is not None:
+                pred_cfg_path = os.path.join(predictor_dir, 'config.yaml')
+                pred_cfg_oc = OmegaConf.load(pred_cfg_path)
+                pred_cfg_node = pred_cfg_oc.get('predictor')
+                predictor = hydra.utils.instantiate(pred_cfg_node)
+        elif predictor_source == 'main':
+            # Instantiate predictor from the main experiment config
+            pred_cfg_node = cfg['predictor']
+            
             predictor = hydra.utils.instantiate(pred_cfg_node)
-
-        # TODO: change back at some point.
-        #elif 'predictor' in cfg and cfg['predictor'] is not None:
-        #    predictor = hydra.utils.instantiate(cfg['predictor'])
 
         if predictor is not None and hasattr(enc, 'latent_act'):
             predictor.latent_act = enc.latent_act
-    else:
-        predictor = None
-        train_predictor_posthoc = False
 
     # Load encoder/generator from best model
     state = load_best_model(info['dir'])
     enc.load_state_dict(state['encoder_state_dict'])
-    if 'generator_state_dict' in state:
-        gen.load_state_dict(state['generator_state_dict'])
-    else:
-        gen.model.load_state_dict(state['generator_state_dict'])
+    gen.load_state_dict(state['generator_state_dict'])
 
-    # Load predictor weights based on requested source or explicit predictor_dir
-    if predictor is not None:
-        def _try_load_predictor(ckpt_path: str) -> bool:
-            pred_ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
+    # Load predictor weights from the selected source
+    if not use_true_target_latent and predictor is not None:
+        if predictor_source == 'separate':
+            if predictor_dir is None:
+                raise ValueError("predictor_source='separate' but predictor_dir is None")
+            pred_ckpt = torch.load(os.path.join(predictor_dir, 'predictor_best_model.pt'), map_location=device, weights_only=False)
             predictor.load_state_dict(pred_ckpt['predictor_state_dict'])
-            return True
-
-        # Preferred: explicit hashed predictor subdir
-        loaded_pred = False
-        # TODO: change back at some point.
-        if True: #predictor_dir is not None:
-            hashed_pred_path = os.path.join(predictor_dir, 'predictor_best_model.pt')
-            loaded_pred = _try_load_predictor(hashed_pred_path)
-        else:
-            # Backward-compatible fallbacks
-            root_pred_path = os.path.join(info['dir'], 'predictor_best_model.pt')
-            static_subdir_pred_path = os.path.join(info['dir'], 'predictor_training', 'predictor_best_model.pt')
-
-            if predictor_source == 'main':
-                loaded_pred = _try_load_predictor(root_pred_path)
-                if not loaded_pred and 'predictor_state_dict' in state:
-                    predictor.load_state_dict(state['predictor_state_dict'])
-                    loaded_pred = True
-            elif predictor_source == 'separate':
-                # Try static path first, then any hashed dirs we can find
-                loaded_pred = _try_load_predictor(static_subdir_pred_path)
-                if not loaded_pred:
-                    # Probe for any hashed predictor dirs and try the most recent
-                    cand_dirs = [d for d in os.listdir(info['dir']) if d.startswith('predictor_training_') and os.path.isdir(os.path.join(info['dir'], d))]
-                    cand_dirs.sort(key=lambda d: os.path.getmtime(os.path.join(info['dir'], d)), reverse=True)
-                    for d in cand_dirs:
-                        if _try_load_predictor(os.path.join(info['dir'], d, 'predictor_best_model.pt')):
-                            loaded_pred = True
-                            break
-            else:  # 'auto'
-                if train_predictor_posthoc:
-                    loaded_pred = _try_load_predictor(root_pred_path) or _try_load_predictor(static_subdir_pred_path)
-                    if not loaded_pred:
-                        # Try hashed dirs
-                        cand_dirs = [d for d in os.listdir(info['dir']) if d.startswith('predictor_training_') and os.path.isdir(os.path.join(info['dir'], d))]
-                        cand_dirs.sort(key=lambda d: os.path.getmtime(os.path.join(info['dir'], d)), reverse=True)
-                        for d in cand_dirs:
-                            if _try_load_predictor(os.path.join(info['dir'], d, 'predictor_best_model.pt')):
-                                loaded_pred = True
-                                break
-                    if not loaded_pred and 'predictor_state_dict' in state:
-                        predictor.load_state_dict(state['predictor_state_dict'])
-                        loaded_pred = True
-                else:
-                    if 'predictor_state_dict' in state:
-                        predictor.load_state_dict(state['predictor_state_dict'])
-                        loaded_pred = True
-                    if not loaded_pred:
-                        loaded_pred = _try_load_predictor(root_pred_path) or _try_load_predictor(static_subdir_pred_path)
-
+        elif predictor_source == 'main':
+            if 'predictor_state_dict' not in state:
+                raise KeyError("predictor_state_dict not found in main checkpoint")
+            predictor.load_state_dict(state['predictor_state_dict'])
+           
     enc.eval(); gen.eval()
-    enc.to(device); gen.to(device)
+    enc.to(device); gen.to('cpu')
     if predictor is not None:
         predictor.eval(); predictor.to(device)
 
     return cfg, enc, gen, predictor, dataset, train_predictor_posthoc
 
 
-def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], predictor_source: str = 'separate', use_true_target_latent: bool = False, forecast_all_timepoints: bool = False, predictor_dir: Optional[str] = None, source_steps_back: int = 1, num_sets: int = 1, cli_set_size: Optional[int] = None):
+class UnconditionedRidgePredictor(torch.nn.Module):
+    """Torch wrapper for an unconditioned ridge regressor.
+    Supports either a bare sklearn estimator, or a bundle dict with
+    {'model', 'x_scaler', 'y_scaler', 'normalize_latents'}.
+    """
+    def __init__(self, ridge_obj):
+        super().__init__()
+        # Accept either model or bundle
+        if isinstance(ridge_obj, dict) and ('model' in ridge_obj):
+            self.model = ridge_obj.get('model')
+            self.x_scaler = ridge_obj.get('x_scaler')
+            self.y_scaler = ridge_obj.get('y_scaler')
+            self.normalize_latents = bool(ridge_obj.get('normalize_latents', False))
+        else:
+            self.model = ridge_obj
+            self.x_scaler = None
+            self.y_scaler = None
+            self.normalize_latents = False
+        self._device = torch.device('cpu')
+        self.condition_type = 'none'
+
+    def to(self, device):
+        self._device = device
+        return self
+
+    def _l2_normalize_rows(self, x: np.ndarray) -> np.ndarray:
+        norms = np.linalg.norm(x, axis=1, keepdims=True)
+        safe_norms = np.where((~np.isfinite(norms)) | (norms <= 0.0), 1.0, norms)
+        return x / safe_norms
+
+    def forward(self, latent_source: torch.Tensor, condition_scalars: Optional[tuple] = None) -> torch.Tensor:
+        with torch.no_grad():
+            x_np = latent_source.detach().cpu().numpy()
+            if self.normalize_latents:
+                x_np = self._l2_normalize_rows(x_np)
+            if self.x_scaler is not None:
+                x_np_scaled = self.x_scaler.transform(x_np)
+            else:
+                x_np_scaled = x_np
+            y_np_scaled = self.model.predict(x_np_scaled)
+            if self.y_scaler is not None:
+                y_np = self.y_scaler.inverse_transform(y_np_scaled)
+            else:
+                y_np = y_np_scaled
+            y_t = torch.from_numpy(y_np).to(latent_source.device, dtype=latent_source.dtype)
+            return y_t
+
+def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], predictor_source: str = 'separate', use_true_target_latent: bool = False, forecast_all_timepoints: bool = False, predictor_dir: Optional[str] = None, source_steps_back: int = 1, num_sets: int = 1, cli_set_size: Optional[int] = None, override_predictor: Optional[torch.nn.Module] = None):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     cfg, enc, gen, predictor, dataset, train_predictor_posthoc = load_models_from_experiment(experiment_dir, device, predictor_source=predictor_source, predictor_dir=predictor_dir, use_true_target_latent=use_true_target_latent)
+
+    # If provided, override predictor with external (e.g., ridge) predictor
+    if override_predictor is not None:
+        predictor = override_predictor.to(device)
+        predictor.eval()
+
+    if not use_true_target_latent and predictor is None:
+        print(f"[forecast] Skipping run at {experiment_dir}: predictor=None and use_true_target_latent=False.")
+        return None
 
     Xs_training = training_data['Xs']
     n_steps = int(training_data['N_steps'])
@@ -298,55 +310,117 @@ def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], pr
     if cli_set_size is not None:
         set_size_cfg = cli_set_size
 
-    # Aggregate forecasts over num_sets random subsets
+    # Build non-overlapping subsets that cover each source element exactly once
+    num_available = int(Xs_training[source_idx_value].shape[0])
+    perm_indices = np.random.permutation(num_available)
+    num_full_sets = num_available // set_size_cfg
+    remainder = num_available % set_size_cfg
+
+    full_subsets: List[np.ndarray] = [
+        perm_indices[i * set_size_cfg:(i + 1) * set_size_cfg]
+        for i in range(num_full_sets)
+    ]
+
+    leftover_indices: Optional[np.ndarray] = None
+    padded_latent_indices: Optional[np.ndarray] = None
+    if remainder > 0:
+        leftover_indices = perm_indices[num_full_sets * set_size_cfg:]
+        pad_needed = set_size_cfg - remainder
+        if num_full_sets > 0:
+            used_pool = perm_indices[:num_full_sets * set_size_cfg]
+            pad_extra = np.random.choice(used_pool, size=pad_needed, replace=False)
+        else:
+            # If no full sets exist, pad for latents from the leftover itself (allow repeats)
+            pad_extra = np.random.choice(leftover_indices, size=pad_needed, replace=True)
+        padded_latent_indices = np.concatenate([leftover_indices, pad_extra], axis=0)
+
+    # Aggregate forecasts across all constructed subsets
     aggregated_forecasts: List[np.ndarray] = []
 
-    for _ in range(int(num_sets)):
-        # Draw random subset indices from source, same used for target if needed
-        num_available = Xs_training[source_idx_value].shape[0]
-        subset_indices = np.random.choice(num_available, size=set_size_cfg, replace=False)
-
-        src_subset_np = Xs_training[source_idx_value][subset_indices]
-        src_subset_t = torch.tensor(src_subset_np, dtype=torch.float32, device=device).unsqueeze(0)
+    # Process full subsets (latents and generator both of size set_size_cfg)
+    for subset_indices in full_subsets:
+        src_subset_np_lat = Xs_training[source_idx_value][subset_indices]
+        src_subset_t_lat = torch.tensor(src_subset_np_lat, dtype=torch.float32, device=device).unsqueeze(0)
 
         with torch.no_grad():
-            enc_s = enc(src_subset_t)
-
-            if predictor is not None and not use_true_target_latent:
-                # Compute conditioning based on predictor.condition_type
-                if getattr(predictor, 'condition_type', None) == 'index_pair':
-                    source_idx = torch.tensor([source_idx_value], device=device, dtype=torch.float32)
-                    target_idx = torch.tensor([n_steps - 1], device=device, dtype=torch.float32)
-                    condition = (source_idx, target_idx)
-                elif getattr(predictor, 'condition_type', None) == 'scalar_d':
-                    d_val = dataset.d_fun(source_idx_value, n_steps - 1)
-                    d_tensor = torch.tensor([d_val], device=device, dtype=torch.float32)
-                    condition = (d_tensor,)
-                else:
-                    condition = None
-                enc_t = predictor(enc_s, condition_scalars=condition)
-            else:
-                # Encode target subset directly using the trained encoder
-                if use_true_target_latent:
-                    tgt_subset_np = training_data['X_val_true'][subset_indices]
-                
-                else:
-                    tgt_subset_np = training_data['X_val_true']
-                    raise NotImplementedError("THERE IS A MAJOR PROBLEM WITH THIS BRANCH BECAUSE WE NEED TO GET THE TARGET FROM THE PREDICTOR HERE")
+            enc_s = enc(src_subset_t_lat)
+            if use_true_target_latent:
+                # TODO: why are you not doing the unsqueezing like for src_subset_t_lat here?
+                tgt_subset_np = training_data['X_val_true'][subset_indices]
                 tgt_subset_t = torch.tensor(tgt_subset_np, dtype=torch.float32, device=device).unsqueeze(0)
                 enc_t = enc(tgt_subset_t)
+                
+            else:
+                if predictor is not None:
+                    # Compute conditioning based on predictor.condition_type
+                    if getattr(predictor, 'condition_type', None) == 'index_pair':
+                        source_idx = torch.tensor([source_idx_value], device=device, dtype=torch.float32)
+                        target_idx = torch.tensor([n_steps - 1], device=device, dtype=torch.float32)
+                        condition = (source_idx, target_idx)
+                    elif getattr(predictor, 'condition_type', None) == 'scalar_d':
+                        d_val = dataset.d_fun(source_idx_value, n_steps - 1)
+                        d_tensor = torch.tensor([d_val], device=device, dtype=torch.float32)
+                        condition = (d_tensor,)
+                    else:
+                        condition = None
+                    enc_t = predictor(enc_s, condition_scalars=condition)
+                
+                else: 
+                    raise ValueError("Predictor is None and use_true_target_latent is False")
 
-            # Reshape source samples for generator
-            _, set_size_cur, *data_shape = src_subset_t.shape
-            gen_src = src_subset_t.reshape(-1, *data_shape)
+            # Generator input uses the exact subset (no duplicates)
+            src_subset_t_gen = src_subset_t_lat
+            _, set_size_cur, *data_shape = src_subset_t_gen.shape
+            gen_src = src_subset_t_gen.reshape(-1, *data_shape)
 
+            gen.to(device)
             pred_subset = gen.sample(gen_src, enc_s, enc_t)[0]
+            gen.to('cpu')
             pred_subset_np = pred_subset.detach().cpu().numpy()
-            print("!!!!!!!!!!!!!!!!! PREDICTION SHAPE FOR FORECAST!!!!!!!!!!!!!!!",pred_subset_np.shape, pred_subset_np[None, :, :].shape)
+            print("!!!!!!!!!!!!!!!!! PREDICTION SHAPE FOR FORECAST!!!!!!!!!!!!!!!", pred_subset_np.shape, pred_subset_np[None, :, :].shape)
+            aggregated_forecasts.append(pred_subset_np)
+
+    # Process leftover subset (generator sees only remaining elements; latents padded to set_size_cfg)
+    if leftover_indices is not None and padded_latent_indices is not None:
+        src_subset_np_lat = Xs_training[source_idx_value][padded_latent_indices]
+        src_subset_t_lat = torch.tensor(src_subset_np_lat, dtype=torch.float32, device=device).unsqueeze(0)
+
+        with torch.no_grad():
+            enc_s = enc(src_subset_t_lat)
+            if use_true_target_latent:
+                # TODO: why are you not doing the unsqueezing like for src_subset_t_lat here?
+                tgt_subset_np = training_data['X_val_true'][padded_latent_indices]
+                tgt_subset_t = torch.tensor(tgt_subset_np, dtype=torch.float32, device=device).unsqueeze(0)
+                enc_t = enc(tgt_subset_t)
+            else:
+                if predictor is not None:
+                    if getattr(predictor, 'condition_type', None) == 'index_pair':
+                        source_idx = torch.tensor([source_idx_value], device=device, dtype=torch.float32)
+                        target_idx = torch.tensor([n_steps - 1], device=device, dtype=torch.float32)
+                        condition = (source_idx, target_idx)
+                    elif getattr(predictor, 'condition_type', None) == 'scalar_d':
+                        d_val = dataset.d_fun(source_idx_value, n_steps - 1)
+                        d_tensor = torch.tensor([d_val], device=device, dtype=torch.float32)
+                        condition = (d_tensor,)
+                    else:
+                        condition = None
+                    enc_t = predictor(enc_s, condition_scalars=condition)
+
+
+            # Generator sees only the true leftover indices (no duplicates)
+            src_subset_np_gen = Xs_training[source_idx_value][leftover_indices]
+            src_subset_t_gen = torch.tensor(src_subset_np_gen, dtype=torch.float32, device=device).unsqueeze(0)
+            _, set_size_cur, *data_shape = src_subset_t_gen.shape
+            gen_src = src_subset_t_gen.reshape(-1, *data_shape)
+
+            gen.to(device)
+            pred_subset = gen.sample(gen_src, enc_s, enc_t)[0]
+            gen.to('cpu')
+            pred_subset_np = pred_subset.detach().cpu().numpy()
+            print("!!!!!!!!!!!!!!!!! PREDICTION SHAPE FOR FORECAST (LEFTOVER)!!!!!!!!!!!!!!!", pred_subset_np.shape)
             aggregated_forecasts.append(pred_subset_np)
 
     # Concatenate all subset forecasts into a single aggregated set (N, D)
-    aggregated_forecasts = np.array(aggregated_forecasts)
     forecast_structured = np.vstack(aggregated_forecasts)
     print("!!!!!!!!!!!!!!!!! FINAL PREDICTION SHAPE!!!!!!!!!!!!!!!",forecast_structured.shape)
     results: Dict[str, Any] = {
@@ -359,56 +433,119 @@ def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], pr
         n_steps = int(training_data['N_steps'])
         forecasts_seq: List[np.ndarray] = []
         for t in range(1, n_steps):
-            # Aggregate per-timepoint forecasts over num_sets subsets
+            # Aggregate per-timepoint forecasts using disjoint subsets that cover all elements once
             per_t_agg: List[np.ndarray] = []
             source_full_np = training_data['Xs'][t - 1]
             target_full_np = training_data['Xs'][t] if t < n_steps - 1 else training_data['X_val_true']
 
-            for _ in range(int(num_sets)):
-                num_available_t = source_full_np.shape[0]
-                subset_indices_t = np.random.choice(num_available_t, size=set_size_cfg, replace=False)
+            num_available_t = int(source_full_np.shape[0])
+            perm_t = np.random.permutation(num_available_t)
+            num_full_t = num_available_t // set_size_cfg
+            remainder_t = num_available_t % set_size_cfg
 
-                src_subset_np_t = source_full_np[subset_indices_t]
-                src_subset_t = torch.tensor(src_subset_np_t, dtype=torch.float32, device=device).unsqueeze(0)
+            full_sets_t: List[np.ndarray] = [
+                perm_t[i * set_size_cfg:(i + 1) * set_size_cfg]
+                for i in range(num_full_t)
+            ]
+
+            leftover_t: Optional[np.ndarray] = None
+            padded_latent_t: Optional[np.ndarray] = None
+            if remainder_t > 0:
+                leftover_t = perm_t[num_full_t * set_size_cfg:]
+                pad_needed_t = set_size_cfg - remainder_t
+                if num_full_t > 0:
+                    used_pool_t = perm_t[:num_full_t * set_size_cfg]
+                    pad_extra_t = np.random.choice(used_pool_t, size=pad_needed_t, replace=False)
+                else:
+                    pad_extra_t = np.random.choice(leftover_t, size=pad_needed_t, replace=True)
+                padded_latent_t = np.concatenate([leftover_t, pad_extra_t], axis=0)
+
+            # Process full sets
+            for subset_indices_t in full_sets_t:
+                src_subset_np_t_lat = source_full_np[subset_indices_t]
+                src_subset_t_lat = torch.tensor(src_subset_np_t_lat, dtype=torch.float32, device=device).unsqueeze(0)
 
                 with torch.no_grad():
-                    enc_src = enc(src_subset_t)
-                    if predictor is not None and not use_true_target_latent:
-                        if getattr(predictor, 'condition_type', None) == 'index_pair':
-                            src_idx = torch.tensor([t - 1], device=device, dtype=torch.float32)
-                            tgt_idx = torch.tensor([t], device=device, dtype=torch.float32)
-                            condition = (src_idx, tgt_idx)
-                        elif getattr(predictor, 'condition_type', None) == 'scalar_d':
-                            d_val = dataset.d_fun(t - 1, t)
-                            d_tensor = torch.tensor([d_val], device=device, dtype=torch.float32)
-                            condition = (d_tensor,)
-                        else:
-                            condition = None
-                        enc_tgt = predictor(enc_src, condition_scalars=condition)
-                    else:
-                        if use_true_target_latent:
-                            tgt_subset_np_t = target_full_np[subset_indices_t]
-                        else:
-                            tgt_subset_np_t = target_full_np
-                        tgt_subset_t = torch.tensor(tgt_subset_np_t, dtype=torch.float32, device=device).unsqueeze(0)
+                    enc_src = enc(src_subset_t_lat)
+                    if use_true_target_latent:
+                        tgt_subset_np_t_lat = target_full_np[subset_indices_t]
+                        tgt_subset_t = torch.tensor(tgt_subset_np_t_lat, dtype=torch.float32, device=device).unsqueeze(0)
                         enc_tgt = enc(tgt_subset_t)
+                        
+                    else:
+                        if predictor is not None:
+                            if getattr(predictor, 'condition_type', None) == 'index_pair':
+                                src_idx = torch.tensor([t - 1], device=device, dtype=torch.float32)
+                                tgt_idx = torch.tensor([t], device=device, dtype=torch.float32)
+                                condition = (src_idx, tgt_idx)
+                            elif getattr(predictor, 'condition_type', None) == 'scalar_d':
+                                d_val = dataset.d_fun(t - 1, t)
+                                d_tensor = torch.tensor([d_val], device=device, dtype=torch.float32)
+                                condition = (d_tensor,)
+                            else:
+                                condition = None
+                            enc_tgt = predictor(enc_src, condition_scalars=condition)
+                    
+                        else:
+                            raise ValueError("Predictor is None and use_true_target_latent is False")
 
                     # Reshape and sample
-                    _, set_size_t, *data_shape_t = src_subset_t.shape
-                    gen_src_t = src_subset_t.reshape(-1, *data_shape_t)
+                    src_subset_t_gen = src_subset_t_lat
+                    _, set_size_t, *data_shape_t = src_subset_t_gen.shape
+                    gen_src_t = src_subset_t_gen.reshape(-1, *data_shape_t)
+                    gen.to(device)
                     pred_t = gen.sample(gen_src_t, enc_src, enc_tgt)[0]
-                    print("!!!!!!!!!!!!!!!!! PREDICTION SHAPE!!!!!!!!!!!!!!!",pred_t.shape, pred_t.detach().cpu().numpy()[None, :, :].shape)
+                    gen.to('cpu')
+                    print("!!!!!!!!!!!!!!!!! PREDICTION SHAPE!!!!!!!!!!!!!!!", pred_t.shape, pred_t.detach().cpu().numpy()[None, :, :].shape)
+                    per_t_agg.append(pred_t.detach().cpu().numpy())
+
+            # Process leftover set if present
+            if leftover_t is not None and padded_latent_t is not None:
+                src_subset_np_t_lat = source_full_np[padded_latent_t]
+                src_subset_t_lat = torch.tensor(src_subset_np_t_lat, dtype=torch.float32, device=device).unsqueeze(0)
+
+                with torch.no_grad():
+                    enc_src = enc(src_subset_t_lat)
+                    if use_true_target_latent:
+                        tgt_subset_np_t_lat = target_full_np[padded_latent_t]
+                        tgt_subset_t = torch.tensor(tgt_subset_np_t_lat, dtype=torch.float32, device=device).unsqueeze(0)
+                        enc_tgt = enc(tgt_subset_t)
+                        
+                    else:
+                        if predictor is not None:
+                            if getattr(predictor, 'condition_type', None) == 'index_pair':
+                                src_idx = torch.tensor([t - 1], device=device, dtype=torch.float32)
+                                tgt_idx = torch.tensor([t], device=device, dtype=torch.float32)
+                                condition = (src_idx, tgt_idx)
+                            elif getattr(predictor, 'condition_type', None) == 'scalar_d':
+                                d_val = dataset.d_fun(t - 1, t)
+                                d_tensor = torch.tensor([d_val], device=device, dtype=torch.float32)
+                                condition = (d_tensor,)
+                            else:
+                                condition = None
+                            enc_tgt = predictor(enc_src, condition_scalars=condition)
+                        else:
+                            raise ValueError("Predictor is None and use_true_target_latent is False")
+
+                    # Generator sees only leftover indices
+                    src_subset_np_t_gen = source_full_np[leftover_t]
+                    src_subset_t_gen = torch.tensor(src_subset_np_t_gen, dtype=torch.float32, device=device).unsqueeze(0)
+                    _, set_size_t, *data_shape_t = src_subset_t_gen.shape
+                    gen_src_t = src_subset_t_gen.reshape(-1, *data_shape_t)
+                    gen.to(device)
+                    pred_t = gen.sample(gen_src_t, enc_src, enc_tgt)[0]
+                    gen.to('cpu')
+                    print("!!!!!!!!!!!!!!!!! PREDICTION SHAPE (LEFTOVER)!!!!!!!!!!!!!!!", pred_t.shape)
                     per_t_agg.append(pred_t.detach().cpu().numpy())
 
             # Concatenate aggregated per-timepoint predictions (N, D)
-            per_t_agg = np.array(per_t_agg)
             forecasts_seq.append(np.vstack(per_t_agg))
-            print("!!!!!!!!!!!!!!!!! FINAL PREDICTION SHAPE INTERMEDIATE!!!!!!!!!!!!!!!",np.vstack(per_t_agg).shape)
+            print("!!!!!!!!!!!!!!!!! FINAL PREDICTION SHAPE INTERMEDIATE!!!!!!!!!!!!!!!", np.vstack(per_t_agg).shape)
 
 
-        #if len(forecasts_seq) > 0:
-        #    # Shape: (n_steps-1, N, D)
-        #    results['forecast_sequence'] = np.stack(forecasts_seq, axis=0)
+        if len(forecasts_seq) > 0:
+            # Shape: (n_steps-1, N, D)
+            results['forecast_sequence'] = np.stack(forecasts_seq, axis=0)
 
     return results
 
@@ -417,7 +554,7 @@ def generate_cde_forecast(experiment_dir: str, training_data: Dict[str, Any], pr
 # Metrics
 # -----------------------------
 
-def calculate_emd(x: np.ndarray, y: np.ndarray) -> float:
+def calculate_emd_my_implementation(x: np.ndarray, y: np.ndarray) -> float:
     # Linear programming EMD (balanced, uniform weights)
     from scipy.optimize import linprog
     n, m = x.shape[0], y.shape[0]
@@ -440,6 +577,8 @@ def calculate_emd(x: np.ndarray, y: np.ndarray) -> float:
     else:
         return float('nan')
 
+def calculate_emd(x: np.ndarray, y: np.ndarray) -> float:
+    return earth_mover_distance(x, y)
 
 def compute_mmd_and_emd(dataset_name: str, forecast_NxD: np.ndarray, logger: logging.Logger, enable_emd: bool = True) -> Tuple[float, float]:
     cfg = DATASET_CONFIGS[dataset_name]
@@ -488,8 +627,8 @@ def setup_pca_for_pbmc(logger: logging.Logger) -> PCA:
     data1 = np.load("data/realdata/processed_pbmc_data_sub500_every_2_until20.npz")
     data2 = np.load("data/realdata/processed_pbmc_data_sub500_every_2_until20_interp_val.npz")
     Xs1 = data1["Xs"]; Xs2 = data2["Xs"]
-    if Xs1.shape[0] == 21 and Xs2.shape[0] == 20:
-        Xs1, Xs2 = Xs2, Xs1
+    #if Xs1.shape[0] == 21 and Xs2.shape[0] == 20:
+    #    Xs1, Xs2 = Xs2, Xs1
     Xs_combined = np.concatenate([Xs1, Xs2], axis=0)
     n_timepoints, n_cells, n_genes = Xs_combined.shape
     X_reshaped = Xs_combined.reshape(n_timepoints * n_cells, n_genes)
@@ -716,9 +855,9 @@ def find_matching_predictor_subdir(experiment_dir: str, predictor_match_criteria
     Returns the full path or None if not found.
     """
     if not os.path.isdir(experiment_dir):
+        print(f"[predictor-discovery] Experiment directory does not exist or is not a directory: {experiment_dir}")
         return None
 
-    # Candidate predictor directories: hashed (predictor_training_<hash>) and legacy static (predictor_training)
     candidates: List[str] = []
     
     for d in os.listdir(experiment_dir):
@@ -726,6 +865,9 @@ def find_matching_predictor_subdir(experiment_dir: str, predictor_match_criteria
             full = os.path.join(experiment_dir, d)
             if os.path.isdir(full):
                 candidates.append(full)
+
+    if not candidates:
+        print(f"[predictor-discovery] No predictor_training_* subdirectories found under {experiment_dir}; seed={seed}")
 
     matched: List[Tuple[str, Dict[str, Any]]] = []
     for cand in candidates:
@@ -739,6 +881,7 @@ def find_matching_predictor_subdir(experiment_dir: str, predictor_match_criteria
             try:
                 cfg = load_yaml(cfg_path)
             except Exception:
+                print(f"[predictor-discovery] Failed to read predictor config at {cfg_path}; skipping")
                 continue
         if predictor_match_criteria:
             if dict_contains(cfg, predictor_match_criteria):
@@ -747,6 +890,7 @@ def find_matching_predictor_subdir(experiment_dir: str, predictor_match_criteria
             matched.append((cand, cfg))
 
     if not matched:
+        print(f"[predictor-discovery] Found {len(candidates)} predictor dirs but none matched criteria={json.dumps(predictor_match_criteria)}; seed={seed}")
         return None
 
     # If multiple remain, ensure they are identical modulo seed
@@ -762,11 +906,10 @@ def main():
     parser = argparse.ArgumentParser(description='Flexible analysis of CDE results across seeds')
     parser.add_argument('--config', type=str, default='analysis_config.yaml', help='Path to analysis config file')
     parser.add_argument('--outputs-dir', type=str, default='outputs', help='Directory containing experiment subdirectories')
+    parser.add_argument('--predictor-source', type=str, default='separate', help="Where to load the predictor from: 'separate' (use predictor_training_* subdir config + checkpoint) or 'main' (use main experiment config + checkpoint)")
     parser.add_argument('--skip-plots', action='store_true', help='Skip plotting, only compute metrics')
     parser.add_argument('--disable-emd', action='store_true', help='Disable EMD computation to reduce memory usage')
     parser.add_argument('--set', dest='overrides', action='append', default=[], help='Override config values with dot-notation (e.g., match_criteria.sampling.mode=bidirectional). Can be used multiple times.')
-    parser.add_argument('--predictor-source', type=str, choices=['auto', 'main', 'separate'], default='auto',
-                        help='Where to load predictor checkpoint from: auto (default), main (root dir or joint), or main_predictor (predictor_training subdir)')
     parser.add_argument('--use-true-target-latent', action='store_true',
                         help='Feed true target latent (encoder on held-out target) into generator instead of predictor output')
     parser.add_argument('--plot-all-timepoints', action='store_true',
@@ -777,6 +920,8 @@ def main():
                         help='Number of random subsets (of size set_size) to forecast and aggregate')
     parser.add_argument('--set-size', type=int, default=None,
                         help='Override the set_size parameter for forecasting (number of points in each subset).')
+    parser.add_argument('--use-ridge-predictor', action='store_true',
+                        help='Use the ridge regressor saved by snapMMD_visualize_latents.py as the unconditioned predictor')
     # No explicit CLI flags for predictor matching; use config/overrides via --set predictor_match_criteria.*
     args = parser.parse_args()
 
@@ -788,6 +933,7 @@ def main():
         cli_oc = OmegaConf.from_dotlist(dotlist)
         cfg_oc = OmegaConf.merge(cfg_oc, cli_oc)
     config = OmegaConf.to_container(cfg_oc, resolve=True)  # standard Python containers
+    print("!!!!",config)
     experiment_name: str = config['experiment_name']
     match_criteria: Dict[str, Any] = config.get('match_criteria', {})
     predictor_match_criteria: Dict[str, Any] = config.get('predictor_match_criteria', {})
@@ -802,6 +948,7 @@ def main():
     logger = setup_logger(out_dir, f"{folder_name}_analysis_CDE")
 
     logger.info(f"Experiment name (prefix): {experiment_name}")
+    logger.info(f"Predictor source: {args.predictor_source}")
     logger.info(f"Outputs directory: {os.path.abspath(args.outputs_dir)}")
     logger.info(f"Match criteria: {json.dumps(match_criteria, indent=2)}")
     parameters_label_for_title = build_parameters_label(match_criteria, naming_parameters)
@@ -892,18 +1039,41 @@ def main():
         pca = setup_pca_for_pbmc(logger)
 
     # Compute metrics per seed
-    per_seed_results: List[Tuple[int, float, Any]] = []  # (seed, mmd^2, emd)
+    per_seed_results: List[Tuple[int, float, Any]] = []  
     forecast_for_plot = None
+
+    # Prepare to load per-seed ridge predictors from seed-specific subdirectories
+    def load_ridge_predictor_for_seed(seed_value: int) -> Optional[UnconditionedRidgePredictor]:
+        ridge_dir = os.path.join(out_dir, f"seed_{seed_value}")
+        ridge_path = os.path.join(ridge_dir, 'ridge_regressor.pkl')
+        if not os.path.exists(ridge_path):
+            logger.warning(f"--use-ridge-predictor set but ridge file not found for seed {seed_value} at {ridge_path}; skipping this seed")
+            return None
+        try:
+            ridge_obj_local = joblib.load(ridge_path)
+            logger.info(f"Loaded ridge predictor for seed {seed_value} from {ridge_path}")
+            return UnconditionedRidgePredictor(ridge_obj_local)
+        except Exception as e:
+            logger.error(f"Failed to load ridge predictor for seed {seed_value} at {ridge_path}: {e}")
+            return None
     for seed, (exp_seed, (exp_dir, cfg)) in zip(seeds_sorted, matched_with_seed):
-        # Identify predictor hashed subdir inside this experiment dir
+        # Identify predictor hashed subdir only if using 'separate' source
         predictor_dir = None
-        if not args.use_true_target_latent:
+        if (args.predictor_source == 'separate') and (not args.use_true_target_latent):
             try:
                 predictor_dir = find_matching_predictor_subdir(exp_dir, predictor_match_criteria, seed)
             except Exception as e:
                 logger.error(f"Predictor subdir selection error for {exp_dir}: {e}")
                 print(f"Predictor subdir selection error for {exp_dir}: {e}")
                 sys.exit(1)
+
+        # Load ridge predictor for this seed if requested
+        ridge_predictor_obj = None
+        if args.use_ridge_predictor:
+            ridge_predictor_obj = load_ridge_predictor_for_seed(seed)
+            if ridge_predictor_obj is None:
+                logger.info(f"Skipping seed {seed}: ridge predictor unavailable.")
+                continue
 
         forecast = generate_cde_forecast(
             exp_dir,
@@ -915,7 +1085,11 @@ def main():
             source_steps_back=args.source_steps_back,
             num_sets=args.num_sets,
             cli_set_size=args.set_size,
+            override_predictor=ridge_predictor_obj,
         )
+        if forecast is None:
+            logger.info(f"Skipping seed {seed}: no predictor available and --use-true-target-latent is False.")
+            continue
         mmd_legacy, mmd_paper, emd = compute_mmd_and_emd(dataset_name, forecast['forecast'], logger, enable_emd=not args.disable_emd)
         per_seed_results.append((seed, mmd_legacy, mmd_paper, emd))
         if forecast_for_plot is None and seed == default_seed_for_plots:
@@ -969,17 +1143,23 @@ def main():
     # Plot for default seed
     if not args.skip_plots:
         if forecast_for_plot is None:
-            # If not found seed==default, just take first
-            # Also resolve predictor subdir for the default seed run
+            # If not found seed==default, try the first matched run
             default_exp_dir = matched_with_seed[0][1][0]
             default_predictor_dir = None
-            if not args.use_true_target_latent:
+            if (args.predictor_source == 'separate') and (not args.use_true_target_latent):
                 try:
                     default_predictor_dir = find_matching_predictor_subdir(default_exp_dir, predictor_match_criteria, seeds_sorted[0])
                 except Exception as e:
                     logger.error(f"Predictor subdir selection error for default run {default_exp_dir}: {e}")
                     print(f"Predictor subdir selection error for default run {default_exp_dir}: {e}")
                     sys.exit(1)
+            default_ridge_predictor_obj = None
+            if args.use_ridge_predictor:
+                default_ridge_predictor_obj = load_ridge_predictor_for_seed(seeds_sorted[0])
+                if default_ridge_predictor_obj is None:
+                    logger.warning(f"No ridge predictor available for default seed {seeds_sorted[0]}; skipping plots.")
+                    forecast_for_plot = None
+                
             forecast_for_plot = generate_cde_forecast(
                 default_exp_dir,
                 training_data,
@@ -990,26 +1170,30 @@ def main():
                 source_steps_back=args.source_steps_back,
                 num_sets=args.num_sets,
                 cli_set_size=args.set_size,
+                override_predictor=default_ridge_predictor_obj,
             )
 
-        # Prepare title suffix with naming parameters and metrics
-        metrics_title_segment = f"MMD={mmd_paper_mean:.4g}±{mmd_paper_std:.2g}, MMD_legacy={mmd_legacy_mean:.4g}±{mmd_legacy_std:.2g}{emd_title_segment}"
-        title_suffix = f"{parameters_label_for_title} | {metrics_title_segment}"
+        if forecast_for_plot is not None:
+            # Prepare title suffix with naming parameters and metrics
+            metrics_title_segment = f"MMD={mmd_paper_mean:.4g}±{mmd_paper_std:.2g}, MMD_legacy={mmd_legacy_mean:.4g}±{mmd_legacy_std:.2g}{emd_title_segment}"
+            title_suffix = f"{parameters_label_for_title} | {metrics_title_segment}"
 
-        results_struct = {
-            'training_data': training_data,
-            'forecast_data': {
-                'forecast': forecast_for_plot['forecast'],
-                'X_val_forecast': forecast_for_plot['X_val'],
-                'forecast_sequence': forecast_for_plot.get('forecast_sequence')
-            },
-            'metadata': {
-                'task_name': dataset_name,
-                'config': DATASET_CONFIGS[dataset_name],
-                'forecast_method': 'CDE'
+            results_struct = {
+                'training_data': training_data,
+                'forecast_data': {
+                    'forecast': forecast_for_plot['forecast'],
+                    'X_val_forecast': forecast_for_plot['X_val'],
+                    'forecast_sequence': forecast_for_plot.get('forecast_sequence')
+                },
+                'metadata': {
+                    'task_name': dataset_name,
+                    'config': DATASET_CONFIGS[dataset_name],
+                    'forecast_method': 'CDE'
+                }
             }
-        }
-        plot_main_results(dataset_name, results_struct, out_dir, logger, pca, title_suffix=title_suffix, plot_all_timepoints=args.plot_all_timepoints)
+            plot_main_results(dataset_name, results_struct, out_dir, logger, pca, title_suffix=title_suffix, plot_all_timepoints=args.plot_all_timepoints)
+        else:
+            logger.warning("No forecast available for plotting; skipping plots.")
 
     print(f"\n✓ Analysis complete. Figures and logs saved to: {out_dir}/")
     logger.info(f"Analysis complete. Output saved to: {out_dir}/")

@@ -5,6 +5,7 @@ from typing import Optional, Tuple, Dict
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from utils.conditioning import build_condition_tuple, is_conditioned
 
 
 class PredictorTrainer:
@@ -17,6 +18,7 @@ class PredictorTrainer:
         early_stopping: bool = True,
         patience: int = 10,
         use_tqdm: bool = False,
+        use_generator_loss: bool = False,
     ) -> None:
         self.num_epochs = num_epochs
         self.log_interval = log_interval
@@ -25,6 +27,7 @@ class PredictorTrainer:
         self.early_stopping = early_stopping
         self.patience = patience
         self.use_tqdm = use_tqdm
+        self.use_generator_loss = use_generator_loss
 
         self.best_loss = float("inf")
         self.no_improve_count = 0
@@ -33,6 +36,7 @@ class PredictorTrainer:
         self,
         encoder: nn.Module,
         predictor: nn.Module,
+        generator: Optional[nn.Module],
         batch: Dict,
         device: torch.device,
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
@@ -43,18 +47,31 @@ class PredictorTrainer:
             target_samples = batch["target_samples"].to(device)
 
             source_latent = encoder(source_samples)
-            target_latent = encoder(target_samples)
+            if self.use_generator_loss:
+                if generator is None:
+                    raise ValueError("Generator must be provided when use_generator_loss=True")
 
-            if getattr(predictor, "requires_condition", False):
-                condition_scalars = (
-                    batch["source_idx"].to(device),
-                    batch["target_idx"].to(device),
+                condition_scalars = build_condition_tuple(batch, device, getattr(predictor, 'condition_type', 'none'))
+                pred_target_latent = predictor(source_latent, condition_scalars=condition_scalars)
+
+                # Flatten batched sets to match generator expectations ([B,S,D] -> [B*S,D])
+                flat_source_samples = (
+                    source_samples.view(-1, *source_samples.shape[2:])
+                    if source_samples.dim() > 2 else source_samples
                 )
-                pred_loss, _ = predictor.loss(
-                    source_latent, target_latent, condition_scalars
+                flat_target_samples = (
+                    target_samples.view(-1, *target_samples.shape[2:])
+                    if target_samples.dim() > 2 else target_samples
                 )
+                pred_loss = generator.loss(
+                    flat_source_samples, flat_target_samples, source_latent, pred_target_latent
+                )
+                losses["generator_loss"] = pred_loss
             else:
-                pred_loss, _ = predictor.loss(source_latent, target_latent)
+                target_latent = encoder(target_samples)
+                condition_scalars = build_condition_tuple(batch, device, getattr(predictor, 'condition_type', 'none'))
+                pred_loss, _ = predictor.loss(source_latent, target_latent, condition_scalars)
+                losses["predictor_loss"] = pred_loss
 
         else:
             source_samples = {}
@@ -66,20 +83,22 @@ class PredictorTrainer:
                 target_samples[key] = value.to(device) if isinstance(value, torch.Tensor) else value
 
             source_latent = encoder(source_samples)
-            target_latent = encoder(target_samples)
+            if self.use_generator_loss:
+                if generator is None:
+                    raise ValueError("Generator must be provided when use_generator_loss=True")
+                condition_scalars = build_condition_tuple(batch, device, getattr(predictor, 'condition_type', 'none'))
+                pred_target_latent = predictor(source_latent, condition_scalars=condition_scalars)
 
-            if getattr(predictor, "requires_condition", False):
-                condition_scalars = (
-                    batch["source_idx"].to(device),
-                    batch["target_idx"].to(device),
+                pred_loss = generator.loss(
+                    source_samples, target_samples, source_latent, pred_target_latent
                 )
-                pred_loss, _ = predictor.loss(
-                    source_latent, target_latent, condition_scalars
-                )
+                losses["generator_loss"] = pred_loss
             else:
-                pred_loss, _ = predictor.loss(source_latent, target_latent)
+                target_latent = encoder(target_samples)
+                condition_scalars = build_condition_tuple(batch, device, getattr(predictor, 'condition_type', 'none'))
+                pred_loss, _ = predictor.loss(source_latent, target_latent, condition_scalars)
+                losses["predictor_loss"] = pred_loss
 
-        losses["predictor_loss"] = pred_loss
         return pred_loss, losses
 
     def _evaluate(
@@ -88,9 +107,12 @@ class PredictorTrainer:
         predictor: nn.Module,
         dataloader: DataLoader,
         device: torch.device,
+        generator: Optional[nn.Module],
     ) -> float:
         encoder.eval()
         predictor.eval()
+        if generator is not None:
+            generator.eval()
 
         total_loss = 0.0
         num_batches = 0
@@ -98,7 +120,7 @@ class PredictorTrainer:
         with torch.no_grad():
             for batch in dataloader:
                 pred_loss, _ = self._compute_batch_predictor_loss(
-                    encoder, predictor, batch, device
+                    encoder, predictor, generator, batch, device
                 )
                 total_loss += float(pred_loss.item())
                 num_batches += 1
@@ -108,6 +130,7 @@ class PredictorTrainer:
     def train(
         self,
         encoder: nn.Module,
+        generator: Optional[nn.Module],
         predictor: nn.Module,
         dataloader: DataLoader,
         optimizer: torch.optim.Optimizer,
@@ -121,10 +144,16 @@ class PredictorTrainer:
         os.makedirs(output_dir, exist_ok=True)
 
         encoder.to(device)
+        if generator is not None:
+            generator.to(device)
         predictor.to(device)
         encoder.eval()
         for param in encoder.parameters():
             param.requires_grad = False
+        if generator is not None:
+            generator.eval()
+            for param in generator.parameters():
+                param.requires_grad = False
 
         stats = {
             "train_losses": [],
@@ -151,7 +180,7 @@ class PredictorTrainer:
                     optimizer.zero_grad()
 
                     pred_loss, losses = self._compute_batch_predictor_loss(
-                        encoder, predictor, batch, device
+                        encoder, predictor, generator, batch, device
                     )
 
                     pred_loss.backward()
@@ -187,7 +216,7 @@ class PredictorTrainer:
 
                 # Evaluate and early stop
                 if ((epoch + 1) % self.eval_interval == 0) or ((epoch + 1) == self.num_epochs):
-                    eval_loss = self._evaluate(encoder, predictor, dataloader, device)
+                    eval_loss = self._evaluate(encoder, predictor, dataloader, device, generator)
                     stats["eval_losses"].append(eval_loss)
                     print(f"[Predictor] Eval loss={eval_loss:.6f}", flush=True)
 

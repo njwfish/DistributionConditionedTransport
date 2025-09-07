@@ -1,4 +1,5 @@
 import torch
+from utils.conditioning import build_condition_tuple
     
 
 class PredictorLossManager:
@@ -19,13 +20,13 @@ class PredictorLossManager:
             target_latent = encoder(target_samples)
 
             # compute predictor loss and get predicted target latent
-            # Check if predictor requires dt conditioning
-            if predictor.requires_condition:
-                condition_scalars = (batch['source_idx'].to(device), batch['target_idx'].to(device))
-                predictor_loss, pred_target_latent = predictor.loss(source_latent, target_latent, condition_scalars)
-            else:
-                # non-dt-conditioned predictor
-                predictor_loss, pred_target_latent = predictor.loss(source_latent, target_latent)
+            # Build conditioning tuple per predictor.condition_type
+            condition_scalars = build_condition_tuple(batch, device, getattr(predictor, 'condition_type', 'none'))
+            predictor_loss, pred_target_latent = predictor.loss(
+                source_latent,
+                target_latent,
+                condition_scalars,
+            )
 
             # compute generator loss
             target_latent_for_generator = target_latent if not self.use_predicted_latent else pred_target_latent
@@ -58,13 +59,13 @@ class PredictorLossManager:
             source_latent = encoder(source_samples)
             target_latent = encoder(target_samples)
 
-            # Check if predictor requires conditioning
-            if predictor.requires_condition:
-                condition_scalars = (batch['source_idx'].to(device), batch['target_idx'].to(device))
-                predictor_loss, pred_target_latent = predictor.loss(source_latent, target_latent, condition_scalars)
-            else:
-                # no conditioning
-                predictor_loss, pred_target_latent = predictor.loss(source_latent, target_latent)
+            # Build conditioning tuple per predictor.condition_type
+            condition_scalars = build_condition_tuple(batch, device, getattr(predictor, 'condition_type', 'none'))
+            predictor_loss, pred_target_latent = predictor.loss(
+                source_latent,
+                target_latent,
+                condition_scalars,
+            )
 
             target_latent_for_generator = target_latent if not self.use_predicted_latent else pred_target_latent
 

@@ -1,10 +1,10 @@
 # @package _global_.predictor_training
 _target_: predictor_training.PredictorTrainer
-num_epochs: 5000
+num_epochs: 100
 log_interval: 50
-save_interval: 100
-eval_interval: 100
+save_interval: 2
+eval_interval: 2
 early_stopping: true
 patience: 20
 use_tqdm: false
-use_generator_loss: false
+use_generator_loss: true

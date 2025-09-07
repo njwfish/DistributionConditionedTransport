@@ -8,13 +8,10 @@ match_criteria:
     selective_pairing_mode: ${experiment.selective_pairing_mode}
     num_samples: ${experiment.num_samples}
     exponential_weight_scale: ${experiment.exponential_weight_scale}
-  loss:
-    _target_: loss.predictor.PredictorLossManager
-    predictor_loss_weight: ${experiment.predictor_loss_weight}
-  predictor:
-    _target_: predictor.predictor.Predictor
-    model_type: ${experiment.predictor_model_type}
-    conditioning_mode: ${experiment.predictor_conditioning_mode}
+  #predictor:
+  #  _target_: predictor.predictor.Predictor
+  #  model_type: ${experiment.predictor_model_type}
+  #  conditioning_mode: ${experiment.predictor_conditioning_mode}
   experiment:
     use_predicted_latent: ${experiment.use_predicted_latent}
     train_predictor_posthoc: ${experiment.train_predictor_posthoc}
@@ -25,10 +22,11 @@ naming_parameters:
   - sampling.weight_mode
   - sampling.selective_pairing_mode
   - loss.predictor_loss_weight
-  - predictor._target_
-  - predictor.model_type
-  - predictor.conditioning_mode
+  #- predictor._target_
+  #- predictor.model_type
+  #- predictor.conditioning_mode
   - experiment.train_predictor_posthoc
+  - experiment.predictor_loss_weight
 
 output_folder: figures
 default_seed_for_plots: 1

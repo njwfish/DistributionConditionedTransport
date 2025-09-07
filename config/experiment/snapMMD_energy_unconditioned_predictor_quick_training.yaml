@@ -1,20 +1,20 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: snapMMD_${dataset_name}
-description: "SnapMMD ${dataset_name} experiment with unified dataset class"
+name: snapMMD_energy_${dataset_name}
+description: "SnapMMD ${dataset_name} experiment with energy-based generator"
 
 # Override defaults from config.yaml
 defaults:
   - /dataset: snapMMD_unified
   - /encoder: gnn
-  - /model: diffusion_mlp
-  - /generator: flow_matching  # Use flow matching for coupled embeddings
+  - /model: noise_mlp
+  - /generator: energy  # Use flow matching for coupled embeddings
   - /training: default10000
   - /loss: default
   - /predictor: default  # use unified predictor
   - /predictor_sampling: default
-  - /predictor_training: default
+  - /predictor_training: default_generator_loss_quick
   - /sampling: default
 
 ot_coupling: false
@@ -35,6 +35,7 @@ predictor_model_args:
 
 #predictor_model_type: "ridge"
 #predictor_conditioning_mode: "sinusoidal"
+#predictor_condition_type: "none"
 #predictor_model_args:
 #  ridge_alpha: 1e-3
 

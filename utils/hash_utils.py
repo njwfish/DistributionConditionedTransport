@@ -54,17 +54,17 @@ def hash_config(
             del filtered_config[key]
 
     # Optionally drop predictor-related fields nested under the experiment namespace
-    if exclude_predictor and 'experiment' in filtered_config and isinstance(filtered_config['experiment'], dict):
-        experiment_exclude = [
-            'predictor_model_type',
-            'predictor_conditioning_mode',
-            'predictor_condition_type',
-            'predictor_model_args',
-            'train_predictor_posthoc',
-        ]
-        for key in experiment_exclude:
-            if key in filtered_config['experiment']:
-                del filtered_config['experiment'][key]
+    #if exclude_predictor and 'experiment' in filtered_config and isinstance(filtered_config['experiment'], dict):
+    #    experiment_exclude = [
+    #        'predictor_model_type',
+    #        'predictor_conditioning_mode',
+    #        'predictor_condition_type',
+    #        'predictor_model_args',
+    #        'train_predictor_posthoc',
+    #    ]
+    #    for key in experiment_exclude:
+    #        if key in filtered_config['experiment']:
+    #            del filtered_config['experiment'][key]
 
     
     # Sort keys for deterministic ordering

@@ -397,15 +397,12 @@ class ESM2_DFM_Generator(nn.Module):
         if src_ids_all.ndim == 3:
             B, S, L = src_ids_all.shape
         else:
-            B, L = src_ids_all.shape
-            S = 1
+            raise ValueError(f"src_ids_all.ndim == {src_ids_all.ndim}, expected 3")
 
         def select_source_for_sample(sample_idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
             # TODO: make sure both cases are correct.
-            if src_ids_all.ndim == 3:
-                set_idx = sample_idx % S
-                return src_ids_all[:, set_idx, :].to(device), src_mask_all[:, set_idx, :].to(device)
-            return src_ids_all.to(device), src_mask_all.to(device)
+            set_idx = sample_idx % S
+            return src_ids_all[:, set_idx, :].to(device), src_mask_all[:, set_idx, :].to(device)
 
         results = []
         texts_all = []

@@ -17,53 +17,84 @@ except Exception as exc:  # pragma: no cover
     ) from exc
 
 
-## TODO: make sure this is the correct distance metric
-#def alignment_distance(seq1: str, seq2: str) -> float:
-#    """Compute 1 - identity via global alignment, excluding positions with X.
-#    
-#    The letter X represents ambiguous residues. Positions where either sequence
-#    has 'X' are excluded from the distance calculation. Identity is normalized
-#    by the number of comparable aligned positions (positions where neither 
-#    aligned character is 'X' or a gap).
-#    """
-#    if not seq1 and not seq2:
-#        return 0.0
-#    
-#    # Get the best alignment
-#    alignments = pairwise2.align.globalxx(seq1, seq2)
-#    if not alignments:
-#        return 1.0  # No alignment possible
-#    
-#    best_alignment = alignments[0]
-#    aligned_seq1, aligned_seq2, score, start, end = best_alignment
-#    
-#    # Count matches, excluding positions with 'X'
-#    matches = 0
-#    comparable_positions = 0
-#    
-#    for c1, c2 in zip(aligned_seq1, aligned_seq2):
-#        # Skip positions where either character is 'X' or a gap
-#        if c1 != 'X' and c2 != 'X' and c1 != '-' and c2 != '-':
-#            comparable_positions += 1
-#            if c1 == c2:
-#                matches += 1
-#    
-#    if comparable_positions == 0:
-#        return 0.0  # No comparable positions, treat as identical
-#    
-#    identity = float(matches) / float(comparable_positions)
-#    return 1.0 - identity
+
+# Custom scoring to handle ambiguous 'X' residues during alignment
+# - Identical non-'X' matches score +1.0
+# - Non-'X' mismatches score -0.5
+# - Any pair involving 'X' (including 'X' vs 'X') scores 0.0 so it does not
+#   contribute positively or negatively to the alignment score
+_AA_ALPHABET = list("ACDEFGHIKLMNPQRSTVWY")
+_SUBST_MATRIX: Dict[Tuple[str, str], float] = {}
+for _aa in _AA_ALPHABET + ["X"]:
+    for _bb in _AA_ALPHABET + ["X"]:
+        if _aa == _bb and _aa != "X":
+            _score = 1.0
+        elif _aa != "X" and _bb != "X" and _aa != _bb:
+            _score = -0.5
+        else:
+            # Any pair with 'X' gets 0.0 (neutral)
+            _score = 0.0
+        _SUBST_MATRIX[(_aa, _bb)] = _score
+
+_GAP_OPEN = -1.0
+_GAP_EXTEND = -0.1
 
 def alignment_distance(seq1: str, seq2: str) -> float:
-    """Compute 1 - identity via global alignment (globalxx) as described.
+    """Compute distance = 1 - identity with special handling for 'X'.
 
-    Identity is normalized by max(len(seq1), len(seq2)).
+    - Uses Biopython global alignment with a custom substitution matrix where
+      any pair involving 'X' scores 0.0, identical non-'X' pairs score +1.0,
+      and non-'X' mismatches score -0.5. Mild gap penalties discourage
+      over-alignment through gaps.
+    - Identity is computed only over aligned positions where both residues are
+      not gaps and not 'X'. Positions with 'X' are excluded from both the
+      numerator and denominator.
     """
     if not seq1 and not seq2:
         return 0.0
-    score = pairwise2.align.globalxx(seq1, seq2, score_only=True)
-    length = max(len(seq1), len(seq2))
-    identity = float(score) / float(length) if length > 0 else 0.0
+
+    a = seq1.upper()
+    b = seq2.upper()
+
+    # TODO: figure out what exactly this globalds does.
+    # Perform one best global alignment using the custom scoring.
+    alignments = pairwise2.align.globalds(
+        a,
+        b,
+        _SUBST_MATRIX,
+        _GAP_OPEN,
+        _GAP_EXTEND,
+        one_alignment_only=True,
+        penalize_end_gaps=False,
+    )
+    if not alignments:
+        return 0.0
+
+    aligned_a, aligned_b, _score, _start, _end = alignments[0]
+
+    matches = 0
+    considered = 0
+    for ca, cb in zip(aligned_a, aligned_b):
+        # Exclude positions involving 'X' from both numerator and denominator
+        if ca == 'X' or cb == 'X':
+            continue
+
+        # If both are gaps (rare), ignore
+        if ca == '-' and cb == '-':
+            continue
+
+        considered += 1
+        if ca == '-' or cb == '-':
+            # Count indels as mismatches when the counterpart is a known residue
+            continue
+        if ca == cb:
+            matches += 1
+
+    if considered == 0:
+        # No comparable positions (all gaps/'X'): treat as zero distance
+        return 0.0
+
+    identity = float(matches) / float(considered)
     return 1.0 - identity
 
 
@@ -128,8 +159,16 @@ def sequences_equivalent_with_x(seq1: str, seq2: str) -> bool:
     if seq1 == seq2:
         return True
     
-    # Get alignment
-    alignments = pairwise2.align.globalxx(seq1, seq2)
+    # Align with the same scoring that treats 'X' as neutral
+    alignments = pairwise2.align.globalds(
+        seq1.upper(),
+        seq2.upper(),
+        _SUBST_MATRIX,
+        _GAP_OPEN,
+        _GAP_EXTEND,
+        one_alignment_only=True,
+        penalize_end_gaps=False,
+    )
     if not alignments:
         return False
     
@@ -376,7 +415,7 @@ def main() -> None:
         type=str,
         default=(
             "/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/"
-            "data/spikeprot0430/virus_tokenized_data_for_tde_downsampled100_filtered_extreme.pt"
+            "data/spikeprot0430/virus_tokenized_data_for_tde_downsampled100_filtered.pt"
         ),
         help="Absolute path to the .pt dataset file to load.",
     )
@@ -535,6 +574,7 @@ def main() -> None:
             cur_src_esm_ids = src_esm_ids_all[start_idx:end_idx]
             cur_src_esm_mask = src_esm_mask_all[start_idx:end_idx]
 
+            # TODO: needs to generalize to ProGen2. Might even remain silent.
             # Random target subset of size set_size from last
             perm_tgt = torch.randperm(tgt_esm_ids_all.shape[0])[:set_size]
             cur_tgt_esm_ids = tgt_esm_ids_all[perm_tgt]
@@ -554,37 +594,11 @@ def main() -> None:
 
             # Sample 1 sequence per source element by generating one set and decoding each set element prompt
             # The generator's sample returns [batch, num_samples, seq_len] token ids of target (with BOS)
-            out_ids = generator.sample(x_source, lat_src, lat_tgt, num_samples=1, return_texts=False)
-            # Decode each target generated for this set
-            # out_ids: [1, 1, seq_len]; we want strings for each of set_size prompts
-            # But sample currently generates one sequence per batch, not per set element. Use internal prompt selection logic:
-            # To ensure one per element, call sample repeatedly with different set element prompts using slicing
-            if isinstance(out_ids, torch.Tensor) and out_ids.dim() == 3 and out_ids.size(0) == 1 and out_ids.size(1) == 1:
-                # Decode single sequence for the entire set; replicate as conservative fallback
-                decoded = generator.tokenizer.decode(out_ids[0, 0].detach().cpu(), skip_special_tokens=True)
-                # We need one generated per source. To adhere to requirement, generate per element using loop
-                generated_set_texts: List[str] = []
-                for set_idx in range(set_size):
-                    x_source_elem = {
-                        'esm_input_ids': cur_src_esm_ids[set_idx:set_idx+1].to(device),
-                        'esm_attention_mask': cur_src_esm_mask[set_idx:set_idx+1].to(device),
-                        'progen_input_ids': cur_src_ids[set_idx:set_idx+1].to(device),
-                        'progen_attention_mask': cur_src_mask[set_idx:set_idx+1].to(device),
-                    }
-                    out_ids_elem = generator.sample(x_source_elem, lat_src, lat_tgt, num_samples=1, return_texts=False)
-                    if isinstance(out_ids_elem, torch.Tensor) and out_ids_elem.dim() == 3:
-                        txt = generator.tokenizer.decode(out_ids_elem[0, 0].detach().cpu(), skip_special_tokens=True)
-                    else:
-                        # If returns ids without extra dims
-                        ids = out_ids_elem.squeeze(0).squeeze(0) if isinstance(out_ids_elem, torch.Tensor) else out_ids_elem
-                        txt = generator.tokenizer.decode(ids.detach().cpu(), skip_special_tokens=True)
-                    generated_set_texts.append(txt)
-                generated_texts.extend(generated_set_texts)
-            else:
-                # Fallback: try to decode assuming [1, 1, L]
-                ids = out_ids[0, 0] if isinstance(out_ids, torch.Tensor) else out_ids
-                decoded = generator.tokenizer.decode(ids.detach().cpu(), skip_special_tokens=True)
-                generated_texts.append(decoded)
+            out_ids, out_texts = generator.sample(x_source, lat_src, lat_tgt, num_samples=cur_src_esm_ids.shape[0], return_texts=True)
+            print(type(out_texts), len(out_texts), len(out_texts[0]), type(out_texts[0]))
+            # NOTE: indexing out_texts[0] because we have always batch_size=1 here.
+            generated_texts.extend(out_texts[0])
+
 
         # Handle remainder by padding with repeats up to set_size
         if remainder > 0:
@@ -595,11 +609,11 @@ def main() -> None:
 
             # pad indices by random sampling from these remainder indices
             pad_needed = set_size - remainder
-            pad_idx = torch.randint(low=0, high=remainder, size=(pad_needed,))
-            cur_src_ids = torch.cat([cur_src_ids, cur_src_ids[pad_idx]], dim=0)
-            cur_src_mask = torch.cat([cur_src_mask, cur_src_mask[pad_idx]], dim=0)
-            cur_src_esm_ids = torch.cat([cur_src_esm_ids, cur_src_esm_ids[pad_idx]], dim=0)
-            cur_src_esm_mask = torch.cat([cur_src_esm_mask, cur_src_esm_mask[pad_idx]], dim=0)
+            pad_idx = torch.randint(low=0, high=num_src, size=(pad_needed,))
+            cur_src_ids_padded = torch.cat([cur_src_ids, src_ids_all[pad_idx]], dim=0)
+            cur_src_mask_padded = torch.cat([cur_src_mask, src_mask_all[pad_idx]], dim=0)
+            cur_src_esm_ids_padded = torch.cat([cur_src_esm_ids, src_esm_ids_all[pad_idx]], dim=0)
+            cur_src_esm_mask_padded = torch.cat([cur_src_esm_mask, src_esm_mask_all[pad_idx]], dim=0)
 
             # Random target subset of size set_size
             perm_tgt = torch.randperm(tgt_esm_ids_all.shape[0])[:set_size]
@@ -607,24 +621,22 @@ def main() -> None:
             cur_tgt_esm_mask = tgt_esm_mask_all[perm_tgt]
 
             # Encode latents
-            lat_src = encode_set(cur_src_esm_ids, cur_src_esm_mask)
+            lat_src = encode_set(cur_src_esm_ids_padded, cur_src_esm_mask_padded)
             lat_tgt = encode_set(cur_tgt_esm_ids, cur_tgt_esm_mask)
 
-            # Generate per original remainder element exactly once
-            for set_idx in range(remainder):
-                x_source_elem = {
-                    'esm_input_ids': cur_src_esm_ids[set_idx:set_idx+1].to(device),
-                    'esm_attention_mask': cur_src_esm_mask[set_idx:set_idx+1].to(device),
-                    'progen_input_ids': cur_src_ids[set_idx:set_idx+1].to(device),
-                    'progen_attention_mask': cur_src_mask[set_idx:set_idx+1].to(device),
-                }
-                out_ids_elem = generator.sample(x_source_elem, lat_src, lat_tgt, num_samples=1, return_texts=False)
-                if isinstance(out_ids_elem, torch.Tensor) and out_ids_elem.dim() >= 2:
-                    ids = out_ids_elem.squeeze(0).squeeze(0)
-                else:
-                    ids = out_ids_elem
-                txt = generator.tokenizer.decode(ids.detach().cpu(), skip_special_tokens=True)
-                generated_texts.append(txt)
+            x_source = {
+                'esm_input_ids': cur_src_esm_ids.unsqueeze(0).to(device),
+                'esm_attention_mask': cur_src_esm_mask.unsqueeze(0).to(device),
+                'progen_input_ids': cur_src_ids.unsqueeze(0).to(device),
+                'progen_attention_mask': cur_src_mask.unsqueeze(0).to(device),
+            }
+
+            out_ids, out_texts = generator.sample(x_source, lat_src, lat_tgt, num_samples=cur_src_esm_ids.shape[0], return_texts=True)
+            print(type(out_texts), len(out_texts), len(out_texts[0]), type(out_texts[0]))
+            print(out_texts)
+            # NOTE: indexing out_texts[0] because we have always batch_size=1 here.
+            generated_texts.extend(out_texts[0])# Generate per original remainder element exactly once
+       
 
         # Now compare last_texts vs generated_texts
         seqs_a = generated_texts

@@ -105,4 +105,87 @@ class ESM2_Baseline_Generator(nn.Module):
             return samples, texts_per_batch
         return samples
 
+    def compute_pseudo_log_likelihood(self, sequences, aggregate: str = "mean"):
+        """Compute pseudo-log-likelihood of protein sequences.
+        
+        For each position in the sequence (excluding BOS/EOS), mask it and compute
+        the log probability of the actual amino acid at that position using the model.
+        
+        Args:
+            sequences: Either:
+                - List of protein sequence strings (e.g., ["MKTV", "ACDE"])
+                - Tensor of token IDs with shape [batch_size, seq_len]
+            aggregate: How to aggregate across positions ("mean", "sum", or "none")
+                - "mean": Return mean log-likelihood per position
+                - "sum": Return sum of log-likelihoods
+                - "none": Return log-likelihood for each position [batch_size, seq_len-2]
+        
+        Returns:
+            torch.Tensor: Pseudo-log-likelihood values
+                - If aggregate="mean" or "sum": [batch_size]
+                - If aggregate="none": [batch_size, seq_len-2]
+        """
+        self.model.eval()
+        
+        # Convert sequences to token IDs if needed
+        if isinstance(sequences, list) and isinstance(sequences[0], str):
+            # Add BOS and EOS tokens to sequences
+            sequences_with_special = [f"<cls>{seq}<eos>" for seq in sequences]
+            tokenized = self.tokenizer(sequences_with_special, 
+                                     return_tensors="pt", 
+                                     padding=True,
+                                     add_special_tokens=False)
+            input_ids = tokenized["input_ids"]
+            attention_mask = tokenized.get("attention_mask", None)
+        else:
+            input_ids = sequences
+            attention_mask = None
+            
+        device = next(self.model.parameters()).device
+        input_ids = input_ids.to(device)
+        if attention_mask is not None:
+            attention_mask = attention_mask.to(device)
+            
+        batch_size, seq_len = input_ids.shape
+        
+        # Store log probabilities for each position (excluding BOS and EOS)
+        log_probs = []
+        
+        with torch.no_grad():
+            # For each position between BOS and EOS
+            for pos in range(1, seq_len - 1):
+                # Create masked input
+                masked_input = input_ids.clone()
+                original_tokens = masked_input[:, pos].clone()
+                masked_input[:, pos] = self.tokenizer.mask_token_id
+                
+                # Get model predictions
+                if attention_mask is not None:
+                    outputs = self.model(input_ids=masked_input, attention_mask=attention_mask)
+                else:
+                    outputs = self.model(input_ids=masked_input)
+                    
+                logits = outputs.logits
+                
+                # Get log probabilities at the masked position
+                position_logits = logits[:, pos, :]  # [batch_size, vocab_size]
+                position_log_probs = F.log_softmax(position_logits, dim=-1)
+                
+                # Extract log probability of the original token
+                token_log_probs = position_log_probs.gather(1, original_tokens.unsqueeze(1)).squeeze(1)
+                log_probs.append(token_log_probs)
+        
+        # Stack log probabilities: [batch_size, num_positions]
+        log_probs = torch.stack(log_probs, dim=1)
+        
+        # Apply aggregation
+        if aggregate == "mean":
+            return log_probs.mean(dim=1)
+        elif aggregate == "sum":
+            return log_probs.sum(dim=1)
+        elif aggregate == "none":
+            return log_probs
+        else:
+            raise ValueError(f"Invalid aggregate option: {aggregate}. Choose from 'mean', 'sum', 'none'.")
+
 

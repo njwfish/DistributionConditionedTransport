@@ -1,6 +1,7 @@
 import torch
 import random
 import numpy as np
+import gc
 from typing import Dict, List, Optional, Sequence
 from transformers import EsmTokenizer, AutoTokenizer, PreTrainedTokenizerBase
 
@@ -52,8 +53,7 @@ def progen_bos_token_id(tokenizer: PreTrainedTokenizerBase) -> Optional[int]:
 
 def filter_indices_for_esm(
     esm_ids: torch.Tensor,
-    tokenizer: PreTrainedTokenizerBase,
-    x_fraction_threshold: float = None,  # Not used anymore but kept for compatibility
+    tokenizer: PreTrainedTokenizerBase
 ) -> torch.Tensor:
     """
     Returns a boolean mask of shape [N] where True means keep the sequence.
@@ -149,118 +149,132 @@ def filter_indices_for_progen(
     return keep
 
 
-# Define file paths
-input_file = "data/spikeprot0430/tokenized_chunks/virus_tokenized_data_1_40.pt.part_1"
-
-# Load the data
-data = torch.load(input_file)
-
-def count_x_token(seq):
-    return seq.count('X')
-
-# Print keys of the first dictionary
-if data and isinstance(data, list) and isinstance(data[0], dict):
-    print("Keys of the first dictionary:", data[0].keys())
-else:
-    print("Data is not in the expected format (list of dictionaries).")
-
-all_seqs = []
-all_x_tokens = []
-all_lengths = []
-seqs_with_x = 0
-
-all_locs = []
-
-for j, d in enumerate(data):
-    if j%100 == 0:
-        print(d['samples']['esm_input_ids'].shape, len(d['raw_texts']))
-    all_seqs.extend(d['raw_texts'])
-    all_locs.extend([d['time-loc'][7:] for _ in d['raw_texts']])
-    all_x_tokens.extend([count_x_token(seq)/len(seq) for seq in d['raw_texts']])
-    all_lengths.extend([len(seq) for seq in d['raw_texts']])
-    seqs_with_x += np.sum(np.array([count_x_token(seq) for seq in d['raw_texts']]) > 0)
-
-
-    
-all_x_tokens = np.array(all_x_tokens)
-all_lengths = np.array(all_lengths)
-
-print("=== Basic Statistics ===")
-print(f"Unique locations: {len(set(all_locs))}, Example locations: {list(set(all_locs))[:1]}")
-print(f"Mean length: {np.mean(all_lengths):.2f} ± {np.std(all_lengths):.2f}")
-print(f"Mean X token fraction: {np.mean(all_x_tokens):.4f}")
-print(f"Sequences without X tokens: {len(all_x_tokens)-np.sum(all_x_tokens > 0)}")
-print(f"Total sequences: {len(all_seqs)}")
-print(f"Sequences with X tokens: {seqs_with_x}")
-
-print("\n=== Filtering Analysis ===")
-print("Using STRINGENT filtering: ESM sequences with ANY X tokens will be excluded")
 # Load tokenizers using same defaults as filter_unusual_tokens.py
-try:
-    esm_tokenizer = EsmTokenizer.from_pretrained("facebook/esm2_t6_8M_UR50D")
-    print("Loaded ESM tokenizer")
-except Exception as e:
-    print(f"Warning: Could not load ESM tokenizer: {e}")
-    esm_tokenizer = None
+esm_tokenizer = EsmTokenizer.from_pretrained("facebook/esm2_t6_8M_UR50D")
+progen_tokenizer = AutoTokenizer.from_pretrained("hugohrban/progen2-base", trust_remote_code=True)
 
-# Check if ProGen data is present
-progen_present = any("progen_input_ids" in el.get("samples", {}) for el in data)
-if progen_present:
-    try:
-        progen_tokenizer = AutoTokenizer.from_pretrained("hugohrban/progen2-base", trust_remote_code=True)
-        print("Loaded ProGen tokenizer")
-    except Exception as e:
-        print(f"Warning: Could not load ProGen tokenizer: {e}")
-        progen_tokenizer = None
-else:
-    progen_tokenizer = None
-    print("No ProGen data detected")
+# Dictionary to aggregate filtered data by time-loc
+aggregated_data = {}
 
-# Apply filtering analysis with more stringent criteria (no X tokens allowed in ESM)
-x_fraction_threshold = 0.10  # Still used for ProGen if present, but not for ESM
+# Define file paths
+for pll_idx in range(5):
+    for subset_idx in range(5):
+        print(f"Processing {pll_idx} {subset_idx}")
+        input_file = f"data/spikeprot0430/tokenized_chunks/virus_tokenized_data_{pll_idx}_40.pt.part_{subset_idx}"
+        try:
+            data = torch.load(input_file)
+        except: 
+            break
 
-total_before = 0
-total_after = 0
+        for el in data:
+            samples = el["samples"]
+            time_loc = el["time-loc"]
+            raw_texts = el["raw_texts"]
+            
+            esm_ids = samples.get("esm_input_ids")
+            progen_ids = samples.get("progen_input_ids")
+            
+            N = esm_ids.shape[0]
+            keep_mask = torch.ones(N, dtype=torch.bool)
+            
+            # Apply ESM filtering
+            if esm_ids is not None and esm_tokenizer is not None:
+                esm_keep = filter_indices_for_esm(esm_ids, esm_tokenizer)
+                keep_mask &= esm_keep
+                del esm_keep  # Free memory
 
-for el in data:
-    samples = el["samples"]
+            # Apply ProGen filtering
+            if progen_ids is not None and progen_tokenizer is not None:
+                progen_keep = filter_indices_for_progen(progen_ids, progen_tokenizer)
+                keep_mask &= progen_keep
+                del progen_keep  # Free memory
+
+            # Apply the filtering mask
+            if keep_mask.sum() > 0:  # Only process if there are sequences to keep
+                # Filter all tensors in samples
+                filtered_samples = {}
+                for key, tensor in samples.items():
+                    filtered_samples[key] = tensor[keep_mask]
+                
+                # Filter raw_texts list using the mask
+                filtered_raw_texts = [raw_texts[i] for i in range(len(raw_texts)) if keep_mask[i]]
+                
+                # Create filtered element
+                filtered_element = {
+                    'samples': filtered_samples,
+                    'time-loc': time_loc,
+                    'raw_texts': filtered_raw_texts
+                }
+                
+                # Aggregate by time-loc
+                if time_loc not in aggregated_data:
+                    aggregated_data[time_loc] = []
+                aggregated_data[time_loc].append(filtered_element)
+                
+                # Clean up intermediate variables
+                del filtered_samples, filtered_raw_texts, filtered_element
+            
+            # Clean up variables for this element
+            del samples, esm_ids, progen_ids, keep_mask, time_loc, raw_texts
+        
+        # Clean up the loaded data and force garbage collection
+        del data
+        gc.collect()
+        
+        # Optional: Clear GPU cache if using CUDA
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+# Further aggregate data: concatenate raw_texts and stack tensors for each time-loc
+print(f"Found {len(aggregated_data)} unique time-loc entries")
+final_aggregated_data = {}
+
+for time_loc, elements in aggregated_data.items():
+    total_sequences = sum(len(el['raw_texts']) for el in elements)
+    print(f"Time-loc '{time_loc}': {len(elements)} chunks, {total_sequences} sequences")
     
-    esm_ids = samples.get("esm_input_ids")
-    progen_ids = samples.get("progen_input_ids")
-    
-    if esm_ids is None and progen_ids is None:
+    if len(elements) == 0:
         continue
+        
+    # Concatenate all raw_texts lists
+    all_raw_texts = []
+    for el in elements:
+        all_raw_texts.extend(el['raw_texts'])
     
-    # Determine N
-    if esm_ids is not None:
-        N = esm_ids.shape[0]
-    else:
-        N = progen_ids.shape[0]
+    # Stack all tensors for each key in samples
+    stacked_samples = {}
+    sample_keys = elements[0]['samples'].keys()  # Get keys from first element
     
-    total_before += N
+    for key in sample_keys:
+        # Collect all tensors for this key across all elements
+        tensors_to_stack = []
+        for el in elements:
+            tensors_to_stack.append(el['samples'][key])
+        
+        # Stack them along dimension 0 (batch dimension)
+        stacked_samples[key] = torch.cat(tensors_to_stack, dim=0)
     
-    keep_mask = torch.ones(N, dtype=torch.bool)
+    # Create the final aggregated entry for this time-loc
+    final_aggregated_data[time_loc] = {
+        'samples': stacked_samples,
+        'time-loc': time_loc,
+        'raw_texts': all_raw_texts
+    }
     
-    # Apply ESM filtering
-    if esm_ids is not None and esm_tokenizer is not None:
-        try:
-            esm_keep = filter_indices_for_esm(esm_ids, esm_tokenizer, x_fraction_threshold)
-            keep_mask &= esm_keep
-        except Exception as e:
-            print(f"Warning: ESM filtering failed: {e}")
-    
-    # Apply ProGen filtering
-    if progen_ids is not None and progen_tokenizer is not None:
-        try:
-            progen_keep = filter_indices_for_progen(progen_ids, progen_tokenizer)
-            keep_mask &= progen_keep
-        except Exception as e:
-            print(f"Warning: ProGen filtering failed: {e}")
-    
-    total_after += int(keep_mask.sum().item())
+    print(f"  -> Final aggregated: {len(all_raw_texts)} sequences, tensor shapes: {stacked_samples['esm_input_ids'].shape}")
 
-print(f"Sequences before filtering: {total_before}")
-print(f"Sequences after filtering: {total_after}")
-print(f"Sequences filtered out: {total_before - total_after}")
-print(f"Retention rate: {total_after/total_before*100:.2f}%" if total_before > 0 else "N/A")
+# Clean up intermediate aggregation data to free memory
+del aggregated_data
+gc.collect()
+
+# Optional: Clear GPU cache if using CUDA
+if torch.cuda.is_available():
+    torch.cuda.empty_cache()
+
+# Save the final aggregated data
+output_file = "data/spikeprot0430/filtered_aggregated_data.pt"
+torch.save(final_aggregated_data, output_file)
+print(f"Saved final aggregated data to {output_file}")
+print(f"Final structure: {len(final_aggregated_data)} time-loc entries")
+
 

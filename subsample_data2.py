@@ -3,7 +3,7 @@ import random
 import numpy as np
 
 # Define file paths
-input_file = "data/spikeprot0430/tokenized_chunks/virus_tokenized_data_33_40.pt.part_2"
+input_file = "data/spikeprot0430/tokenized_chunks/virus_tokenized_data_1_40.pt.part_1"
 
 # Load the data
 data = torch.load(input_file)
@@ -22,8 +22,9 @@ all_x_tokens = []
 all_lengths = []
 seqs_with_x = 0
 
-for d in data:
-    print(d['esm_input_ids'.shape])
+for j, d in enumerate(data):
+    if j%100 == 0:
+        print(d['samples']['esm_input_ids'].shape, len(d['raw_texts']))
     all_seqs.extend(d['raw_texts'])
     all_x_tokens.extend([count_x_token(seq)/len(seq) for seq in d['raw_texts']])
     all_lengths.extend([len(seq) for seq in d['raw_texts']])

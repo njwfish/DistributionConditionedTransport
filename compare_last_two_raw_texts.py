@@ -449,6 +449,14 @@ def main() -> None:
             "If not specified, generates one sequence for each sequence in second_last dataset."
         ),
     )
+    parser.add_argument(
+        "--use_baseline",
+        action="store_true",
+        help=(
+            "Use baseline ESM encoder and generator (no Hydra config/checkpoint). "
+            "Instantiates baseline models with default args and uses second_last ESM features as latents."
+        ),
+    )
     args = parser.parse_args()
 
     dataset_path = Path(args.dataset)
@@ -489,210 +497,283 @@ def main() -> None:
         print(f"Computed distance matrix in {elapsed:.2f}s")
     else:
         # Generated mode
-        if not args.run_dir:
-            raise ValueError("--run_dir is required for --compare_mode=generated")
-        run_dir = Path(args.run_dir)
-        cfg_path = run_dir / "config.yaml"
-        ckpt_path = run_dir / "best_model.pt"
-        if not cfg_path.exists():
-            raise FileNotFoundError(f"config.yaml not found in run dir: {run_dir}")
-        if not ckpt_path.exists():
-            raise FileNotFoundError(f"best_model.pt not found in run dir: {run_dir}")
+        if args.use_baseline:
+            # Baseline path: instantiate baseline encoder/generator with defaults and generate using second_last ESM features
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        # Load tokens and texts from dataset
-        second_last_tokens, last_tokens = load_last_two_token_tensors(dataset_path)
-        second_last_texts, last_texts = load_last_two_raw_texts(dataset_path)
-        
-        # Print lengths for both datasets
-        print(f"Length of second_last raw_texts: {len(second_last_texts)}")
-        print(f"Length of last raw_texts: {len(last_texts)}")
+            # Load tokens and texts from dataset
+            second_last_tokens, last_tokens = load_last_two_token_tensors(dataset_path)
+            second_last_texts, last_texts = load_last_two_raw_texts(dataset_path)
 
-        # Instantiate models from saved cfg
-        cfg = OmegaConf.load(str(cfg_path))
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        encoder = hydra.utils.instantiate(cfg.encoder)
-        generator = hydra.utils.instantiate(cfg.generator)
-        encoder = encoder.to(device)
-        generator = generator.to(device)
-        encoder.eval()
-        generator.eval()
+            print(f"Length of second_last raw_texts: {len(second_last_texts)}")
+            print(f"Length of last raw_texts: {len(last_texts)}")
 
-        # Load weights from checkpoint
-        # PyTorch 2.6 defaults weights_only=True, which can fail for configs in checkpoints.
-        # Load with weights_only=False (trusted local checkpoint). Fallback for older PyTorch.
-        try:
-            state = torch.load(str(ckpt_path), map_location=device, weights_only=False)
-        except TypeError:
-            # Older PyTorch without weights_only kwarg
-            state = torch.load(str(ckpt_path), map_location=device)
-        if 'encoder_state_dict' not in state or 'generator_state_dict' not in state:
-            raise KeyError("Checkpoint must contain 'encoder_state_dict' and 'generator_state_dict'")
-        encoder.load_state_dict(state['encoder_state_dict'])
-        generator.load_state_dict(state['generator_state_dict'])
+            # Imports are local to avoid heavy deps when not needed
+            from encoder.protein_encoders_ESM_baseline import ProteinSetEncoder as BaselineProteinSetEncoder
+            from generator.ESM_baseline import ESM2_Baseline_Generator
 
-        # Determine set_size from cfg
-        try:
-            set_size = int(cfg.experiment.set_size)
-        except Exception as exc:
-            raise KeyError("cfg.experiment.set_size not found in config.yaml") from exc
+            encoder = BaselineProteinSetEncoder().to(device)
+            generator = ESM2_Baseline_Generator().to(device)
+            encoder.eval()
+            generator.eval()
 
-        # Prepare tensors
-        src_ids_all = second_last_tokens["progen_input_ids"]  # [set_size_like, L]
-        src_mask_all = second_last_tokens["progen_attention_mask"]
-        src_esm_ids_all = second_last_tokens["esm_input_ids"]
-        src_esm_mask_all = second_last_tokens["esm_attention_mask"]
+            # Prepare tensors from second_last (source) set
+            src_esm_ids_all = second_last_tokens["esm_input_ids"]  # [N, L]
+            src_esm_mask_all = second_last_tokens["esm_attention_mask"]  # [N, L]
 
-        tgt_ids_all = last_tokens["progen_input_ids"]
-        tgt_mask_all = last_tokens["progen_attention_mask"]
-        tgt_esm_ids_all = last_tokens["esm_input_ids"]
-        tgt_esm_mask_all = last_tokens["esm_attention_mask"]
+            num_src = int(src_esm_ids_all.shape[0])
 
-        num_src = int(src_esm_ids_all.shape[0])
-        seq_len = int(src_ids_all.shape[1])
-        if hasattr(cfg.generator, 'seq_length'):
-            expected_L = int(cfg.generator.seq_length)
-            if expected_L != seq_len:
-                print(f"Warning: generator.seq_length={expected_L} but dataset L={seq_len}")
+            # Determine how many sequences to actually generate
+            if args.num_generate is not None:
+                num_to_generate = min(args.num_generate, num_src)
+                print(f"Generating {num_to_generate} sequences (requested: {args.num_generate}, available: {num_src})")
+            else:
+                num_to_generate = num_src
+                print(f"Generating {num_to_generate} sequences (one for each sequence in second_last)")
 
-        # Determine how many sequences to actually generate
-        if args.num_generate is not None:
-            num_to_generate = min(args.num_generate, num_src)
-            print(f"Generating {num_to_generate} sequences (requested: {args.num_generate}, available: {num_src})")
-        else:
-            num_to_generate = num_src
-            print(f"Generating {num_to_generate} sequences (one for each sequence in second_last)")
+            generated_texts: List[str] = []
 
-        # Partition into batches of set_size
-        full_batches = num_to_generate // set_size
-        remainder = num_to_generate % set_size
+            # Simple batching for efficiency/memory
+            batch_size = max(1, min(32, num_to_generate))
+            for start_idx in range(0, num_to_generate, batch_size):
+                end_idx = min(start_idx + batch_size, num_to_generate)
+                cur_src_esm_ids = src_esm_ids_all[start_idx:end_idx].to(device)
+                cur_src_esm_mask = src_esm_mask_all[start_idx:end_idx].to(device)
 
-        # Helper to encode a set of size set_size: expects tensors [set_size, L] -> batch dict with [1, set_size, L]
-        def encode_set(esm_ids: torch.Tensor, esm_mask: torch.Tensor) -> torch.Tensor:
-            batch = {
-                'esm_input_ids': esm_ids.unsqueeze(0).to(device),
-                'esm_attention_mask': esm_mask.unsqueeze(0).to(device),
-            }
-            with torch.no_grad():
-                lat = encoder(batch)
-            if lat.dim() == 2 and lat.size(0) == 1:
-                lat = lat
-            elif lat.dim() == 1:
-                lat = lat.unsqueeze(0)
-            return lat  # shape [1, latent_dim]
+                with torch.no_grad():
+                    # Get per-token hidden states (B, L, H)
+                    latent_target = encoder.esm_extractor(cur_src_esm_ids, cur_src_esm_mask)
 
-        generated_texts: List[str] = []
+                    # Sample one sequence per input using baseline generator
+                    out_ids = generator.sample(latent_target, num_samples=1, return_texts=False)
 
-        # For each full batch
-        for b in range(full_batches):
-            start_idx = b * set_size
-            end_idx = start_idx + set_size
-            cur_src_ids = src_ids_all[start_idx:end_idx]
-            cur_src_mask = src_mask_all[start_idx:end_idx]
-            cur_src_esm_ids = src_esm_ids_all[start_idx:end_idx]
-            cur_src_esm_mask = src_esm_mask_all[start_idx:end_idx]
+                # Decode ids to strings using generator tokenizer
+                # out_ids: [B, 1, L]
+                out_ids_cpu = out_ids.detach().cpu()
+                B = out_ids_cpu.shape[0]
+                for b in range(B):
+                    ids_b = out_ids_cpu[b, 0].tolist()
+                    text = generator.tokenizer.decode(ids_b, skip_special_tokens=True).replace(" ", "")
+                    generated_texts.append(text)
 
-            # TODO: needs to generalize to ProGen2. Might even remain silent.
-            # Random target subset of size set_size from last
-            perm_tgt = torch.randperm(tgt_esm_ids_all.shape[0])[:set_size]
-            cur_tgt_esm_ids = tgt_esm_ids_all[perm_tgt]
-            cur_tgt_esm_mask = tgt_esm_mask_all[perm_tgt]
-
-            # Encode latents
-            lat_src = encode_set(cur_src_esm_ids, cur_src_esm_mask)  # [1, d]
-            lat_tgt = encode_set(cur_tgt_esm_ids, cur_tgt_esm_mask)  # [1, d]
-
-            # Build x_source dict as expected by generator.sample with batch size 1 and set_size
-            x_source = {
-                'esm_input_ids': cur_src_esm_ids.unsqueeze(0).to(device),
-                'esm_attention_mask': cur_src_esm_mask.unsqueeze(0).to(device),
-                'progen_input_ids': cur_src_ids.unsqueeze(0).to(device),
-                'progen_attention_mask': cur_src_mask.unsqueeze(0).to(device),
-            }
-
-            # Sample 1 sequence per source element by generating one set and decoding each set element prompt
-            # The generator's sample returns [batch, num_samples, seq_len] token ids of target (with BOS)
-            out_ids, out_texts = generator.sample(x_source, lat_src, lat_tgt, num_samples=cur_src_esm_ids.shape[0], return_texts=True)
-            print(type(out_texts), len(out_texts), len(out_texts[0]), type(out_texts[0]))
-            # NOTE: indexing out_texts[0] because we have always batch_size=1 here.
-            generated_texts.extend(out_texts[0])
-
-
-        # Handle remainder by padding with repeats up to set_size
-        if remainder > 0:
-            # Get the last remainder sequences from our limited set
-            start_idx = full_batches * set_size
-            end_idx = start_idx + remainder
-            cur_src_ids = src_ids_all[start_idx:end_idx]
-            cur_src_mask = src_mask_all[start_idx:end_idx]
-            cur_src_esm_ids = src_esm_ids_all[start_idx:end_idx]
-            cur_src_esm_mask = src_esm_mask_all[start_idx:end_idx]
-
-            # pad indices by random sampling from the available sequences (up to num_to_generate)
-            pad_needed = set_size - remainder
-            pad_idx = torch.randint(low=0, high=num_src, size=(pad_needed,))
-            cur_src_ids_padded = torch.cat([cur_src_ids, src_ids_all[pad_idx]], dim=0)
-            cur_src_mask_padded = torch.cat([cur_src_mask, src_mask_all[pad_idx]], dim=0)
-            cur_src_esm_ids_padded = torch.cat([cur_src_esm_ids, src_esm_ids_all[pad_idx]], dim=0)
-            cur_src_esm_mask_padded = torch.cat([cur_src_esm_mask, src_esm_mask_all[pad_idx]], dim=0)
-
-            # Random target subset of size set_size
-            perm_tgt = torch.randperm(tgt_esm_ids_all.shape[0])[:set_size]
-            cur_tgt_esm_ids = tgt_esm_ids_all[perm_tgt]
-            cur_tgt_esm_mask = tgt_esm_mask_all[perm_tgt]
-
-            # Encode latents
-            lat_src = encode_set(cur_src_esm_ids_padded, cur_src_esm_mask_padded)
-            lat_tgt = encode_set(cur_tgt_esm_ids, cur_tgt_esm_mask)
-
-            x_source = {
-                'esm_input_ids': cur_src_esm_ids.unsqueeze(0).to(device),
-                'esm_attention_mask': cur_src_esm_mask.unsqueeze(0).to(device),
-                'progen_input_ids': cur_src_ids.unsqueeze(0).to(device),
-                'progen_attention_mask': cur_src_mask.unsqueeze(0).to(device),
-            }
-
-            out_ids, out_texts = generator.sample(x_source, lat_src, lat_tgt, num_samples=cur_src_esm_ids.shape[0], return_texts=True)
-            print(type(out_texts), len(out_texts), len(out_texts[0]), type(out_texts[0]))
-            print(out_texts)
-            # NOTE: indexing out_texts[0] because we have always batch_size=1 here.
-            # Generate one sequence per original remainder element (exactly remainder sequences)
-            generated_texts.extend(out_texts[0])
-       
-
-        # Now compare last_texts vs generated_texts
-        seqs_a = generated_texts
-        seqs_b = last_texts
-        print(f"Length of generated sequences: {len(seqs_a)}")
-        print(f"Length of last raw_texts: {len(seqs_b)}")
-        print(f"Generated {len(seqs_a)} sequences. Comparing to last ({len(seqs_b)} sequences)")
-        start = time.time()
-        dist = compute_distance_matrix(seqs_a, seqs_b, show_progress=True)
-        elapsed = time.time() - start
-        print(f"Computed distance matrix in {elapsed:.2f}s")
-        
-        # Analyze mismatch patterns for generated sequences
-        print("\n=== Mismatch Pattern Analysis ===")
-        mismatch_counts = analyze_mismatch_patterns(seqs_a, seqs_b)
-        
-        if mismatch_counts:
-            # Sort by mismatch count (descending) and get top 5
-            sorted_mismatches = sorted(mismatch_counts.items(), key=lambda x: x[1], reverse=True)
-            top_5 = sorted_mismatches[:5]
+            # Now compare last_texts vs generated_texts
+            seqs_a = generated_texts
+            seqs_b = last_texts
+            print(f"Length of generated sequences: {len(seqs_a)}")
+            print(f"Length of last raw_texts: {len(seqs_b)}")
+            print(f"Generated {len(seqs_a)} sequences. Comparing to last ({len(seqs_b)} sequences)")
+            start = time.time()
+            dist = compute_distance_matrix(seqs_a, seqs_b, show_progress=True)
+            elapsed = time.time() - start
+            print(f"Computed distance matrix in {elapsed:.2f}s")
             
-            print("Top 5 amino acids in generated sequences causing most mismatches:")
-            for i, (aa, count) in enumerate(top_5, 1):
-                print(f"  {i}. {aa}: {count} mismatches")
+            # Analyze mismatch patterns for generated sequences
+            print("\n=== Mismatch Pattern Analysis ===")
+            mismatch_counts = analyze_mismatch_patterns(seqs_a, seqs_b)
             
-            # Also show total mismatches and amino acid distribution
-            total_mismatches = sum(mismatch_counts.values())
-            print(f"\nTotal mismatches analyzed: {total_mismatches}")
-            if total_mismatches > 0:
-                print("Percentage contribution of top 5:")
+            if mismatch_counts:
+                sorted_mismatches = sorted(mismatch_counts.items(), key=lambda x: x[1], reverse=True)
+                top_5 = sorted_mismatches[:5]
+                print("Top 5 amino acids in generated sequences causing most mismatches:")
                 for i, (aa, count) in enumerate(top_5, 1):
-                    pct = (count / total_mismatches) * 100
-                    print(f"  {i}. {aa}: {pct:.1f}%")
+                    print(f"  {i}. {aa}: {count} mismatches")
+                total_mismatches = sum(mismatch_counts.values())
+                print(f"\nTotal mismatches analyzed: {total_mismatches}")
+                if total_mismatches > 0:
+                    print("Percentage contribution of top 5:")
+                    for i, (aa, count) in enumerate(top_5, 1):
+                        pct = (count / total_mismatches) * 100
+                        print(f"  {i}. {aa}: {pct:.1f}%")
+            else:
+                print("No mismatches found in comparable positions.")
         else:
-            print("No mismatches found in comparable positions.")
+            # Original path: Hydra-instantiated models and checkpoint loading
+            if not args.run_dir:
+                raise ValueError("--run_dir is required for --compare_mode=generated")
+            run_dir = Path(args.run_dir)
+            cfg_path = run_dir / "config.yaml"
+            ckpt_path = run_dir / "best_model.pt"
+            if not cfg_path.exists():
+                raise FileNotFoundError(f"config.yaml not found in run dir: {run_dir}")
+            if not ckpt_path.exists():
+                raise FileNotFoundError(f"best_model.pt not found in run dir: {run_dir}")
+
+            # Load tokens and texts from dataset
+            second_last_tokens, last_tokens = load_last_two_token_tensors(dataset_path)
+            second_last_texts, last_texts = load_last_two_raw_texts(dataset_path)
+            
+            # Print lengths for both datasets
+            print(f"Length of second_last raw_texts: {len(second_last_texts)}")
+            print(f"Length of last raw_texts: {len(last_texts)}")
+
+            # Instantiate models from saved cfg
+            cfg = OmegaConf.load(str(cfg_path))
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            encoder = hydra.utils.instantiate(cfg.encoder)
+            generator = hydra.utils.instantiate(cfg.generator)
+            encoder = encoder.to(device)
+            generator = generator.to(device)
+            encoder.eval()
+            generator.eval()
+
+            # Load weights from checkpoint
+            try:
+                state = torch.load(str(ckpt_path), map_location=device, weights_only=False)
+            except TypeError:
+                state = torch.load(str(ckpt_path), map_location=device)
+            if 'encoder_state_dict' not in state or 'generator_state_dict' not in state:
+                raise KeyError("Checkpoint must contain 'encoder_state_dict' and 'generator_state_dict'")
+            encoder.load_state_dict(state['encoder_state_dict'])
+            generator.load_state_dict(state['generator_state_dict'])
+
+            # Determine set_size from cfg
+            try:
+                set_size = int(cfg.experiment.set_size)
+            except Exception as exc:
+                raise KeyError("cfg.experiment.set_size not found in config.yaml") from exc
+
+            # Prepare tensors
+            src_ids_all = second_last_tokens["progen_input_ids"]  # [set_size_like, L]
+            src_mask_all = second_last_tokens["progen_attention_mask"]
+            src_esm_ids_all = second_last_tokens["esm_input_ids"]
+            src_esm_mask_all = second_last_tokens["esm_attention_mask"]
+
+            tgt_ids_all = last_tokens["progen_input_ids"]
+            tgt_mask_all = last_tokens["progen_attention_mask"]
+            tgt_esm_ids_all = last_tokens["esm_input_ids"]
+            tgt_esm_mask_all = last_tokens["esm_attention_mask"]
+
+            num_src = int(src_esm_ids_all.shape[0])
+            seq_len = int(src_ids_all.shape[1])
+            if hasattr(cfg.generator, 'seq_length'):
+                expected_L = int(cfg.generator.seq_length)
+                if expected_L != seq_len:
+                    print(f"Warning: generator.seq_length={expected_L} but dataset L={seq_len}")
+
+            # Determine how many sequences to actually generate
+            if args.num_generate is not None:
+                num_to_generate = min(args.num_generate, num_src)
+                print(f"Generating {num_to_generate} sequences (requested: {args.num_generate}, available: {num_src})")
+            else:
+                num_to_generate = num_src
+                print(f"Generating {num_to_generate} sequences (one for each sequence in second_last)")
+
+            # Partition into batches of set_size
+            full_batches = num_to_generate // set_size
+            remainder = num_to_generate % set_size
+
+            # Helper to encode a set of size set_size: expects tensors [set_size, L] -> batch dict with [1, set_size, L]
+            def encode_set(esm_ids: torch.Tensor, esm_mask: torch.Tensor) -> torch.Tensor:
+                batch = {
+                    'esm_input_ids': esm_ids.unsqueeze(0).to(device),
+                    'esm_attention_mask': esm_mask.unsqueeze(0).to(device),
+                }
+                with torch.no_grad():
+                    lat = encoder(batch)
+                if lat.dim() == 2 and lat.size(0) == 1:
+                    lat = lat
+                elif lat.dim() == 1:
+                    lat = lat.unsqueeze(0)
+                return lat  # shape [1, latent_dim]
+
+            generated_texts: List[str] = []
+
+            # For each full batch
+            for b in range(full_batches):
+                start_idx = b * set_size
+                end_idx = start_idx + set_size
+                cur_src_ids = src_ids_all[start_idx:end_idx]
+                cur_src_mask = src_mask_all[start_idx:end_idx]
+                cur_src_esm_ids = src_esm_ids_all[start_idx:end_idx]
+                cur_src_esm_mask = src_esm_mask_all[start_idx:end_idx]
+
+                # Random target subset of size set_size from last
+                perm_tgt = torch.randperm(tgt_esm_ids_all.shape[0])[:set_size]
+                cur_tgt_esm_ids = tgt_esm_ids_all[perm_tgt]
+                cur_tgt_esm_mask = tgt_esm_mask_all[perm_tgt]
+
+                # Encode latents
+                lat_src = encode_set(cur_src_esm_ids, cur_src_esm_mask)  # [1, d]
+                lat_tgt = encode_set(cur_tgt_esm_ids, cur_tgt_esm_mask)  # [1, d]
+
+                # Build x_source dict as expected by generator.sample with batch size 1 and set_size
+                x_source = {
+                    'esm_input_ids': cur_src_esm_ids.unsqueeze(0).to(device),
+                    'esm_attention_mask': cur_src_esm_mask.unsqueeze(0).to(device),
+                    'progen_input_ids': cur_src_ids.unsqueeze(0).to(device),
+                    'progen_attention_mask': cur_src_mask.unsqueeze(0).to(device),
+                }
+
+                out_ids, out_texts = generator.sample(x_source, lat_src, lat_tgt, num_samples=cur_src_esm_ids.shape[0], return_texts=True)
+                print(type(out_texts), len(out_texts), len(out_texts[0]), type(out_texts[0]))
+                generated_texts.extend(out_texts[0])
+
+            # Handle remainder by padding with repeats up to set_size
+            if remainder > 0:
+                start_idx = full_batches * set_size
+                end_idx = start_idx + remainder
+                cur_src_ids = src_ids_all[start_idx:end_idx]
+                cur_src_mask = src_mask_all[start_idx:end_idx]
+                cur_src_esm_ids = src_esm_ids_all[start_idx:end_idx]
+                cur_src_esm_mask = src_esm_mask_all[start_idx:end_idx]
+
+                pad_needed = set_size - remainder
+                pad_idx = torch.randint(low=0, high=num_src, size=(pad_needed,))
+                cur_src_ids_padded = torch.cat([cur_src_ids, src_ids_all[pad_idx]], dim=0)
+                cur_src_mask_padded = torch.cat([cur_src_mask, src_mask_all[pad_idx]], dim=0)
+                cur_src_esm_ids_padded = torch.cat([cur_src_esm_ids, src_esm_ids_all[pad_idx]], dim=0)
+                cur_src_esm_mask_padded = torch.cat([cur_src_esm_mask, src_esm_mask_all[pad_idx]], dim=0)
+
+                perm_tgt = torch.randperm(tgt_esm_ids_all.shape[0])[:set_size]
+                cur_tgt_esm_ids = tgt_esm_ids_all[perm_tgt]
+                cur_tgt_esm_mask = tgt_esm_mask_all[perm_tgt]
+
+                lat_src = encode_set(cur_src_esm_ids_padded, cur_src_esm_mask_padded)
+                lat_tgt = encode_set(cur_tgt_esm_ids, cur_tgt_esm_mask)
+
+                x_source = {
+                    'esm_input_ids': cur_src_esm_ids.unsqueeze(0).to(device),
+                    'esm_attention_mask': cur_src_esm_mask.unsqueeze(0).to(device),
+                    'progen_input_ids': cur_src_ids.unsqueeze(0).to(device),
+                    'progen_attention_mask': cur_src_mask.unsqueeze(0).to(device),
+                }
+
+                out_ids, out_texts = generator.sample(x_source, lat_src, lat_tgt, num_samples=cur_src_esm_ids.shape[0], return_texts=True)
+                print(type(out_texts), len(out_texts), len(out_texts[0]), type(out_texts[0]))
+                print(out_texts)
+                generated_texts.extend(out_texts[0])
+           
+
+            # Now compare last_texts vs generated_texts
+            seqs_a = generated_texts
+            seqs_b = last_texts
+            print(f"Length of generated sequences: {len(seqs_a)}")
+            print(f"Length of last raw_texts: {len(seqs_b)}")
+            print(f"Generated {len(seqs_a)} sequences. Comparing to last ({len(seqs_b)} sequences)")
+            start = time.time()
+            dist = compute_distance_matrix(seqs_a, seqs_b, show_progress=True)
+            elapsed = time.time() - start
+            print(f"Computed distance matrix in {elapsed:.2f}s")
+            
+            # Analyze mismatch patterns for generated sequences
+            print("\n=== Mismatch Pattern Analysis ===")
+            mismatch_counts = analyze_mismatch_patterns(seqs_a, seqs_b)
+            
+            if mismatch_counts:
+                sorted_mismatches = sorted(mismatch_counts.items(), key=lambda x: x[1], reverse=True)
+                top_5 = sorted_mismatches[:5]
+                print("Top 5 amino acids in generated sequences causing most mismatches:")
+                for i, (aa, count) in enumerate(top_5, 1):
+                    print(f"  {i}. {aa}: {count} mismatches")
+                total_mismatches = sum(mismatch_counts.values())
+                print(f"\nTotal mismatches analyzed: {total_mismatches}")
+                if total_mismatches > 0:
+                    print("Percentage contribution of top 5:")
+                    for i, (aa, count) in enumerate(top_5, 1):
+                        pct = (count / total_mismatches) * 100
+                        print(f"  {i}. {aa}: {pct:.1f}%")
+            else:
+                print("No mismatches found in comparable positions.")
 
     # Optionally print matrix
     if args.print_matrix:

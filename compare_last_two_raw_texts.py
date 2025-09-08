@@ -17,6 +17,20 @@ except Exception as exc:  # pragma: no cover
     ) from exc
 
 
+# Lightweight slow-path logger
+_SLOW_LOG_PATH = \
+    "/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/slow_logger.log"
+
+def slow_log(msg: str) -> None:
+    try:
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        with open(_SLOW_LOG_PATH, "a") as f:
+            f.write(f"[{ts}] {msg}\n")
+    except Exception:
+        # Never crash on logging
+        pass
+
+
 
 # Custom scoring to handle ambiguous 'X' residues during alignment
 # - Identical non-'X' matches score +1.0
@@ -39,6 +53,9 @@ for _aa in _AA_ALPHABET + ["X"]:
 _GAP_OPEN = -1.0
 _GAP_EXTEND = -0.1
 
+# Global counter for alignment_distance calls
+_alignment_call_count = 0
+
 def alignment_distance(seq1: str, seq2: str) -> float:
     """Compute distance = 1 - identity with special handling for 'X'.
 
@@ -50,7 +67,16 @@ def alignment_distance(seq1: str, seq2: str) -> float:
       not gaps and not 'X'. Positions with 'X' are excluded from both the
       numerator and denominator.
     """
+    global _alignment_call_count
+    _alignment_call_count += 1
+    
+    # Log timing every 100th call
+    if _alignment_call_count % 100 == 0:
+        alignment_start = time.time()
+        
     if not seq1 and not seq2:
+        if _alignment_call_count % 100 == 0:
+            slow_log(f"alignment_distance call #{_alignment_call_count} took {time.time() - alignment_start:.4f}s (empty seqs)")
         return 0.0
 
     a = seq1.upper()
@@ -68,6 +94,8 @@ def alignment_distance(seq1: str, seq2: str) -> float:
         penalize_end_gaps=False,
     )
     if not alignments:
+        if _alignment_call_count % 100 == 0:
+            slow_log(f"alignment_distance call #{_alignment_call_count} took {time.time() - alignment_start:.4f}s (no alignments)")
         return 0.0
 
     aligned_a, aligned_b, _score, _start, _end = alignments[0]
@@ -92,10 +120,18 @@ def alignment_distance(seq1: str, seq2: str) -> float:
 
     if considered == 0:
         # No comparable positions (all gaps/'X'): treat as zero distance
+        if _alignment_call_count % 100 == 0:
+            slow_log(f"alignment_distance call #{_alignment_call_count} took {time.time() - alignment_start:.4f}s (no comparable positions)")
         return 0.0
 
     identity = float(matches) / float(considered)
-    return 1.0 - identity
+    result = 1.0 - identity
+    
+    # Log timing every 100th call
+    if _alignment_call_count % 100 == 0:
+        slow_log(f"alignment_distance call #{_alignment_call_count} took {time.time() - alignment_start:.4f}s")
+    
+    return result
 
 
 def load_last_two_raw_texts(dataset_path: Path) -> Tuple[List[str], List[str]]:
@@ -499,21 +535,35 @@ def main() -> None:
         # Generated mode
         if args.use_baseline:
             # Baseline path: instantiate baseline encoder/generator with defaults and generate using second_last ESM features
+            slow_log("Starting baseline generation path")
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            slow_log(f"Using device: {device}")
 
             # Load tokens and texts from dataset
+            slow_log("Loading tokens and texts from dataset")
+            start_load = time.time()
             second_last_tokens, last_tokens = load_last_two_token_tensors(dataset_path)
             second_last_texts, last_texts = load_last_two_raw_texts(dataset_path)
+            slow_log(f"Dataset loading took {time.time() - start_load:.2f}s")
 
             print(f"Length of second_last raw_texts: {len(second_last_texts)}")
             print(f"Length of last raw_texts: {len(last_texts)}")
 
             # Imports are local to avoid heavy deps when not needed
+            slow_log("Importing baseline models")
             from encoder.protein_encoders_ESM_baseline import ProteinSetEncoder as BaselineProteinSetEncoder
             from generator.ESM_baseline import ESM2_Baseline_Generator
 
+            slow_log("Instantiating baseline encoder")
+            start_enc = time.time()
             encoder = BaselineProteinSetEncoder().to(device)
+            slow_log(f"Encoder instantiation took {time.time() - start_enc:.2f}s")
+            
+            slow_log("Instantiating baseline generator")
+            start_gen = time.time()
             generator = ESM2_Baseline_Generator().to(device)
+            slow_log(f"Generator instantiation took {time.time() - start_gen:.2f}s")
+            
             encoder.eval()
             generator.eval()
 
@@ -535,19 +585,35 @@ def main() -> None:
 
             # Simple batching for efficiency/memory
             batch_size = max(1, min(32, num_to_generate))
-            for start_idx in range(0, num_to_generate, batch_size):
+            slow_log(f"Starting generation loop: {num_to_generate} sequences, batch_size={batch_size}")
+            
+            total_batches = (num_to_generate + batch_size - 1) // batch_size
+            for batch_idx, start_idx in enumerate(range(0, num_to_generate, batch_size)):
+                batch_start_time = time.time()
                 end_idx = min(start_idx + batch_size, num_to_generate)
+                current_batch_size = end_idx - start_idx
+                
+                slow_log(f"Processing batch {batch_idx + 1}/{total_batches} (sequences {start_idx}-{end_idx-1})")
+                
+                # Prepare batch data
+                prep_start = time.time()
                 cur_src_esm_ids = src_esm_ids_all[start_idx:end_idx].to(device)
                 cur_src_esm_mask = src_esm_mask_all[start_idx:end_idx].to(device)
+                slow_log(f"  Batch data prep took {time.time() - prep_start:.3f}s")
 
                 with torch.no_grad():
                     # Get per-token hidden states (B, L, H)
+                    enc_start = time.time()
                     latent_target = encoder.esm_extractor(cur_src_esm_ids, cur_src_esm_mask)
+                    slow_log(f"  Encoder forward took {time.time() - enc_start:.3f}s")
 
                     # Sample one sequence per input using baseline generator
+                    gen_start = time.time()
                     out_ids = generator.sample(latent_target, num_samples=1, return_texts=False)
+                    slow_log(f"  Generator sampling took {time.time() - gen_start:.3f}s")
 
                 # Decode ids to strings using generator tokenizer
+                decode_start = time.time()
                 # out_ids: [B, 1, L]
                 out_ids_cpu = out_ids.detach().cpu()
                 B = out_ids_cpu.shape[0]
@@ -555,6 +621,23 @@ def main() -> None:
                     ids_b = out_ids_cpu[b, 0].tolist()
                     text = generator.tokenizer.decode(ids_b, skip_special_tokens=True).replace(" ", "")
                     generated_texts.append(text)
+                slow_log(f"  Decoding took {time.time() - decode_start:.3f}s")
+                
+                slow_log(f"  Total batch time: {time.time() - batch_start_time:.3f}s")
+            
+            slow_log(f"Generation completed: {len(generated_texts)} sequences generated")
+
+            # Check that all generated sequences have the same length
+            if generated_texts:
+                seq_lengths = [len(seq) for seq in generated_texts]
+                unique_lengths = set(seq_lengths)
+                assert len(unique_lengths) == 1, f"Generated sequences have different lengths: {unique_lengths}"
+                seq_length = seq_lengths[0]
+                print(f"All generated sequences have length: {seq_length}")
+                slow_log(f"All generated sequences have length: {seq_length}")
+            else:
+                print("No sequences generated")
+                slow_log("No sequences generated")
 
             # Now compare last_texts vs generated_texts
             seqs_a = generated_texts

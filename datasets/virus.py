@@ -141,14 +141,14 @@ class ViralDataset(Dataset):
         progen_attention_mask_target = item_target['samples']['progen_attention_mask']
 
         # TODO: implement optimal pairing here.
-        subset_indices_source = np.random.choice(esm_input_ids_source.shape[0], size=self.set_size, replace=False)
+        subset_indices_source = np.random.choice(esm_input_ids_source.shape[0], size=self.set_size, replace=True)
 
         esm_input_ids_source = esm_input_ids_source[subset_indices_source]
         esm_attention_mask_source = esm_attention_mask_source[subset_indices_source]
         progen_input_ids_source = progen_input_ids_source[subset_indices_source]
         progen_attention_mask_source = progen_attention_mask_source[subset_indices_source]
 
-        subset_indices_target = np.random.choice(esm_input_ids_target.shape[0], size=self.set_size, replace=False)
+        subset_indices_target = np.random.choice(esm_input_ids_target.shape[0], size=self.set_size, replace=True)
 
         esm_input_ids_target = esm_input_ids_target[subset_indices_target]
         esm_attention_mask_target = esm_attention_mask_target[subset_indices_target]

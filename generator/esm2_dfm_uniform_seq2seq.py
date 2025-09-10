@@ -10,6 +10,23 @@ from utils.nan_debug import get_nan_logger
 
 import math
 
+class ConditioningBlock(nn.Module):
+    def __init__(self, hidden_size, num_heads, attn_dropout, ffn_inner_dim, hidden_dropout):
+        super().__init__()
+        self.attn = nn.MultiheadAttention(embed_dim=hidden_size, num_heads=num_heads, dropout=attn_dropout, batch_first=True)
+        self.ln1 = nn.LayerNorm(hidden_size)
+        self.lnm = nn.LayerNorm(hidden_size)
+        self.ffn = nn.Sequential(
+            nn.Linear(hidden_size, ffn_inner_dim),
+            nn.GELU(),
+            nn.Dropout(hidden_dropout),
+            nn.Linear(ffn_inner_dim, hidden_size),
+            nn.Dropout(hidden_dropout),
+        )
+        self.ln2 = nn.LayerNorm(hidden_size)
+        self.gate_attn = nn.Parameter(torch.zeros(1))
+        self.gate_ffn = nn.Parameter(torch.zeros(1))
+
 # TODO: cite source (the original DFM paper).
 # TODO: now that you are sticking to t \in [0,1], rather than t \in [0, 1000], is this still a good way to embed the timesteps?
 def transformer_timestep_embedding(timesteps: torch.Tensor, embedding_dim: int, max_positions: int = 10000) -> torch.Tensor:
@@ -73,18 +90,13 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
         ffn_inner_dim = max(condition_dim, 1)
         self.condition_blocks = nn.ModuleList()
         for _ in range(self.num_condition_layers):
-            block = nn.ModuleDict({
-                "attn": nn.MultiheadAttention(embed_dim=self.hidden_size, num_heads=num_heads, dropout=attn_dropout, batch_first=True),
-                "ln1": nn.LayerNorm(self.hidden_size),
-                "ffn": nn.Sequential(
-                    nn.Linear(self.hidden_size, ffn_inner_dim),
-                    nn.GELU(),
-                    nn.Dropout(hidden_dropout),
-                    nn.Linear(ffn_inner_dim, self.hidden_size),
-                    nn.Dropout(hidden_dropout),
-                ),
-                "ln2": nn.LayerNorm(self.hidden_size),
-            })
+            block = ConditioningBlock(
+                hidden_size=self.hidden_size,
+                num_heads=num_heads,
+                attn_dropout=attn_dropout,
+                ffn_inner_dim=ffn_inner_dim,
+                hidden_dropout=hidden_dropout,
+            )
             self.condition_blocks.append(block)
 
     def forward(
@@ -157,14 +169,31 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
                 if alpha is not None:
                     alpha = alpha.float()
 
-                # Run through external conditioner blocks
+
+                # Run through external conditioner blocks (Pre-Norm + standard MHA)
                 for block in self.condition_blocks:
-                    attn_out, _ = block["attn"](query=hidden_states, key=memory, value=memory, need_weights=False)
+                    q_norm = block.ln1(hidden_states)
+                    m_norm = block.lnm(memory)
+
+                    try:
+                        sdp_ctx = torch.backends.cuda.sdp_kernel(enable_flash=False, enable_mem_efficient=False, enable_math=True)
+                    except Exception:
+                        sdp_ctx = None
+
+                    if sdp_ctx is not None:
+                        with sdp_ctx:
+                            attn_out, _ = block.attn(query=q_norm, key=m_norm, value=m_norm, need_weights=False)
+                    else:
+                        attn_out, _ = block.attn(query=q_norm, key=m_norm, value=m_norm, need_weights=False)
+
                     if alpha is not None:
                         attn_out = attn_out * alpha
-                    hidden_states = block["ln1"](hidden_states + attn_out)
-                    ffn_out = block["ffn"](hidden_states)
-                    hidden_states = block["ln2"](hidden_states + ffn_out)
+                    hidden_states = hidden_states + attn_out * block.gate_attn
+
+                    ffn_in = block.ln2(hidden_states)
+                    ffn_out = block.ffn(ffn_in)
+                    hidden_states = hidden_states + ffn_out * block.gate_ffn
+
                     try:
                         if torch.isnan(hidden_states).any() or torch.isinf(hidden_states).any():
                             nan_logger = get_nan_logger()

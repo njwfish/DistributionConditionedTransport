@@ -202,7 +202,7 @@ class Progen2Generator(nn.Module):
         latent_dim=32,
         condition_dim=256,
         freeze_progen2=False,
-        condition_method="prefix",
+        condition_method="additive",
         temperature=1.0,
         seq_length=1000,
     ):
@@ -225,7 +225,8 @@ class Progen2Generator(nn.Module):
             latent_dim=latent_dim,
             condition_dim=condition_dim,
             freeze_progen2=freeze_progen2,
-            condition_method=condition_method,
+            # Force additive conditioning to match ESM2 additive approach
+            condition_method="additive",
             seq_length=seq_length,
         )
         
@@ -328,6 +329,99 @@ class Progen2Generator(nn.Module):
         
         return loss
 
+    def conditional_log_likelihood(self, x_source, x_target, latent_source, latent_target):
+        """
+        Compute conditional log-likelihood log p(y|x) for target sequences y given source sequences x.
+
+        Args:
+            x_source: Dict with keys 'progen_input_ids' and 'progen_attention_mask' for source sequences
+            x_target: Dict with keys 'progen_input_ids' and 'progen_attention_mask' for target sequences
+            latent_source: Tensor [batch_size, latent_dim]
+            latent_target: Tensor [batch_size, latent_dim]
+
+        Returns:
+            Tensor of log-likelihoods summed over target tokens.
+            Shape is [batch_size] if no set dimension is present, otherwise [batch_size, set_size].
+        """
+        # Validate latent dimensions and normalize per-sample
+        if latent_source.dim() != 2 or latent_target.dim() != 2:
+            raise ValueError(
+                f"Progen2Generator.conditional_log_likelihood expects 2D latents shaped (batch_size, latent_dim)."
+                f" Got latent_source.shape={tuple(latent_source.shape)},"
+                f" latent_target.shape={tuple(latent_target.shape)}"
+            )
+        latent_source = latent_source / torch.norm(latent_source, dim=-1, keepdim=True).clamp_min(1e-12)
+        latent_target = latent_target / torch.norm(latent_target, dim=-1, keepdim=True).clamp_min(1e-12)
+
+        source_ids = x_source['progen_input_ids']
+        source_attention_mask = x_source['progen_attention_mask']
+
+        target_ids = x_target['progen_input_ids']
+        target_attention_mask = x_target['progen_attention_mask']
+
+        # Remove BOS from target; we condition on source + sep and predict only amino acids
+        target_ids_wo_bos = target_ids[..., 1:]
+        target_attention_mask_wo_bos = target_attention_mask[..., 1:]
+
+        # Concatenate source + <|endoftext|> + target (without BOS)
+        sep_shape = list(source_ids.shape[:-1]) + [1]
+        sep_ids = torch.full(sep_shape, fill_value=self.sep_token_id, dtype=source_ids.dtype, device=source_ids.device)
+        sep_mask = torch.ones_like(sep_ids, dtype=source_attention_mask.dtype)
+
+        concat_ids = torch.cat([source_ids, sep_ids, target_ids_wo_bos], dim=-1)
+        concat_attention_mask = torch.cat([source_attention_mask, sep_mask, target_attention_mask_wo_bos], dim=-1)
+
+        # Forward pass on concatenated input
+        logits = self.model(concat_ids, concat_attention_mask, latent_source, latent_target)
+        shift_logits = logits[:, :-1, :]  # [B_flat, L-1, V]
+
+        # Labels for next-token prediction
+        shift_labels_pre = concat_ids[..., 1:]  # [B or B,S, L-1]
+
+        # Mask: only evaluate log-probs on the target portion (excluding BOS)
+        source_len = source_ids.shape[-1]
+        target_len_wo_bos = target_ids_wo_bos.shape[-1]
+
+        labels_mask = torch.zeros_like(shift_labels_pre, dtype=target_attention_mask.dtype)
+        labels_mask[..., -target_len_wo_bos:] = target_attention_mask_wo_bos
+
+        # Exclude positions where target token is 'X'
+        x_token_id = self.tokenizer.convert_tokens_to_ids('X')
+        x_mask = (target_ids_wo_bos == x_token_id)  # [B or B,S, target_len_wo_bos]
+
+        # If the model flattened set dimension internally, align labels/masks accordingly
+        if shift_labels_pre.dim() == 3 and shift_logits.dim() == 3 and \
+           (shift_labels_pre.shape[0] * shift_labels_pre.shape[1] == shift_logits.shape[0]):
+            flat_shift_labels = shift_labels_pre.view(-1, shift_labels_pre.shape[-1])
+            flat_labels_mask = labels_mask.view(-1, labels_mask.shape[-1])
+            flat_x_mask = x_mask.view(-1, x_mask.shape[-1])
+            out_shape = (shift_labels_pre.shape[0], shift_labels_pre.shape[1])  # [B, S]
+        else:
+            flat_shift_labels = shift_labels_pre
+            flat_labels_mask = labels_mask
+            flat_x_mask = x_mask
+            out_shape = None  # [B]
+
+        # Compute log-probs for the correct tokens
+        log_probs = F.log_softmax(shift_logits, dim=-1)  # [B_flat, L-1, V]
+        token_logps = log_probs.gather(-1, flat_shift_labels.unsqueeze(-1)).squeeze(-1)  # [B_flat, L-1]
+
+        # Build valid mask: only target positions and excluding 'X'
+        valid_mask = (flat_labels_mask > 0)
+        if target_len_wo_bos > 0:
+            valid_tail = valid_mask[..., -target_len_wo_bos:]
+            valid_mask = valid_mask.clone()
+            valid_mask[..., -target_len_wo_bos:] = valid_tail & (~flat_x_mask)
+
+        # Sum log-probabilities over valid target tokens
+        seq_logps = (token_logps * valid_mask.to(token_logps.dtype)).sum(dim=-1)
+
+        # If we flattened set dimension, restore it
+        if out_shape is not None:
+            seq_logps = seq_logps.view(*out_shape)
+
+        return seq_logps
+
     def sample(self, x_source, latent_source, latent_target, num_samples=1, return_texts=False):
         """
         Sample sequences from the conditioned model.
@@ -369,6 +463,7 @@ class Progen2Generator(nn.Module):
         for sample_idx in range(num_samples):
             # Add noise for diversity if generating multiple samples
             if num_samples > 1:
+                # TODO: how do we know that this is the correct noise scale? It might be too high.
                 noise_scale = 0.1
                 noisy_latent_source = latent_source + noise_scale * torch.randn_like(latent_source)
                 noisy_latent_target = latent_target + noise_scale * torch.randn_like(latent_target)

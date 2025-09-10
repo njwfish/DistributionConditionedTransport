@@ -1,0 +1,37 @@
+# @package _global_.experiment
+
+# Experiment name and description
+name: lineage_pilot
+description: "clonal dynamics with coupled distribution embeddings"
+
+
+defaults:
+  - /dataset: lineage_tracing
+  - /encoder: gnn
+  - /model: noise_mlp
+  - /generator: energy
+  - /training: default50
+  - /collate: none
+  - /loss: predictor
+  - /predictor: default
+
+latent_dim: 16
+hidden_dim: 64
+set_size: 100
+use_predicted_latent: true
+
+predictor_loss_weight: 0.1
+predictor_model_type: "mlp"
+predictor_conditioning_mode: "concat"
+predictor_condition_type: "scalar_d"
+predictor_model_args:
+  hidden_dim: 128
+  num_layers: 2
+
+weight_mode: "uniform"
+num_samples: 100
+batch_size: 10
+lr: 2e-4
+selective_pairing_mode: null
+unidirectional: false
+exponential_weight_scale: 1.0

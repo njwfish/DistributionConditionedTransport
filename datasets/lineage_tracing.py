@@ -65,7 +65,7 @@ class LTSeqDataset(Dataset):
         self,
         set_size: int = 100,
         min_cells: int = 3,
-        # n_pcs: int = 50,
+        n_pcs: int = 50,
         root: str = './data',
         data_shape: List[int] = [10000],
         seed: Optional[int] = None
@@ -81,14 +81,15 @@ class LTSeqDataset(Dataset):
         self.data_shape = data_shape
 
         adata = GetLTSeqData(root)
-        # sc.tl.pca(adata, n_comps=n_pcs)
+        sc.tl.pca(adata, n_comps=n_pcs)
         self.adata = adata
 
         self.data, self.metadata = self.generate_clone_sets()
         self.n_sets = len(self.data)
+        self.src_samples, self.tgt_samples, self.src_metadata, self.tgt_metadata = self.generate_clone_set_pairs()
 
     def generate_clone_sets(self):
-        feats = self.adata.X#.obsm['X_pca']
+        feats = self.adata.obsm['X_pca']
         df = self.adata.obs[['clone', 'time']].astype(str)
         df['cluster_id'] = df.agg('--'.join, axis=1)
 
@@ -166,18 +167,13 @@ class LTSeqDataset(Dataset):
         return src_tensor, tgt_tensor, src_metadata, tgt_metadata
 
     def __len__(self):
-        return self.n_sets
+        return len(self.src_samples)
 
     def __getitem__(self, idx):
 
-        # what we need to do is update this
-        # to give source samples, target samples, source metadata, target metadata
-
-        src_samples, tgt_samples, src_metadata, tgt_metadata = self.generate_clone_set_pairs()
-
         return {
-            'source_samples': src_samples,
-            'target_samples': tgt_samples,
-            'source_metadata': src_metadata,
-            'target_metadata': tgt_metadata
+            'source_samples': self.src_samples[idx],
+            'target_samples': self.tgt_samples[idx],
+            'source_metadata': self.src_metadata[idx],
+            'target_metadata': self.tgt_metadata[idx]
         }

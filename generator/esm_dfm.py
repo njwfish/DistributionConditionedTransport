@@ -82,8 +82,9 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
             })
             for _ in range(self.num_condition_layers)
         ])
-
-        # Residual scales (zero-init) so blocks start as identity
+        # Normalize memory tokens to control attention score magnitude
+        self.mem_ln = nn.LayerNorm(self.hidden_size)
+        # Zero-init residual scales so blocks start as identity
         self.cross_attn_scales = nn.ParameterList([nn.Parameter(torch.zeros(1)) for _ in range(self.num_condition_layers)])
         self.cross_ff_scales = nn.ParameterList([nn.Parameter(torch.zeros(1)) for _ in range(self.num_condition_layers)])
 
@@ -140,33 +141,29 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
             if self.use_delta_token:
                 mem_list.append(delta_latent)
             mem_tokens = torch.stack(mem_list, dim=1)  # (B, M, Z)
-            mem_tokens = self.latent_proj(mem_tokens).to(dtype=torch.float32)  # (B, M, D)
-            # Normalize memory tokens to control attention score magnitude
-            mem_tokens = mem_tokens / mem_tokens.norm(dim=-1, keepdim=True).clamp_min(1e-6)
+            mem_tokens = self.latent_proj(mem_tokens).to(dtype=hidden_states.dtype)  # (B, M, D)
+            mem_tokens = self.mem_ln(mem_tokens)
 
             x = hidden_states
-            device_type = 'cuda' if x.is_cuda else 'cpu'
+            # Per-sample time gating in [0,1]
+            if self.gate_method == "time_linear":
+                gate = t.clamp(0, 1).view(-1, 1, 1).to(x.dtype)
+            else:
+                gate = torch.tensor(1.0, device=x.device, dtype=x.dtype)
             for idx, layer in enumerate(self.cross_attn_layers):
-                # Cross-attention block (Pre-LN + residual), compute in float32 for stability
-                with torch.autocast(device_type=device_type, enabled=False):
-                    y32 = layer["ln1"](x).to(torch.float32)
-                    attn_out32, _ = layer["attn"](y32, mem_tokens, mem_tokens, need_weights=False)
-                    attn_out32 = layer["dropout1"](attn_out32)
-                # Optional simple time gating on residual
-                gate = 1.0
-                if self.gate_method == "time_linear":
-                    # average time per batch as scalar gate in [0,1]
-                    gate = t.mean().clamp(0, 1)
-                attn_scale = torch.tanh(self.cross_attn_scales[idx])
-                x = x + (attn_scale * gate).to(x.dtype) * attn_out32.to(x.dtype)
+                # Cross-attention block (Pre-LN + residual)
+                y = layer["ln1"](x)
+                attn_out, _ = layer["attn"](y, mem_tokens, mem_tokens, need_weights=False)
+                attn_out = layer["dropout1"](attn_out)
+                attn_scale = torch.tanh(self.cross_attn_scales[idx]).to(x.dtype)
+                x = x + gate * (attn_scale * attn_out)
 
                 # Feed-forward block (Pre-LN + residual)
-                with torch.autocast(device_type=device_type, enabled=False):
-                    z32 = layer["ln2"](x).to(torch.float32)
-                    ff_out32 = layer["ff"](z32)
-                    ff_out32 = layer["dropout2"](ff_out32)
-                ff_scale = torch.tanh(self.cross_ff_scales[idx])
-                x = x + (ff_scale * gate).to(x.dtype) * ff_out32.to(x.dtype)
+                z = layer["ln2"](x)
+                ff_out = layer["ff"](z)
+                ff_out = layer["dropout2"](ff_out)
+                ff_scale = torch.tanh(self.cross_ff_scales[idx]).to(x.dtype)
+                x = x + gate * (ff_scale * ff_out)
 
             hidden_states = x
             try:
@@ -240,6 +237,9 @@ class ESM2_DFM_Generator(nn.Module):
                 getattr(self.model, "condition_proj", None),
                 getattr(self.model, "latent_proj", None),
                 getattr(self.model, "cross_attn_layers", None),
+                getattr(self.model, "mem_ln", None),
+                getattr(self.model, "cross_attn_scales", None),
+                getattr(self.model, "cross_ff_scales", None),
             ]
             for mod in modules_to_keep:
                 if mod is None:

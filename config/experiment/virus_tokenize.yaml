@@ -8,19 +8,37 @@ description: "bin-to-bin optimization of protein fitness now with actual bin jum
 defaults:
   - /dataset: virus_tokenize
   - /encoder: esm
-  - /generator: progen2
+  - /generator: esm2_dfm
   - /scheduler: cosine
   - /loss: predictor
-  - /predictor: dt_mlp_sinusoidal  # Use dt-conditioned MLP with sinusoidal encoding
-  - /sampling: unidirectional
+  - /predictor: default  
+  - /predictor_sampling: default
+  - /predictor_training: default
+  - /sampling: default
   - /training: default_virus
 
 pll_idx: 0
 num_workers: 1
 
+
+train_predictor_posthoc: true
+
 # Experiment-specific parameters
-use_predicted_latent: true
-predictor_loss_weight: 0
+use_predicted_latent: false
+predictor_loss_weight: 0.1
+
+predictor_model_type: "mlp"
+predictor_conditioning_mode: "concat"
+predictor_condition_type: null
+predictor_model_args:
+  hidden_dim: 128
+  num_layers: 2
+
+# sampling parameters
+weight_mode: "uniform"
+num_samples: 50
+exponential_weight_scale: 1.0
+selective_pairing_mode: null
 
 # Experiment-specific parameters
 latent_dim: 128 # TODO: make sure that this is really the correct latent_dim for the ESM2 8M model. Also make sure that there is no conflict due to double usage.
@@ -32,6 +50,7 @@ lr: 2e-5
 
 # ESM model settings
 esm_model_name: 'facebook/esm2_t6_8M_UR50D'
+seq_length: 1000
 freeze_esm2: false
 
 # ProGen2 settings
@@ -41,9 +60,12 @@ tokenize: false
 condition_dim: 32
 freeze_progen2: false
 gradient_accumulation_steps: 1
+set_microbatch_size: 1
+debug_memory_logging: false  # enable/disable GPU debug memory logger
+
 condition_method: prefix
 temperature: 1.0
 
-
+use_esm_tokens: true
 
 

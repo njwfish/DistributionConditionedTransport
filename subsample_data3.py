@@ -2,6 +2,8 @@ import torch
 import random
 import numpy as np
 import gc
+import sys
+import argparse
 from typing import Dict, List, Optional, Sequence
 from transformers import EsmTokenizer, AutoTokenizer, PreTrainedTokenizerBase
 
@@ -149,24 +151,76 @@ def filter_indices_for_progen(
     return keep
 
 
-# Load tokenizers using same defaults as filter_unusual_tokens.py
-esm_tokenizer = EsmTokenizer.from_pretrained("facebook/esm2_t6_8M_UR50D")
-progen_tokenizer = AutoTokenizer.from_pretrained("hugohrban/progen2-base", trust_remote_code=True)
+def main():
+    parser = argparse.ArgumentParser(description='Process subset of data files for parallel processing')
+    parser.add_argument('--job_id', type=int, required=True, help='Job ID (0-based)')
+    parser.add_argument('--total_jobs', type=int, required=True, help='Total number of jobs')
+    parser.add_argument('--sample_fraction', type=float, default=1.0, help='Fraction of elements to sample from each data object (0 < fraction <= 1)')
+    args = parser.parse_args()
+    
+    job_id = args.job_id
+    total_jobs = args.total_jobs
+    sample_fraction = args.sample_fraction
+    
+    # Validate sample_fraction
+    if not (0 < sample_fraction <= 1):
+        raise ValueError(f"sample_fraction must be between 0 and 1, got {sample_fraction}")
+    
+    print(f"Starting job {job_id} out of {total_jobs}")
+    print(f"Sampling fraction: {sample_fraction}")
+    
+    # Set random seed for reproducibility
+    random.seed(42 + job_id)  # Different seed per job but reproducible
+    
+    # Generate all (pll_idx, subset_idx) combinations
+    all_combinations = []
+    for pll_idx in range(35):
+        for subset_idx in range(50):
+            all_combinations.append((pll_idx, subset_idx))
+    
+    # Distribute combinations across jobs
+    combinations_per_job = len(all_combinations) // total_jobs
+    remainder = len(all_combinations) % total_jobs
+    
+    # Calculate start and end indices for this job
+    start_idx = job_id * combinations_per_job + min(job_id, remainder)
+    if job_id < remainder:
+        end_idx = start_idx + combinations_per_job + 1
+    else:
+        end_idx = start_idx + combinations_per_job
+    
+    job_combinations = all_combinations[start_idx:end_idx]
+    print(f"Job {job_id} processing combinations: {job_combinations}")
+    
+    # Load tokenizers using same defaults as filter_unusual_tokens.py
+    esm_tokenizer = EsmTokenizer.from_pretrained("facebook/esm2_t6_8M_UR50D")
+    progen_tokenizer = AutoTokenizer.from_pretrained("hugohrban/progen2-base", trust_remote_code=True)
 
-# Dictionary to aggregate filtered data by time-loc
-aggregated_data = {}
+    # Dictionary to aggregate filtered data by time-loc
+    aggregated_data = {}
 
-# Define file paths
-for pll_idx in range(5):
-    for subset_idx in range(5):
+    # Process assigned combinations
+    for pll_idx, subset_idx in job_combinations:
         print(f"Processing {pll_idx} {subset_idx}")
-        input_file = f"data/spikeprot0430/tokenized_chunks/virus_tokenized_data_{pll_idx}_40.pt.part_{subset_idx}"
+        with open(f"auxillary_log_job_{job_id}.log", "a") as f:
+            f.write(f"Processing {pll_idx} {subset_idx}\n")
+        input_file = f"data/spikeprot0430/tokenized_chunks_location_missing/virus_tokenized_data_{pll_idx}_40.pt.part_{subset_idx}"
         try:
             data = torch.load(input_file)
         except: 
-            break
+            print(f"Could not load {input_file}, skipping...")
+            continue
 
-        for el in data:
+        # Sample a fraction of elements if sample_fraction < 1
+        if sample_fraction < 1.0:
+            num_elements = len(data)
+            num_to_sample = max(1, int(num_elements * sample_fraction))
+            sampled_indices = random.sample(range(num_elements), num_to_sample)
+            data = [data[i] for i in sampled_indices]
+            print(f"  Sampled {num_to_sample}/{num_elements} elements ({sample_fraction:.2%})")
+
+        for eunmeration_idx, el in enumerate(data):
+
             samples = el["samples"]
             time_loc = el["time-loc"]
             raw_texts = el["raw_texts"]
@@ -225,56 +279,18 @@ for pll_idx in range(5):
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-# Further aggregate data: concatenate raw_texts and stack tensors for each time-loc
-print(f"Found {len(aggregated_data)} unique time-loc entries")
-final_aggregated_data = {}
+    # Save the partial aggregated data for this job
+    output_file = f"data/spikeprot0430/partial_aggregated_data_job_{job_id}.pt"
+    torch.save(aggregated_data, output_file)
+    print(f"Job {job_id} completed. Saved partial aggregated data to {output_file}")
+    print(f"Found {len(aggregated_data)} unique time-loc entries in this job")
+    
+    # Print summary statistics
+    total_elements = sum(len(elements) for elements in aggregated_data.values())
+    total_sequences = sum(sum(len(el['raw_texts']) for el in elements) for elements in aggregated_data.values())
+    print(f"Job {job_id} summary: {total_elements} elements, {total_sequences} sequences")
 
-for time_loc, elements in aggregated_data.items():
-    total_sequences = sum(len(el['raw_texts']) for el in elements)
-    print(f"Time-loc '{time_loc}': {len(elements)} chunks, {total_sequences} sequences")
-    
-    if len(elements) == 0:
-        continue
-        
-    # Concatenate all raw_texts lists
-    all_raw_texts = []
-    for el in elements:
-        all_raw_texts.extend(el['raw_texts'])
-    
-    # Stack all tensors for each key in samples
-    stacked_samples = {}
-    sample_keys = elements[0]['samples'].keys()  # Get keys from first element
-    
-    for key in sample_keys:
-        # Collect all tensors for this key across all elements
-        tensors_to_stack = []
-        for el in elements:
-            tensors_to_stack.append(el['samples'][key])
-        
-        # Stack them along dimension 0 (batch dimension)
-        stacked_samples[key] = torch.cat(tensors_to_stack, dim=0)
-    
-    # Create the final aggregated entry for this time-loc
-    final_aggregated_data[time_loc] = {
-        'samples': stacked_samples,
-        'time-loc': time_loc,
-        'raw_texts': all_raw_texts
-    }
-    
-    print(f"  -> Final aggregated: {len(all_raw_texts)} sequences, tensor shapes: {stacked_samples['esm_input_ids'].shape}")
-
-# Clean up intermediate aggregation data to free memory
-del aggregated_data
-gc.collect()
-
-# Optional: Clear GPU cache if using CUDA
-if torch.cuda.is_available():
-    torch.cuda.empty_cache()
-
-# Save the final aggregated data
-output_file = "data/spikeprot0430/filtered_aggregated_data.pt"
-torch.save(final_aggregated_data, output_file)
-print(f"Saved final aggregated data to {output_file}")
-print(f"Final structure: {len(final_aggregated_data)} time-loc entries")
+if __name__ == "__main__":
+    main()
 
 

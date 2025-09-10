@@ -119,11 +119,65 @@ class LTSeqDataset(Dataset):
         tensor = torch.stack(tensor_list) if tensor_list else torch.empty((0, self.set_size, F))
         return tensor, metadata
 
+    def generate_clone_set_pairs(self):
+        """
+        generate paired clone sets for clones that appear at two consecutive time points.
+        
+        Returns:
+            src_tensor: Tensor of source clone sets.
+            tgt_tensor: Tensor of target clone sets.
+            src_metadata: List of metadata corresponding to source clone sets.
+            tgt_metadata: List of metadata corresponding to target clone sets.
+        """
+        src_tensors = []
+        tgt_tensors = []
+        src_metadata = []
+        tgt_metadata = []
+        
+        # create a dictionary mapping (clone, time) to the indices in the dataset
+        clone_time_dict = {}
+        for idx, meta in enumerate(self.metadata):
+            # meta is a list: [clone, time, set_label]
+            try:
+                time_val = int(meta[1][0])
+            except ValueError:
+                continue
+            key = (meta[0], time_val)
+            if key not in clone_time_dict:
+                clone_time_dict[key] = []
+            clone_time_dict[key].append(idx)
+        
+        # For each clone and for times 2, 4, 6 attempt to find a matching t+1
+        for (clone, t) in clone_time_dict:
+            if t in [2, 4]:
+                target_key = (clone, t + 2)
+                if target_key in clone_time_dict:
+                    # Pair all combinations from source (time t) and target (time t+1)
+                    for src_idx in clone_time_dict[(clone, t)]:
+                        for tgt_idx in clone_time_dict[target_key]:
+                            src_tensors.append(self.data[src_idx])
+                            tgt_tensors.append(self.data[tgt_idx])
+                            src_metadata.append(self.metadata[src_idx])
+                            tgt_metadata.append(self.metadata[tgt_idx])
+        
+        src_tensor = torch.stack(src_tensors)
+        tgt_tensor = torch.stack(tgt_tensors)
+        
+        return src_tensor, tgt_tensor, src_metadata, tgt_metadata
+
     def __len__(self):
         return self.n_sets
 
     def __getitem__(self, idx):
+
+        # what we need to do is update this
+        # to give source samples, target samples, source metadata, target metadata
+
+        src_samples, tgt_samples, src_metadata, tgt_metadata = self.generate_clone_set_pairs()
+
         return {
-            'samples': self.data[idx],
-            'metadata': self.metadata[idx]
+            'source_samples': src_samples,
+            'target_samples': tgt_samples,
+            'source_metadata': src_metadata,
+            'target_metadata': tgt_metadata
         }

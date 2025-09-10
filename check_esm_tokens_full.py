@@ -32,10 +32,37 @@ def standard_aa_ids(tokenizer: PreTrainedTokenizerBase) -> set:
     return {tokenizer.convert_tokens_to_ids(a) for a in aa_tokens}
 
 
+def progen_bos_token_id(tokenizer: PreTrainedTokenizerBase) -> Optional[int]:
+    """Return the id of the literal '<|bos|>' token if present; otherwise fall back to tokenizer.bos_token_id/cls_token_id."""
+    try:
+        vocab = tokenizer.get_vocab()
+        if "<|bos|>" in vocab:
+            return int(vocab["<|bos|>"])
+    except Exception:
+        pass
+    bos_id = getattr(tokenizer, "bos_token_id", None)
+    if bos_id is not None:
+        return int(bos_id)
+    cls_id = getattr(tokenizer, "cls_token_id", None)
+    return int(cls_id) if cls_id is not None else None
+
+
+def get_bos_eos_ids(tokenizer: PreTrainedTokenizerBase, ids_key: str) -> Tuple[Optional[int], Optional[int]]:
+    """Get BOS and EOS token IDs appropriate for the tokenizer type."""
+    if "progen" in ids_key.lower():
+        # ProGen2 uses <|bos|> and typically doesn't have EOS at the end
+        bos_id = progen_bos_token_id(tokenizer)
+        eos_id = None  # ProGen2 sequences don't end with EOS
+    else:
+        # ESM2 uses cls_token_id as BOS and eos_token_id as EOS
+        bos_id = tokenizer.cls_token_id
+        eos_id = tokenizer.eos_token_id
+    return bos_id, eos_id
+
+
 def analyze_dataset(data: List[dict], tokenizer: PreTrainedTokenizerBase, ids_key: str) -> Tuple[Counter, Dict[str, int], List[Tuple[int, int, List[int]]]]:
     aa_ids = standard_aa_ids(tokenizer)
-    bos_id = tokenizer.cls_token_id
-    eos_id = tokenizer.eos_token_id
+    bos_id, eos_id = get_bos_eos_ids(tokenizer, ids_key)
 
     counts_all: Counter = Counter()
 

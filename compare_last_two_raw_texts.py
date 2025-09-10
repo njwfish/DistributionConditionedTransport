@@ -2,7 +2,9 @@ import argparse
 import sys
 import time
 from pathlib import Path
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Optional
+from bisect import bisect_left
+from collections import defaultdict
 
 import numpy as np
 import torch
@@ -31,6 +33,138 @@ def slow_log(msg: str) -> None:
         pass
 
 
+
+# Fast Levenshtein distance helpers (use C-accelerated libs when available)
+try:  # rapidfuzz preferred for thresholded distance
+    from rapidfuzz.distance import Levenshtein as _rf_lev  # type: ignore
+
+    def _levenshtein_distance(a: str, b: str, max_distance: Optional[int] = None) -> int:
+        if max_distance is None:
+            return int(_rf_lev.distance(a, b))
+        # score_cutoff means: return > cutoff if distance exceeds cutoff
+        d = _rf_lev.distance(a, b, score_cutoff=max_distance)
+        # rapidfuzz returns max_distance + 1 when above cutoff
+        return int(d)
+except Exception:
+    try:
+        from Levenshtein import distance as _lev_c  # type: ignore
+
+        def _levenshtein_distance(a: str, b: str, max_distance: Optional[int] = None) -> int:
+            # python-Levenshtein doesn't support threshold; compute full distance
+            return int(_lev_c(a, b))
+    except Exception:
+        def _levenshtein_distance(a: str, b: str, max_distance: Optional[int] = None) -> int:
+            # Lightweight Python DP with early-abort on threshold
+            if a == b:
+                return 0
+            la, lb = len(a), len(b)
+            if la == 0:
+                return lb
+            if lb == 0:
+                return la
+            # Ensure a is the shorter to reduce memory
+            if la > lb:
+                a, b = b, a
+                la, lb = lb, la
+
+            prev = list(range(lb + 1))
+            # If we have a threshold, we can early abort when all cells in a row exceed it
+            for i in range(1, la + 1):
+                ca = a[i - 1]
+                cur = [i] + [0] * lb
+                # Standard DP recurrence
+                row_min = cur[0]
+                for j in range(1, lb + 1):
+                    cost = 0 if ca == b[j - 1] else 1
+                    deletion = prev[j] + 1
+                    insertion = cur[j - 1] + 1
+                    substitution = prev[j - 1] + cost
+                    cur[j] = deletion if deletion < insertion else insertion
+                    if substitution < cur[j]:
+                        cur[j] = substitution
+                    if cur[j] < row_min:
+                        row_min = cur[j]
+                if max_distance is not None and row_min > max_distance:
+                    # Exceeded threshold everywhere in this row
+                    return max_distance + 1
+                prev = cur
+            return prev[lb]
+
+
+def compute_membership_and_min_levenshtein(
+    seqs_a: List[str], seqs_b: List[str]
+) -> Tuple[int, Optional[int]]:
+    """Compute how many elements of A appear in B and the min Levenshtein distance.
+
+    - Membership count is per-element (duplicates in A counted multiple times).
+    - Min distance is the minimum Levenshtein distance over all pairs (a in A, b in B).
+      If either set is empty, returns None for the distance.
+    - Early exit with distance 0 if any common element exists.
+    - Uses length-based pruning and an optional threshold to avoid unnecessary work.
+    """
+    if not seqs_a or not seqs_b:
+        present_count = 0 if not seqs_a else sum(1 for s in seqs_a if False)
+        return present_count, None
+
+    set_b = set(seqs_b)
+    present_count = sum(1 for s in seqs_a if s in set_b)
+    if present_count > 0:
+        # If there is any exact intersection, min distance is 0
+        return present_count, 0
+
+    # Deduplicate B for distance search; duplicates don't help the minimum
+    unique_b = list(set_b)
+
+    # Group B by length for quick lower-bound pruning
+    length_to_b: Dict[int, List[str]] = defaultdict(list)
+    for sb in unique_b:
+        length_to_b[len(sb)].append(sb)
+    b_lengths = sorted(length_to_b.keys())
+
+    best: Optional[int] = None  # current best distance
+
+    for sa in seqs_a:
+        la = len(sa)
+        # Lower bound by closest length bin; if it's already >= best, skip
+        # Find nearest length(s) in B
+        idx = bisect_left(b_lengths, la)
+        def closest_len_diff() -> int:
+            if not b_lengths:
+                return 10**9
+            if idx == 0:
+                return abs(b_lengths[0] - la)
+            if idx == len(b_lengths):
+                return abs(la - b_lengths[-1])
+            left = abs(la - b_lengths[idx - 1])
+            right = abs(b_lengths[idx] - la)
+            return left if left < right else right
+
+        lb_len = closest_len_diff()
+        if best is not None and lb_len >= best:
+            continue
+
+        # Consider length buckets in order of increasing |len diff|
+        # This helps find a good (small) best early to tighten thresholds
+        # Build candidate lengths sorted by abs difference
+        sorted_lengths = sorted(b_lengths, key=lambda L: abs(L - la))
+        for L in sorted_lengths:
+            # Prune by length difference lower bound
+            len_diff = abs(L - la)
+            if best is not None and len_diff >= best:
+                # Further lengths will only be worse since sorted by diff
+                break
+            candidates = length_to_b[L]
+            # Threshold one less than current best so we can early-abort > best
+            threshold = best - 1 if best is not None else None
+            for sb in candidates:
+                d = _levenshtein_distance(sa, sb, threshold)
+                if best is None or d < best:
+                    best = d
+                    if best <= 1:
+                        # Can't be 0 because we have no exact matches; 1 is optimal now
+                        return present_count, best
+
+    return present_count, best
 
 # Custom scoring to handle ambiguous 'X' residues during alignment
 # - Identical non-'X' matches score +1.0
@@ -458,7 +592,15 @@ def main() -> None:
     parser.add_argument(
         "--print_matrix",
         action="store_true",
-        help="Print the full NxM matrix (careful if large).",
+        help="Print the full NxM matrix (careful if large). Requires --compute_matrix.",
+    )
+    parser.add_argument(
+        "--compute_matrix",
+        action="store_true",
+        help=(
+            "Compute the NxM alignment distance matrix and related summaries. "
+            "Disabled by default in favor of fast set-overlap and Levenshtein-min reporting."
+        ),
     )
     parser.add_argument(
         "--compare_mode",
@@ -493,44 +635,57 @@ def main() -> None:
             "Instantiates baseline models with default args and uses second_last ESM features as latents."
         ),
     )
+    parser.add_argument(
+        "--debug_print_sequences",
+        action="store_true",
+        help="Print all sequences from second_last and last (can be very verbose).",
+    )
+    parser.add_argument(
+        "--do_unique_x_analysis",
+        action="store_true",
+        help="Run unique-sequence analysis treating X as wildcard (slow).",
+    )
+    parser.add_argument(
+        "--do_mismatch_analysis",
+        action="store_true",
+        help="Run mismatch pattern analysis for generated sequences (slow).",
+    )
     args = parser.parse_args()
 
     dataset_path = Path(args.dataset)
     print(f"Loading dataset from: {dataset_path}")
+    dist: Optional[np.ndarray] = None
     if args.compare_mode == "second_last":
         seqs_a, seqs_b = load_last_two_raw_texts(dataset_path)
         
-        print("SEQUENCES CHECKING")
-        for i, seq in enumerate(seqs_a):
-            print(f"Sequence {i}: {seq}")
-        for i, seq in enumerate(seqs_b):
-            print(f"Sequence {i}: {seq}")
-        print("SEQUENCES CHECKING")
+        if args.debug_print_sequences:
+            print("SEQUENCES CHECKING")
+            for i, seq in enumerate(seqs_a):
+                print(f"Sequence {i}: {seq}")
+            for i, seq in enumerate(seqs_b):
+                print(f"Sequence {i}: {seq}")
+            print("SEQUENCES CHECKING")
 
         n, m = len(seqs_a), len(seqs_b)
         print(f"Length of second_last raw_texts: {n}")
         print(f"Length of last raw_texts: {m}")
         print(f"Loaded last two raw_texts lists with sizes: N={n} (second_last), M={m} (last)")
 
-        # Analyze unique sequences across both datasets
-        print("\n=== Unique Sequence Analysis ===")
-        all_sequences = seqs_a + seqs_b  # Combine both datasets
-        total_sequences = len(all_sequences)
-        unique_count = count_unique_sequences_with_x_wildcard(all_sequences)
-        duplicate_count = total_sequences - unique_count
-        
-        print(f"Total sequences (second_last + last): {total_sequences}")
-        print(f"Unique sequences (treating X as wildcard): {unique_count}")
-        print(f"Duplicate sequences: {duplicate_count}")
-        if total_sequences > 0:
-            uniqueness_ratio = (unique_count / total_sequences) * 100
-            print(f"Uniqueness ratio: {uniqueness_ratio:.1f}%")
+        # Fast overlap + min-Levenshtein reporting
+        present_count, min_lev = compute_membership_and_min_levenshtein(seqs_a, seqs_b)
+        print("\n=== Set Overlap and Levenshtein-Min ===")
+        print(f"Exact overlaps (elements of second_last in last): {present_count} / {n}")
+        if min_lev is None:
+            print("Minimum Levenshtein distance between sets: N/A (one set is empty)")
+        else:
+            print(f"Minimum Levenshtein distance between sets: {min_lev}")
 
-        # Compute NxM distance matrix
-        start = time.time()
-        dist = compute_distance_matrix(seqs_a, seqs_b, show_progress=True)
-        elapsed = time.time() - start
-        print(f"Computed distance matrix in {elapsed:.2f}s")
+        # Optionally compute distance matrix
+        if args.compute_matrix:
+            start = time.time()
+            dist = compute_distance_matrix(seqs_a, seqs_b, show_progress=True)
+            elapsed = time.time() - start
+            print(f"Computed distance matrix in {elapsed:.2f}s")
     else:
         # Generated mode
         if args.use_baseline:
@@ -645,30 +800,43 @@ def main() -> None:
             print(f"Length of generated sequences: {len(seqs_a)}")
             print(f"Length of last raw_texts: {len(seqs_b)}")
             print(f"Generated {len(seqs_a)} sequences. Comparing to last ({len(seqs_b)} sequences)")
-            start = time.time()
-            dist = compute_distance_matrix(seqs_a, seqs_b, show_progress=True)
-            elapsed = time.time() - start
-            print(f"Computed distance matrix in {elapsed:.2f}s")
-            
-            # Analyze mismatch patterns for generated sequences
-            print("\n=== Mismatch Pattern Analysis ===")
-            mismatch_counts = analyze_mismatch_patterns(seqs_a, seqs_b)
-            
-            if mismatch_counts:
-                sorted_mismatches = sorted(mismatch_counts.items(), key=lambda x: x[1], reverse=True)
-                top_5 = sorted_mismatches[:5]
-                print("Top 5 amino acids in generated sequences causing most mismatches:")
-                for i, (aa, count) in enumerate(top_5, 1):
-                    print(f"  {i}. {aa}: {count} mismatches")
-                total_mismatches = sum(mismatch_counts.values())
-                print(f"\nTotal mismatches analyzed: {total_mismatches}")
-                if total_mismatches > 0:
-                    print("Percentage contribution of top 5:")
-                    for i, (aa, count) in enumerate(top_5, 1):
-                        pct = (count / total_mismatches) * 100
-                        print(f"  {i}. {aa}: {pct:.1f}%")
+
+            # Fast overlap + min-Levenshtein reporting
+            present_count, min_lev = compute_membership_and_min_levenshtein(seqs_a, seqs_b)
+            print("\n=== Set Overlap and Levenshtein-Min ===")
+            print(f"Exact overlaps (elements of generated in last): {present_count} / {len(seqs_a)}")
+            if min_lev is None:
+                print("Minimum Levenshtein distance between sets: N/A (one set is empty)")
             else:
-                print("No mismatches found in comparable positions.")
+                print(f"Minimum Levenshtein distance between sets: {min_lev}")
+
+            # Optionally compute distance matrix
+            if args.compute_matrix:
+                start = time.time()
+                dist = compute_distance_matrix(seqs_a, seqs_b, show_progress=True)
+                elapsed = time.time() - start
+                print(f"Computed distance matrix in {elapsed:.2f}s")
+
+            # Optional slow mismatch analysis
+            if args.do_mismatch_analysis:
+                print("\n=== Mismatch Pattern Analysis ===")
+                mismatch_counts = analyze_mismatch_patterns(seqs_a, seqs_b)
+                
+                if mismatch_counts:
+                    sorted_mismatches = sorted(mismatch_counts.items(), key=lambda x: x[1], reverse=True)
+                    top_5 = sorted_mismatches[:5]
+                    print("Top 5 amino acids in generated sequences causing most mismatches:")
+                    for i, (aa, count) in enumerate(top_5, 1):
+                        print(f"  {i}. {aa}: {count} mismatches")
+                    total_mismatches = sum(mismatch_counts.values())
+                    print(f"\nTotal mismatches analyzed: {total_mismatches}")
+                    if total_mismatches > 0:
+                        print("Percentage contribution of top 5:")
+                        for i, (aa, count) in enumerate(top_5, 1):
+                            pct = (count / total_mismatches) * 100
+                            print(f"  {i}. {aa}: {pct:.1f}%")
+                else:
+                    print("No mismatches found in comparable positions.")
         else:
             # Original path: Hydra-instantiated models and checkpoint loading
             if not args.run_dir:
@@ -833,61 +1001,75 @@ def main() -> None:
             print(f"Length of generated sequences: {len(seqs_a)}")
             print(f"Length of last raw_texts: {len(seqs_b)}")
             print(f"Generated {len(seqs_a)} sequences. Comparing to last ({len(seqs_b)} sequences)")
-            start = time.time()
-            dist = compute_distance_matrix(seqs_a, seqs_b, show_progress=True)
-            elapsed = time.time() - start
-            print(f"Computed distance matrix in {elapsed:.2f}s")
-            
-            # Analyze mismatch patterns for generated sequences
-            print("\n=== Mismatch Pattern Analysis ===")
-            mismatch_counts = analyze_mismatch_patterns(seqs_a, seqs_b)
-            
-            if mismatch_counts:
-                sorted_mismatches = sorted(mismatch_counts.items(), key=lambda x: x[1], reverse=True)
-                top_5 = sorted_mismatches[:5]
-                print("Top 5 amino acids in generated sequences causing most mismatches:")
-                for i, (aa, count) in enumerate(top_5, 1):
-                    print(f"  {i}. {aa}: {count} mismatches")
-                total_mismatches = sum(mismatch_counts.values())
-                print(f"\nTotal mismatches analyzed: {total_mismatches}")
-                if total_mismatches > 0:
-                    print("Percentage contribution of top 5:")
-                    for i, (aa, count) in enumerate(top_5, 1):
-                        pct = (count / total_mismatches) * 100
-                        print(f"  {i}. {aa}: {pct:.1f}%")
+
+            # Fast overlap + min-Levenshtein reporting
+            present_count, min_lev = compute_membership_and_min_levenshtein(seqs_a, seqs_b)
+            print("\n=== Set Overlap and Levenshtein-Min ===")
+            print(f"Exact overlaps (elements of generated in last): {present_count} / {len(seqs_a)}")
+            if min_lev is None:
+                print("Minimum Levenshtein distance between sets: N/A (one set is empty)")
             else:
-                print("No mismatches found in comparable positions.")
+                print(f"Minimum Levenshtein distance between sets: {min_lev}")
 
-    # Optionally print matrix
-    if args.print_matrix:
-        with np.printoptions(precision=3, suppress=True, linewidth=120):
-            print("\nDistance matrix (N x M):")
-            print(dist)
+            # Optionally compute distance matrix
+            if args.compute_matrix:
+                start = time.time()
+                dist = compute_distance_matrix(seqs_a, seqs_b, show_progress=True)
+                elapsed = time.time() - start
+                print(f"Computed distance matrix in {elapsed:.2f}s")
 
-    # Summary stats over all elements
-    summarize_matrix(dist)
+            # Optional slow mismatch analysis
+            if args.do_mismatch_analysis:
+                print("\n=== Mismatch Pattern Analysis ===")
+                mismatch_counts = analyze_mismatch_patterns(seqs_a, seqs_b)
+                
+                if mismatch_counts:
+                    sorted_mismatches = sorted(mismatch_counts.items(), key=lambda x: x[1], reverse=True)
+                    top_5 = sorted_mismatches[:5]
+                    print("Top 5 amino acids in generated sequences causing most mismatches:")
+                    for i, (aa, count) in enumerate(top_5, 1):
+                        print(f"  {i}. {aa}: {count} mismatches")
+                    total_mismatches = sum(mismatch_counts.values())
+                    print(f"\nTotal mismatches analyzed: {total_mismatches}")
+                    if total_mismatches > 0:
+                        print("Percentage contribution of top 5:")
+                        for i, (aa, count) in enumerate(top_5, 1):
+                            pct = (count / total_mismatches) * 100
+                            print(f"  {i}. {aa}: {pct:.1f}%")
+                else:
+                    print("No mismatches found in comparable positions.")
 
-    # Optimal pairing metrics (min sum of distances over min(N, M) pairings)
-    print("\n=== Optimal Pairing (Hungarian/DP) ===")
-    try:
-        row_ind, col_ind, total_cost = compute_optimal_pairing(dist)
-        matched_costs = dist[row_ind, col_ind]
-        mean_matched = float(np.mean(matched_costs)) if matched_costs.size else 0.0
-        print(f"Number of pairs: {len(row_ind)}")
-        print(f"Total distance (optimal pairing): {total_cost:.6f}")
-        print(f"Mean distance over optimal pairing: {mean_matched:.6f}")
-        print(
-            f"Matched distances: min={float(np.min(matched_costs)):.6f}, "
-            f"median={float(np.median(matched_costs)):.6f}, "
-            f"max={float(np.max(matched_costs)):.6f}"
-        )
-    except Exception as exc:
-        print(
-            "Could not compute optimal pairing without SciPy and problem too large for DP.\n"
-            "Please install SciPy: pip install scipy",
-            file=sys.stderr,
-        )
-        print(f"Details: {exc}")
+    # Optionally print matrix and summaries if computed
+    if dist is not None:
+        if args.print_matrix:
+            with np.printoptions(precision=3, suppress=True, linewidth=120):
+                print("\nDistance matrix (N x M):")
+                print(dist)
+
+        # Summary stats over all elements
+        summarize_matrix(dist)
+
+        # Optimal pairing metrics (min sum of distances over min(N, M) pairings)
+        print("\n=== Optimal Pairing (Hungarian/DP) ===")
+        try:
+            row_ind, col_ind, total_cost = compute_optimal_pairing(dist)
+            matched_costs = dist[row_ind, col_ind]
+            mean_matched = float(np.mean(matched_costs)) if matched_costs.size else 0.0
+            print(f"Number of pairs: {len(row_ind)}")
+            print(f"Total distance (optimal pairing): {total_cost:.6f}")
+            print(f"Mean distance over optimal pairing: {mean_matched:.6f}")
+            print(
+                f"Matched distances: min={float(np.min(matched_costs)):.6f}, "
+                f"median={float(np.median(matched_costs)):.6f}, "
+                f"max={float(np.max(matched_costs)):.6f}"
+            )
+        except Exception as exc:
+            print(
+                "Could not compute optimal pairing without SciPy and problem too large for DP.\n"
+                "Please install SciPy: pip install scipy",
+                file=sys.stderr,
+            )
+            print(f"Details: {exc}")
 
 
 if __name__ == "__main__":

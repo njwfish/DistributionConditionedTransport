@@ -17,7 +17,7 @@ class Letters(Dataset):
         train_letters: str = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
         num_fonts: int = 10,
         seed: Optional[int] = 42,
-        data_path='/orcd/data/omarabu/001/njwfish/CoupledDistributionEmbeddings/data/letters/'
+        data_path='/orcd/archive/abugoot/001/Projects/njwfish/data/letters/'
     ):
         if seed is not None:
             np.random.seed(seed)

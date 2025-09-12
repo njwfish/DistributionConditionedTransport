@@ -5,8 +5,9 @@ import os
 from PIL import Image
 from typing import Optional, List
 
-all_letters = 'ABCDEFGHIJKLMNOPQRSTUVW'
+all_letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
+# NOTE: holding out X, Y, Z for validation
 class Letters(Dataset):
     def __init__(
         self, 

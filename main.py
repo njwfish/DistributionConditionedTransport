@@ -71,7 +71,7 @@ def main(cfg: DictConfig):
             coupling_kwargs = {}
             
         coupling = hydra.utils.instantiate(cfg.coupling, **coupling_kwargs)
-        
+
         # Base dataloader kwargs
         base_dataloader_kwargs = {
             'batch_size': cfg.experiment.batch_size,

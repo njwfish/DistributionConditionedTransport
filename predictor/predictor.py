@@ -11,14 +11,13 @@ class SimpleMLP(nn.Module):
         layers_list = []
 
         current_dim = in_dims
-        if layers <= 1:
-            layers_list.append(nn.Linear(current_dim, out_dim))
-        else:
-            for _ in range(layers - 1):
-                layers_list.append(nn.Linear(current_dim, hidden_dim))
-                layers_list.append(nn.ReLU())
-                current_dim = hidden_dim
-            layers_list.append(nn.Linear(current_dim, out_dim))
+        self.activation = 
+
+        for _ in range(layers - 1):
+            layers_list.append(nn.Linear(current_dim, hidden_dim))
+            layers_list.append(nn.ReLU())
+            current_dim = hidden_dim
+        layers_list.append(nn.Linear(current_dim, out_dim))
 
         self.network = nn.Sequential(*layers_list)
 
@@ -87,7 +86,6 @@ class Predictor(nn.Module):
         conditioning_mode="sinusoidal",  # "sinusoidal", "concat", None
         condition_type: str = "none",    # "none", "index_pair", "scalar_d"
         d_embed_dim=16,
-        num_condition_scalars=None,
         loss_type="cosine",  # "cosine" or "MSE"
     ):
         super().__init__()
@@ -96,19 +94,16 @@ class Predictor(nn.Module):
         self.conditioning_mode = conditioning_mode
         self.condition_type = condition_type
         # Derive number of conditioning scalars from condition_type when not explicitly provided
-        if num_condition_scalars is None:
-            if self.condition_type == "none" or self.condition_type is None:
-                self.num_condition_scalars = 0
-            elif self.condition_type == "scalar_d":
-                self.num_condition_scalars = 1
-            elif self.condition_type == "index_pair":
-                self.num_condition_scalars = 2
-            else:
-                raise ValueError(f"Unknown condition_type: {self.condition_type}")
+        if self.condition_type == "none" or self.condition_type is None:
+            self.num_condition_scalars = 0
+        elif self.condition_type == "scalar_d":
+            self.num_condition_scalars = 1
+        elif self.condition_type == "index_pair":
+            self.num_condition_scalars = 2
         else:
-            self.num_condition_scalars = num_condition_scalars
+            raise ValueError(f"Unknown condition_type: {self.condition_type}")
+
         # Backward-compat: store string label as requested
-        self.requires_condition = self.condition_type
         self.model_args = model_args
         self.d_embed_dim = d_embed_dim
         self.loss_type = loss_type
@@ -164,7 +159,7 @@ class Predictor(nn.Module):
         
         output = self.model(x_conditioned)
 
-        return self.latent_act(output)
+        return output
 
     def loss(self, source_latent, target_latent, condition_scalars=None):
         pred_target_latent = self.forward(source_latent, condition_scalars=condition_scalars)
@@ -176,5 +171,5 @@ class Predictor(nn.Module):
         else:
             raise ValueError(f"Unknown loss_type: {self.loss_type}")
         if self.model_type == "ridge":
-            loss += self.model_args.get("ridge_alpha", 0) * torch.sum(self.model.weight ** 2)
+            loss += self.model_args.ridge_alpha * torch.sum(self.model.weight ** 2)
         return loss, pred_target_latent

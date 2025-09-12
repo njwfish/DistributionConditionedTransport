@@ -322,36 +322,10 @@ def load_checkpoint(experiment_dir: str, epoch : int):
     
     checkpt_path = os.path.join(experiment_dir, "checkpoint_epoch_%d.pt" % epoch)
     if not os.path.exists(checkpt_path):
-        raise ValueError(f"No checkpoint found for epoch {epoch} in {experiment_dir}")
+        raise ValueError(f"No best model found in {experiment_dir}")
     
     return torch.load(checkpt_path, map_location=torch.device('cpu'), weights_only=False)
 
-
-def load_model(experiment_dir: str, checkpoint_epoch: Optional[int] = None):
-    """
-    Load a model checkpoint, optionally from a specific epoch. If the requested
-    epoch checkpoint does not exist, fall back to the best model.
-    
-    Args:
-        experiment_dir: Directory containing checkpoints
-        checkpoint_epoch: If provided, try to load checkpoint_epoch_{epoch}.pt
-    
-    Returns:
-        Loaded checkpoint dictionary
-    """
-    if not os.path.exists(experiment_dir):
-        raise ValueError(f"Experiment directory {experiment_dir} does not exist")
-
-    # If an explicit epoch is requested, prefer it but allow fallback
-    if checkpoint_epoch is not None:
-        epoch_path = os.path.join(experiment_dir, f"checkpoint_epoch_{checkpoint_epoch}.pt")
-        if os.path.exists(epoch_path):
-            return torch.load(epoch_path, map_location=torch.device('cpu'), weights_only=False)
-        else:
-            logger.warning(f"Requested checkpoint not found: {epoch_path}. Falling back to best_model.pt")
-
-    # Default/fallback: load best model
-    return load_best_model(experiment_dir)
 
 def compare_experiments(exp_dir1: str, exp_dir2: str) -> Dict[str, Any]:
     """

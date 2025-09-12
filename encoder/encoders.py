@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from utils.latents import normalize_latent
 
 from layers import MLP, MeanPooledFC, MedianPooledFC, SelfAttention
 
@@ -19,6 +20,7 @@ class DistributionEncoder(nn.Module):
         enc_mean = torch.mean(enc, dim=1)
         # enc_mean = torch.median(enc, dim=1).values
         lat = self.latent_act(self.latent_proj(enc_mean))
+        lat = normalize_latent(lat)
         return lat
 
 class DistributionEncoderTx(DistributionEncoder):
@@ -115,6 +117,7 @@ class DistributionEncoderResNet(DistributionEncoder):
         
         # Final projection to latent space
         lat = self.latent_act(self.latent_proj(enc_mean))
+        lat = normalize_latent(lat)
         return lat
 
 class DistributionEncoderResNetTx(DistributionEncoder):
@@ -186,6 +189,7 @@ class DistributionEncoderResNetTx(DistributionEncoder):
         
         # Final projection to latent space
         lat = self.latent_act(self.latent_proj(enc_mean))
+        lat = normalize_latent(lat)
         return lat
         
         

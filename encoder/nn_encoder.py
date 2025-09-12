@@ -1,6 +1,7 @@
 
 import torch
 import torch.nn as nn
+from utils.latents import normalize_latent
 import torch.nn.functional as F
 import torch_geometric
 from torch_geometric.nn import GCNConv
@@ -89,11 +90,13 @@ class DistributionEncoderkNN(DistributionEncoder):
         # Mean pooling across the set dimension (same as base class)
         enc_mean = torch.mean(enc, dim=1)
         
+        # TODO: redundant normalization?
         # Apply normalization as in original embed_source implementation
         z_norm = torch.norm(enc_mean, dim=1, keepdim=True)
         enc_mean_normalized = enc_mean / (z_norm + 1e-8)  # Add epsilon for numerical stability
         
         # Project to latent space with normalization applied
         lat = self.latent_act(self.latent_proj(enc_mean_normalized))
-        
+        lat = normalize_latent(lat)
+
         return lat

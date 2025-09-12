@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from utils.latents import normalize_latent
 import numpy as np
 
 class MeanEncoder(nn.Module):
@@ -15,4 +16,5 @@ class MeanEncoder(nn.Module):
         x = x.flatten(start_dim=2) # for mnist for now
         x = x.mean(dim=1)
         x = torch.matmul(x, self.proj)
+        x = normalize_latent(x)
         return x

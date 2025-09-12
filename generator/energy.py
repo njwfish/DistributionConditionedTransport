@@ -39,17 +39,7 @@ class EnergyGenerator(nn.Module):
         """
         batch_size = source_samples.shape[0]
         
-        # Validate latent dimensions
-        if source_latent.dim() != 2 or target_latent.dim() != 2:
-            raise ValueError(
-                f"EnergyGenerator.forward expects 2D latents shaped (batch_size, latent_dim)."
-                f" Got source_latent.shape={tuple(source_latent.shape)},"
-                f" target_latent.shape={tuple(target_latent.shape)}"
-            )
-        
-        # Normalize latents per-sample before using them
-        source_latent = source_latent / torch.norm(source_latent, dim=-1, keepdim=True).clamp_min(1e-12)
-        target_latent = target_latent / torch.norm(target_latent, dim=-1, keepdim=True).clamp_min(1e-12)
+        # Latents are assumed to be normalized by the encoder
         
         # Expand latents to match the number of source samples
         if source_latent.shape[0] != batch_size:
@@ -119,18 +109,6 @@ class EnergyGenerator(nn.Module):
         m = self.m  # number of samples per data point
         λ = self.lambda_energy
 
-        # Validate latent dimensions
-        if source_latent.dim() != 2 or target_latent.dim() != 2:
-            raise ValueError(
-                f"EnergyGenerator.loss expects 2D latents shaped (batch_size, latent_dim)."
-                f" Got source_latent.shape={tuple(source_latent.shape)},"
-                f" target_latent.shape={tuple(target_latent.shape)}"
-            )
-
-        # Normalize latents per-sample before using them
-        source_latent = source_latent / torch.norm(source_latent, dim=-1, keepdim=True).clamp_min(1e-12)
-        target_latent = target_latent / torch.norm(target_latent, dim=-1, keepdim=True).clamp_min(1e-12)
-
         # Expand latents to match the number of source samples
         if source_latent.shape[0] != batch_size:
             source_latent = source_latent.unsqueeze(1).repeat(1, source_samples.shape[0] // source_latent.shape[0], 1).view(-1, source_latent.shape[-1])
@@ -162,18 +140,6 @@ class EnergyGenerator(nn.Module):
             source_latent: [batch_size, latent_dim] source embedding
             target_latent: [batch_size, latent_dim] target embedding
         """
-        
-        # Validate latent dimensions
-        if source_latent.dim() != 2 or target_latent.dim() != 2:
-            raise ValueError(
-                f"EnergyGenerator.sample expects 2D latents shaped (batch_size, latent_dim)."
-                f" Got source_latent.shape={tuple(source_latent.shape)},"
-                f" target_latent.shape={tuple(target_latent.shape)}"
-            )
-
-        # Normalize latents per-sample before using them
-        source_latent = source_latent / torch.norm(source_latent, dim=-1, keepdim=True).clamp_min(1e-12)
-        target_latent = target_latent / torch.norm(target_latent, dim=-1, keepdim=True).clamp_min(1e-12)
 
         num_samples = source_samples.shape[0] // source_latent.shape[0]
         generated = self.forward(source_samples, source_latent, target_latent)

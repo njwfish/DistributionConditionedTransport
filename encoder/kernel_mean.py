@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from utils.latents import normalize_latent
 import numpy as np
 
 class KMEEncoder(nn.Module):
@@ -25,4 +26,6 @@ class KMEEncoder(nn.Module):
         phi = torch.cat([cos, sin], dim=-1)  # (batch, set_size, 2d)
 
         # mean across the set
-        return phi.mean(dim=1)  # (batch, 2d)
+        lat = phi.mean(dim=1)  # (batch, 2d)
+        lat = normalize_latent(lat)
+        return lat

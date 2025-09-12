@@ -1,6 +1,7 @@
 from transformers import EsmModel
 from utils.hf_local import resolve_local_or_repo
 from encoder.encoders import DistributionEncoder
+from utils.latents import normalize_latent
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -58,4 +59,6 @@ class ProteinSetEncoder(nn.Module):
         ids = samples['esm_input_ids'].view(b * s, -1)
         mask = samples['esm_attention_mask'].view(b * s, -1)
         feats = self.esm_extractor(ids, mask).view(b, s, -1)
-        return self.dist(feats)
+        lat = self.dist(feats)
+        lat = normalize_latent(lat)
+        return lat

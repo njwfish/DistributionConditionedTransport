@@ -18,7 +18,7 @@ defaults:
   - /training: default_virus
 
 # TODO: change to the full data file once you are done with debugging
-data_file: filtered_aggregated_data_subsampled.pt
+data_file: filtered_aggregated_data_no_tails.pt
 
 train_predictor_posthoc: true
 

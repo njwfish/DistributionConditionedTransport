@@ -69,7 +69,6 @@ def hash_config(
             'predictor_conditioning_mode',
             'predictor_condition_type',
             'predictor_model_args',
-            'train_predictor_posthoc',
         ]
         for key in experiment_exclude:
             if key in filtered_config['experiment']:

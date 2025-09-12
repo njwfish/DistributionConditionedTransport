@@ -8,9 +8,9 @@ description: "full dataset of virus evolution"
 defaults:
   - /dataset: virus
   - /encoder: esm
-  - /generator: esm2_dfm
+  - /generator: esm_dfm
   - /scheduler: cosine
-  - /loss: predictor
+  - /loss: default
   - /predictor: default  
   - /predictor_sampling: default
   - /predictor_training: default
@@ -18,7 +18,7 @@ defaults:
   - /training: default_virus
 
 # TODO: change to the full data file once you are done with debugging
-data_file: virus_tokenized_data_for_tde_filtered.pt
+data_file: filtered_aggregated_data_no_tails.pt
 
 train_predictor_posthoc: true
 
@@ -28,6 +28,7 @@ predictor_loss_weight: 0.1
 
 predictor_model_type: "mlp"
 predictor_conditioning_mode: "concat"
+predictor_condition_type: null
 predictor_model_args:
   hidden_dim: 128
   num_layers: 2

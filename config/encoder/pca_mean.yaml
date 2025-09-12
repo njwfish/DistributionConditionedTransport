@@ -1,4 +1,0 @@
-# @package _global_.encoder
-_target_: encoder.pca_mean.MNISTPCAEncoder
-n_pcs: ${experiment.latent_dim}
-device: ${device}

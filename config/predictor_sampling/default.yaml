@@ -1,8 +1,4 @@
-# @package _global_.predictor_sampling
-_target_: utils.custom_sampler.CustomWeightedSampler
-weight_mode: uniform
+# @package _global_.sampling
+_target_: sampler.default.Sampler
 num_samples: ${experiment.num_samples}
-replacement: true
-const_weight: 1.0 
 selective_pairing_mode: "single_step"
-exponential_weight_scale: ${experiment.exponential_weight_scale}

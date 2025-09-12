@@ -1,4 +1,4 @@
-experiment_name: snapMMD_${dataset_name}
+experiment_name: snapMMD_MFM_${dataset_name}
 
 match_criteria:
   dataset:
@@ -13,8 +13,7 @@ match_criteria:
   #  model_type: ${experiment.predictor_model_type}
   #  conditioning_mode: ${experiment.predictor_conditioning_mode}
   experiment:
-    use_predicted_latent: ${experiment.use_predicted_latent}
-    train_predictor_posthoc: ${experiment.train_predictor_posthoc}
+    generator_source_only: ${experiment.generator_source_only}
 
 # Optional, controls how we name the figures subfolder beyond experiment_name
 naming_parameters:

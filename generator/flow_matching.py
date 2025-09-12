@@ -20,7 +20,11 @@ class TorchWrapper(nn.Module):
         else:
             t = t.unsqueeze(-1) if t.dim() == 1 else t
             
-        return self.model(x, t, self.source_latent, self.target_latent)
+        # allow None target_latent by replacing with zeros
+        target_latent = self.target_latent
+        if target_latent is None:
+            target_latent = torch.zeros_like(self.source_latent)
+        return self.model(x, t, self.source_latent, target_latent)
 
 
 class FlowMatchingGenerator(nn.Module):
@@ -91,7 +95,8 @@ class FlowMatchingGenerator(nn.Module):
         
         # Expand latents to match the number of source samples
         source_latent = source_latent.unsqueeze(1).repeat(1, source_samples.shape[0] // source_latent.shape[0], 1).view(-1, source_latent.shape[-1])
-        target_latent = target_latent.unsqueeze(1).repeat(1, source_samples.shape[0] // target_latent.shape[0], 1).view(-1, target_latent.shape[-1])
+        if target_latent is not None:
+            target_latent = target_latent.unsqueeze(1).repeat(1, source_samples.shape[0] // target_latent.shape[0], 1).view(-1, target_latent.shape[-1])
         
         # Create wrapped model for NeuralODE
         wrapped_model = TorchWrapper(self.model, source_latent, target_latent)
@@ -127,22 +132,33 @@ class FlowMatchingGenerator(nn.Module):
         # TODO: this check is useless, it will always be silent, even when inputs were already flattened. But maybe that is fine as long as the latents were not flattened but rather just the samples.
         # NOTE: adding this check to make sure that normalization of latents is done on a per-sample basis.
         # Validate latent dimensions
-        if source_latent.dim() != 2 or target_latent.dim() != 2:
-            raise ValueError(
-                f"FlowMatchingGenerator.loss expects 2D latents shaped (batch_size, latent_dim)."
-                f" Got source_latent.shape={tuple(source_latent.shape)},"
-                f" target_latent.shape={tuple(target_latent.shape)}"
-            )
+        if target_latent is not None:
+            if source_latent.dim() != 2 or target_latent.dim() != 2:
+                raise ValueError(
+                    f"FlowMatchingGenerator.loss expects 2D latents shaped (batch_size, latent_dim)."
+                    f" Got source_latent.shape={tuple(source_latent.shape)},"
+                    f" target_latent.shape={tuple(target_latent.shape)}"
+                )
+        else:
+            if source_latent.dim() != 2:
+                raise ValueError(
+                    f"FlowMatchingGenerator.loss expects 2D source_latent shaped (batch_size, latent_dim)."
+                    f" Got source_latent.shape={tuple(source_latent.shape)}"
+                )
 
         batch_size, set_size = source_samples.shape
 
         
         # Normalize latents per-sample before using them
         source_latent = source_latent / torch.norm(source_latent, dim=-1, keepdim=True).clamp_min(1e-12)
-        target_latent = target_latent / torch.norm(target_latent, dim=-1, keepdim=True).clamp_min(1e-12)
+        if target_latent is not None:
+            target_latent = target_latent / torch.norm(target_latent, dim=-1, keepdim=True).clamp_min(1e-12)
 
         source_latent = source_latent.unsqueeze(1).repeat(1, source_samples.shape[0] // source_latent.shape[0], 1).view(-1, source_latent.shape[-1]) 
-        target_latent = target_latent.unsqueeze(1).repeat(1, target_samples.shape[0] // target_latent.shape[0], 1).view(-1, target_latent.shape[-1]) 
+        if target_latent is not None:
+            target_latent = target_latent.unsqueeze(1).repeat(1, target_samples.shape[0] // target_latent.shape[0], 1).view(-1, target_latent.shape[-1]) 
+        else:
+            target_latent = torch.zeros_like(source_latent)
         
         # Sample random time
         t = self.sample_time(batch_size, source_samples.device)
@@ -175,16 +191,26 @@ class FlowMatchingGenerator(nn.Module):
         
         # NOTE: adding this check to make sure that normalization of latents is done on a per-sample basis
         # Validate latent dimensions
-        if source_latent.dim() != 2 or target_latent.dim() != 2:
-            raise ValueError(
-                f"FlowMatchingGenerator.sample expects 2D latents shaped (batch_size, latent_dim)."
-                f" Got source_latent.shape={tuple(source_latent.shape)},"
-                f" target_latent.shape={tuple(target_latent.shape)}"
-            )
+        if target_latent is not None:
+            if source_latent.dim() != 2 or target_latent.dim() != 2:
+                raise ValueError(
+                    f"FlowMatchingGenerator.sample expects 2D latents shaped (batch_size, latent_dim)."
+                    f" Got source_latent.shape={tuple(source_latent.shape)},"
+                    f" target_latent.shape={tuple(target_latent.shape)}"
+                )
+        else:
+            if source_latent.dim() != 2:
+                raise ValueError(
+                    f"FlowMatchingGenerator.sample expects 2D source_latent shaped (batch_size, latent_dim)."
+                    f" Got source_latent.shape={tuple(source_latent.shape)}"
+                )
 
         # Normalize latents per-sample before using them
         source_latent = source_latent / torch.norm(source_latent, dim=-1, keepdim=True).clamp_min(1e-12)
-        target_latent = target_latent / torch.norm(target_latent, dim=-1, keepdim=True).clamp_min(1e-12)
+        if target_latent is not None:
+            target_latent = target_latent / torch.norm(target_latent, dim=-1, keepdim=True).clamp_min(1e-12)
+        else:
+            target_latent = torch.zeros_like(source_latent)
 
         num_samples = source_samples.shape[0] // source_latent.shape[0]
         generated = self.forward(source_samples, source_latent, target_latent, num_steps, return_trajectory)

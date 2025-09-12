@@ -1,8 +1,8 @@
 import torch
 
 class LossManager:
-    def __init__(self):
-        pass
+    def __init__(self, generator_source_only: bool = False):
+        self.generator_source_only = generator_source_only
 
     def loss(self, encoder, generator, predictor, batch, device):
         losses = {}
@@ -16,11 +16,12 @@ class LossManager:
             source_latent = encoder(source_samples)
             target_latent = encoder(target_samples)
                 
+            target_latent_for_generator = None if self.generator_source_only else target_latent
             recon_loss = generator.loss(
                 source_samples.view(-1, *source_samples.shape[2:]), 
                 target_samples.view(-1, *target_samples.shape[2:]),
                 source_latent, 
-                target_latent
+                target_latent_for_generator
             )
         else:
             # For dictionary samples (like PubMed dataset), move tensors to device
@@ -43,7 +44,8 @@ class LossManager:
             source_latent = encoder(source_samples)
             target_latent = encoder(target_samples)
 
-            recon_loss = generator.loss(source_samples, target_samples, source_latent, target_latent)
+            target_latent_for_generator = None if self.generator_source_only else target_latent
+            recon_loss = generator.loss(source_samples, target_samples, source_latent, target_latent_for_generator)
 
         loss += recon_loss
         losses['reconstruction_loss'] = recon_loss

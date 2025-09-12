@@ -19,6 +19,10 @@ defaults:
 
 ot_coupling: false
 
+# Control generator conditioning
+# When true, condition generator only on source latent and ignore target latent
+generator_source_only: false
+
 # predictor parameters
 use_predicted_latent: true
 predictor_loss_weight: 0

@@ -13,6 +13,7 @@ import time
 import torch.nn as nn
 # Import our resolver for sum operations
 import utils.hash_utils as hash_utils
+from utils.seed import seed_everything, dataloader_seed_worker, make_torch_generator
 
 
 
@@ -39,9 +40,9 @@ def main(cfg: DictConfig):
     if existing_dir is not None:
         logger.info(f"Found existing results for this configuration: {existing_dir}")
     
-    # Set random seed
+    # Set random seed and deterministic behavior
     if cfg.seed is not None:
-        torch.manual_seed(cfg.seed)
+        seed_everything(int(cfg.seed), deterministic=True)
         
     # Initialize W&B
     run = wandb.init(
@@ -62,13 +63,13 @@ def main(cfg: DictConfig):
 
         # Improved DataLoader with parallel workers and pinned memory
         dataloader_start = time.time()
-        num_workers = min(2, os.cpu_count())  # Reduced from 4 to 2 to avoid DataLoader warnings and reduce memory contention
+        num_workers = min(8, os.cpu_count())  # Reduced from 4 to 2 to avoid DataLoader warnings and reduce memory contention
 
         if hasattr(dataset, 'pairwise_distance'):
             coupling_kwargs = {'pairwise_dist_fn': dataset.pairwise_distance}
         else:
             coupling_kwargs = {}
-        
+
         coupling = hydra.utils.instantiate(cfg.coupling, **coupling_kwargs)
 
         # Base dataloader kwargs
@@ -78,7 +79,9 @@ def main(cfg: DictConfig):
             'num_workers': num_workers,
             'pin_memory': True,
             'persistent_workers': True if num_workers > 0 else False,
-            'collate_fn': coupling
+            'collate_fn': coupling,
+            'worker_init_fn': dataloader_seed_worker,
+            'generator': make_torch_generator(int(cfg.seed) if hasattr(cfg, 'seed') else None),
         }
         
         sampling_config = cfg.sampling

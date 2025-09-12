@@ -1,6 +1,0 @@
-# @package _global_.model
-_target_: model.unet.ContextUnet
-in_channels: ${dataset.data_shape[0]}
-n_feat: 256
-latent_dim: ${experiment.latent_dim}
-image_size: ${dataset.data_shape[1]} 

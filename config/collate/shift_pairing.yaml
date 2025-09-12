@@ -1,5 +1,0 @@
-# @package _global_.collate
-_target_: collate.paired_collate.PairedCollate
-method: shift
-shift: 1 
-allow_cyclic: false

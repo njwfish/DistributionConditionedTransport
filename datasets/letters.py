@@ -7,17 +7,18 @@ from typing import Optional, List
 
 all_letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
+# NOTE: holding out X, Y, Z for validation
 class Letters(Dataset):
     def __init__(
         self, 
         data_shape: List[int],
-        samples_per_letter_font: int = 10000,
+        samples_per_letter_font: int = 1000,
         set_size: int = 100,
         noise_level: float = 0.1,
-        train_letters: str = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+        train_letters: str = 'ABCDEFGHIJKLMNOPQRSTUVW',
         num_fonts: int = 10,
         seed: Optional[int] = 42,
-        data_path='/orcd/data/omarabu/001/njwfish/CoupledDistributionEmbeddings/data/letters/'
+        data_path='/orcd/archive/abugoot/001/Projects/njwfish/data/letters/'
     ):
         if seed is not None:
             np.random.seed(seed)
@@ -73,7 +74,7 @@ class Letters(Dataset):
         target_idx = np.random.choice(target_samples.shape[0], size=self.set_size, replace=False)
     
         return {
-            'source_samples': source_samples[source_idx],
-            'target_samples': target_samples[target_idx]
+            'source_samples': torch.from_numpy(source_samples[source_idx]),
+            'target_samples': torch.from_numpy(target_samples[target_idx])
         }
             

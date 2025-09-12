@@ -1,3 +1,0 @@
-# @package _global_.collate
-_target_: collate.paired_collate.PairedCollate
-method: random 

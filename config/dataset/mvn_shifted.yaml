@@ -1,0 +1,10 @@
+# @package _global_.dataset
+_target_: datasets.distribution_datasets.ShiftedMultivariateNormalDistributionDataset
+# NOTE: reduced n_sets because of pairing. 
+n_sets: 3000
+set_size: ${experiment.set_size}
+data_shape: [2]
+seed: ${seed} 
+prior_mu: [1, 3]
+prior_cov_df: 10
+prior_cov_scale: 1

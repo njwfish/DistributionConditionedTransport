@@ -1,0 +1,53 @@
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/hydra/_internal/hydra.py:119: UserWarning: Future Hydra versions will no longer change working directory at job runtime by default.
+See https://hydra.cc/docs/1.2/upgrades/1.1_to_1.2/changes_to_job_working_dir/ for more information.
+  ret = run_job(
+wandb: Currently logged in as: paolo-lb-fischer (paolo-lb-fischer-harvard-university) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.21.1
+wandb: Run data is saved locally in /orcd/archive/abugoot/001/Projects/paolo/tde_mfm/outputs/snapMMD_MFM_Repressilator/2025-08-25_20-46-36/wandb/run-20250825_204636-3kstya4z
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run colorful-field-5367
+wandb: ⭐️ View project at https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings
+wandb: 🚀 View run at https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings/runs/3kstya4z
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch_geometric/typing.py:68: UserWarning: An issue occurred while importing 'pyg-lib'. Disabling its usage. Stacktrace: /lib64/libm.so.6: version `GLIBC_2.29' not found (required by /orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/libpyg.so)
+  warnings.warn(f"An issue occurred while importing 'pyg-lib'. "
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch_geometric/typing.py:124: UserWarning: An issue occurred while importing 'torch-sparse'. Disabling its usage. Stacktrace: /lib64/libm.so.6: version `GLIBC_2.29' not found (required by /orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/libpyg.so)
+  warnings.warn(f"An issue occurred while importing 'torch-sparse'. "
+wandb: WARNING Saving files without folders. If you want to preserve subdirectories pass base_path to wandb.save, i.e. wandb.save("/mnt/folder/file.h5", base_path="/mnt")
+wandb: uploading snapMMD_MFM_Repressilator_d021e5d484a1e8866a467e79eb409cfe/checkpoint_epoch_5000.pt; uploading output.log; uploading config.yaml; uploading snapMMD_MFM_Repressilator_d021e5d484a1e8866a467e79eb409cfe/best_model.pt
+wandb: uploading snapMMD_MFM_Repressilator_d021e5d484a1e8866a467e79eb409cfe/checkpoint_epoch_5000.pt; uploading output.log; uploading snapMMD_MFM_Repressilator_d021e5d484a1e8866a467e79eb409cfe/best_model.pt
+wandb: uploading output.log; uploading snapMMD_MFM_Repressilator_d021e5d484a1e8866a467e79eb409cfe/best_model.pt; uploading snapMMD_MFM_Repressilator_d021e5d484a1e8866a467e79eb409cfe/checkpoint_epoch_5000.pt
+wandb: uploading output.log; uploading snapMMD_MFM_Repressilator_d021e5d484a1e8866a467e79eb409cfe/checkpoint_epoch_5000.pt
+wandb: uploading output.log
+wandb: uploading data
+wandb:                                                                                
+wandb: 
+wandb: Run history:
+wandb:               batch/epoch ▁▁▁▁▁▁▁▂▂▂▂▂▃▃▃▄▄▄▄▄▅▅▅▅▅▅▅▅▇▇▇▇▇███████
+wandb:                batch/loss ▇▃▅▅█▄▂▇▄▅▃▃▅▄▄▃▃▅▅▆▃▂▂▂▁▃▃▂▁▃▃▃▂▃▄▃▂▂▂▂
+wandb: batch/reconstruction_loss █▆▇▃▅▃▃▄▃▂▄▄▂▂▆▃▃▃▂▂▁▃▂▂▂▂▂▂▂▂▁▂▁▂▁▂▂▂▂▂
+wandb:                batch/step ▁▂▂▂▂▂▂▂▃▃▃▃▄▄▄▄▄▅▅▅▅▅▅▅▆▆▆▆▆▆▆▆▆▆▇▇▇▇▇█
+wandb:               epoch/epoch ▁▁▁▁▁▁▂▂▂▂▂▂▃▃▃▃▃▃▄▄▄▄▄▅▅▆▆▆▆▆▆▇▇▇▇▇▇███
+wandb:           epoch/eval_loss █▆▆▄▃▂▂▃▂▂▂▂▃▂▂▃▂▂▂▂▂▂▁▂▃▁▁▁▂▁▁▁▁▁▁▂▂▁▁▂
+wandb:       epoch/learning_rate ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:          epoch/train_loss █▆▅▅▅▄▃▃▃▂▂▂▃▂▂▂▂▂▂▂▂▂▂▂▁▆▁▁▁▁▂▁▂▁▁▁▁▂▁▁
+wandb: 
+wandb: Run summary:
+wandb:               batch/epoch 5000
+wandb:                batch/loss 0.016
+wandb: batch/reconstruction_loss 0.016
+wandb:                batch/step 114977
+wandb:                best_epoch 4800
+wandb:                 best_loss 0.01573
+wandb:               config_hash d021e5d484a1e8866a46...
+wandb:               epoch/epoch 5000
+wandb:           epoch/eval_loss 0.02381
+wandb:       epoch/learning_rate 0.0002
+wandb:          epoch/train_loss 0.0254
+wandb:           final_eval_loss 0.02381
+wandb:          final_train_loss 0.0254
+wandb:                total_time 1288.44642
+wandb: 
+wandb: 🚀 View run colorful-field-5367 at: https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings/runs/3kstya4z
+wandb: ⭐️ View project at: https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 2 other file(s)
+wandb: Find logs at: ./wandb/run-20250825_204636-3kstya4z/logs

@@ -1,0 +1,29 @@
+# @package _global_.experiment
+
+# Experiment name and description
+name: mvn_coupled_exp
+description: "Multivariate normal distribution experiment with coupled distribution embeddings"
+
+# Override defaults from config.yaml
+defaults:
+  - /dataset: mvn_shifted
+  - /encoder: gnn
+  - /model: diffusion_mlp
+  - /generator: flow_matching
+  - /training: default500
+  - /sampling: default
+  - /coupling: sinkhorn
+
+# sampling parameters
+weight_mode: "uniform"
+num_samples: 50000   # number of pairs drawn from dataset each epoch
+unidirectional: false
+exponential_weight_scale: 1.0
+selective_pairing_mode: null
+
+# Experiment-specific parameters
+latent_dim: 16
+hidden_dim: 64
+set_size: 100
+batch_size: 256
+lr: 2e-4 

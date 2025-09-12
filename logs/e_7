@@ -1,0 +1,52 @@
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/hydra/_internal/hydra.py:119: UserWarning: Future Hydra versions will no longer change working directory at job runtime by default.
+See https://hydra.cc/docs/1.2/upgrades/1.1_to_1.2/changes_to_job_working_dir/ for more information.
+  ret = run_job(
+wandb: Currently logged in as: paolo-lb-fischer (paolo-lb-fischer-harvard-university) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.21.1
+wandb: Run data is saved locally in /orcd/archive/abugoot/001/Projects/paolo/tde_mfm/outputs/snapMMD_MFM_GoM/2025-08-25_19-50-51/wandb/run-20250825_195052-htgww7au
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run proud-water-5339
+wandb: ⭐️ View project at https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings
+wandb: 🚀 View run at https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings/runs/htgww7au
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch_geometric/typing.py:68: UserWarning: An issue occurred while importing 'pyg-lib'. Disabling its usage. Stacktrace: /lib64/libm.so.6: version `GLIBC_2.29' not found (required by /orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/libpyg.so)
+  warnings.warn(f"An issue occurred while importing 'pyg-lib'. "
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch_geometric/typing.py:124: UserWarning: An issue occurred while importing 'torch-sparse'. Disabling its usage. Stacktrace: /lib64/libm.so.6: version `GLIBC_2.29' not found (required by /orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/libpyg.so)
+  warnings.warn(f"An issue occurred while importing 'torch-sparse'. "
+wandb: WARNING Saving files without folders. If you want to preserve subdirectories pass base_path to wandb.save, i.e. wandb.save("/mnt/folder/file.h5", base_path="/mnt")
+wandb: uploading output.log; uploading config.yaml; uploading snapMMD_MFM_GoM_1ea12c2e3039ec7463fd6a1a0b460977/best_model.pt
+wandb: uploading output.log; uploading snapMMD_MFM_GoM_1ea12c2e3039ec7463fd6a1a0b460977/best_model.pt
+wandb: uploading output.log
+wandb:                                                                                
+wandb: 
+wandb: Run history:
+wandb:               batch/epoch ▁▁▁▁▁▂▂▂▂▂▃▃▃▃▃▄▄▄▄▄▄▅▅▅▅▅▅▆▆▆▆▆▆▆▆▇▇▇██
+wandb:                batch/loss ▆▄▃▇▅▆▅▃▃▅▅▂▂▁▁▂▃▂▄▂▁█▁▅▃▁▅▃▁█▂▂▃▄▁▄▄▄▅▃
+wandb: batch/reconstruction_loss ▅▃▄▃▆▆▂▂▆▂█▁▅▂▂▄▆▆▃▅▄▂▅▂▂█▄▁▄▄▂▇▃▄▃▁▁▆▁▂
+wandb:                batch/step ▁▁▁▁▂▂▂▂▂▂▂▂▂▃▃▃▃▄▄▄▄▅▅▅▅▅▆▆▆▇▇▇▇▇▇▇████
+wandb:               epoch/epoch ▁▂▂▂▂▂▃▃▃▃▃▃▃▃▄▄▄▄▄▄▄▄▅▅▅▆▆▆▆▆▆▇▇▇▇▇▇▇██
+wandb:           epoch/eval_loss █▅▄▃▃▄▃▃▄▂▃▂▃▂▁▁▃▂▂▁▂▃▁▁▂▂▃▂▂▁▂▂▂▁▃▃
+wandb:       epoch/learning_rate ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:          epoch/train_loss █▇▆▆▄▃▅▃▃▄▃▂▂▃▃▃▃▂▄▃▂▃▂▁▃▃▃▃▃▄▂▃▂▄▃▂▂▁▂▃
+wandb: 
+wandb: Run summary:
+wandb:               batch/epoch 3600
+wandb:                batch/loss 0.00288
+wandb: batch/reconstruction_loss 0.00288
+wandb:                batch/step 82777
+wandb:                best_epoch 1600
+wandb:                 best_loss 0.00522
+wandb:               config_hash 1ea12c2e3039ec7463fd...
+wandb:               epoch/epoch 3600
+wandb:           epoch/eval_loss 0.0068
+wandb:       epoch/learning_rate 0.0002
+wandb:          epoch/train_loss 0.00437
+wandb:           final_eval_loss 0.0068
+wandb:          final_train_loss 0.00437
+wandb:             stopped_early True
+wandb:             stopped_epoch 3600
+wandb:                total_time 941.84882
+wandb: 
+wandb: 🚀 View run proud-water-5339 at: https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings/runs/htgww7au
+wandb: ⭐️ View project at: https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 1 other file(s)
+wandb: Find logs at: ./wandb/run-20250825_195052-htgww7au/logs

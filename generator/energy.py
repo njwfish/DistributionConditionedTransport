@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from utils.latents import expand_latent_to_batch
 
 class EnergyGenerator(nn.Module):
     def __init__(
@@ -42,10 +43,8 @@ class EnergyGenerator(nn.Module):
         # Latents are assumed to be normalized by the encoder
         
         # Expand latents to match the number of source samples
-        if source_latent.shape[0] != batch_size:
-            source_latent = source_latent.unsqueeze(1).repeat(1, source_samples.shape[0] // source_latent.shape[0], 1).view(-1, source_latent.shape[-1])
-        if target_latent.shape[0] != batch_size:
-            target_latent = target_latent.unsqueeze(1).repeat(1, source_samples.shape[0] // target_latent.shape[0], 1).view(-1, target_latent.shape[-1])
+        source_latent = expand_latent_to_batch(source_latent, source_samples)
+        target_latent = expand_latent_to_batch(target_latent, source_samples)
         
         # Sample noise for the energy model
         noise = torch.randn(batch_size, self.noise_dim, device=source_samples.device)
@@ -110,10 +109,8 @@ class EnergyGenerator(nn.Module):
         λ = self.lambda_energy
 
         # Expand latents to match the number of source samples
-        if source_latent.shape[0] != batch_size:
-            source_latent = source_latent.unsqueeze(1).repeat(1, source_samples.shape[0] // source_latent.shape[0], 1).view(-1, source_latent.shape[-1])
-        if target_latent.shape[0] != batch_size:
-            target_latent = target_latent.unsqueeze(1).repeat(1, source_samples.shape[0] // target_latent.shape[0], 1).view(-1, target_latent.shape[-1])
+        source_latent = expand_latent_to_batch(source_latent, source_samples)
+        target_latent = expand_latent_to_batch(target_latent, source_samples)
         
         
         # Replicate inputs m times for m-sample approximation

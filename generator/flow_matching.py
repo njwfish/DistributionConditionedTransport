@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torchdyn.core import NeuralODE
+from utils.latents import expand_latent_to_batch
 
 class TorchWrapper(nn.Module):
     """Wrapper to make the model compatible with NeuralODE"""
@@ -20,11 +21,11 @@ class TorchWrapper(nn.Module):
         else:
             t = t.unsqueeze(-1) if t.dim() == 1 else t
             
-        # allow None target_latent by replacing with zeros
-        target_latent = self.target_latent
-        if target_latent is None:
-            target_latent = torch.zeros_like(self.source_latent)
-        return self.model(x, t, self.source_latent, target_latent)
+        # Pass target_latent only if available
+        if self.target_latent is None:
+            return self.model(x, t, self.source_latent)
+        else:
+            return self.model(x, t, self.source_latent, self.target_latent)
 
 
 class FlowMatchingGenerator(nn.Module):
@@ -94,9 +95,8 @@ class FlowMatchingGenerator(nn.Module):
         batch_size = source_samples.shape[0]
         
         # Expand latents to match the number of source samples
-        source_latent = source_latent.unsqueeze(1).repeat(1, source_samples.shape[0] // source_latent.shape[0], 1).view(-1, source_latent.shape[-1])
-        if target_latent is not None:
-            target_latent = target_latent.unsqueeze(1).repeat(1, source_samples.shape[0] // target_latent.shape[0], 1).view(-1, target_latent.shape[-1])
+        source_latent = expand_latent_to_batch(source_latent, source_samples)
+        target_latent = expand_latent_to_batch(target_latent, source_samples)
         
         # Create wrapped model for NeuralODE
         wrapped_model = TorchWrapper(self.model, source_latent, target_latent)
@@ -131,12 +131,9 @@ class FlowMatchingGenerator(nn.Module):
         
         batch_size, set_size = source_samples.shape
 
-        source_latent = source_latent.unsqueeze(1).repeat(1, source_samples.shape[0] // source_latent.shape[0], 1).view(-1, source_latent.shape[-1]) 
-        if target_latent is not None:
-            target_latent = target_latent.unsqueeze(1).repeat(1, target_samples.shape[0] // target_latent.shape[0], 1).view(-1, target_latent.shape[-1]) 
-        else:
-            target_latent = torch.zeros_like(source_latent)
-        
+        source_latent = expand_latent_to_batch(source_latent, source_samples)
+        target_latent = expand_latent_to_batch(target_latent, target_samples)
+
         # Sample random time
         t = self.sample_time(batch_size, source_samples.device)
         
@@ -147,7 +144,10 @@ class FlowMatchingGenerator(nn.Module):
         v_true = self.velocity_field(source_samples, target_samples, t)
         
         # Predicted velocity field
-        v_pred = self.model(x_t, t.unsqueeze(-1), source_latent, target_latent)
+        if target_latent is None:
+            v_pred = self.model(x_t, t.unsqueeze(-1), source_latent)
+        else:
+            v_pred = self.model(x_t, t.unsqueeze(-1), source_latent, target_latent)
         
         # MSE loss
         loss = torch.mean((v_pred - v_true) ** 2)

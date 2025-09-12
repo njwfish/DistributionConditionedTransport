@@ -1,4 +1,0 @@
-# @package _global_.dataset
-_target_: datasets.dna_dataset.DNADataset
-max_seq_length: 128
-seed: ${seed} 

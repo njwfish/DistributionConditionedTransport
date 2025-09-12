@@ -66,6 +66,43 @@ class EnergyGenerator(nn.Module):
         
         return predicted_samples
 
+    def _compute_energy_score(self, predictions, target, λ):
+        """
+        Compute energy score for a single modality.
+        
+        Args:
+            predictions: [n, m, d] - m predictions per sample
+            target: [n, d] - target values
+            λ: energy score regularization parameter
+            
+        Returns:
+            energy_score: scalar loss value
+        """
+        n, m = predictions.shape[:2]  # Handle arbitrary dimensions after m
+        
+        # Flatten spatial dimensions for distance computation
+        predictions_flat = predictions.view(n, m, -1)  # [n, m, d_flat]
+        target_flat = target.view(n, -1)  # [n, d_flat]
+        
+        # Confinement term: distance to target
+        target_expanded = target_flat.unsqueeze(1).expand(-1, m, -1)  # [n, m, d_flat]
+        term_conf = (predictions_flat - target_expanded).norm(dim=2).mean(dim=1)  # [n]
+        
+        # Interaction term (efficient batched computation)
+        # Using ||a-b||² = ||a||² + ||b||² - 2⟨a,b⟩ identity
+        sq = predictions_flat.pow(2).sum(dim=2)  # [n, m] - squared norms
+        inn = torch.bmm(predictions_flat, predictions_flat.transpose(1,2))  # [n, m, m] - inner products
+        sqd = sq.unsqueeze(2) + sq.unsqueeze(1) - 2*inn  # [n, m, m] - squared distances
+        sqd = torch.clamp(sqd, min=1e-6)  # avoid sqrt(0)
+        d = sqd.sqrt()  # [n, m, m] - distances
+        
+        # Mean of off-diagonal pairwise distances
+        m_mask = torch.ones(m, m, device=predictions.device) - torch.eye(m, device=predictions.device)
+        mean_pd = (d * m_mask).sum(dim=(1,2)) / (m * (m - 1))  # [n]
+        term_int = (λ / 2.0) * mean_pd  # [n]
+        
+        return (term_conf - term_int).mean()
+
     def loss(self, source_samples, target_samples, source_latent, target_latent):
         """
         Energy score loss using m-sample approximation
@@ -112,24 +149,9 @@ class EnergyGenerator(nn.Module):
         
         # Get m predictions per data point: [n*m, x_dim] -> [n, m, x_dim]
         x0_preds = self.model(x_rep, source_latent, target_latent, noise)
-        x0_preds = x0_preds.view(n, m, -1)
-        
-        # Confinement term: ||x0_true - x̂||
-        x0_true_rep = target_samples.unsqueeze(1).expand(-1, m, -1)
-        term_conf = (x0_preds - x0_true_rep).norm(dim=2).mean(dim=1)  # [n]
-        
-        # Interaction term: pairwise distances between predictions
-        if m > 1:
-            pdists = torch.stack([torch.pdist(x0_preds[i], p=2) for i in range(n)], dim=0)
-            mean_pd = pdists.mean(dim=1)  # [n]
-            term_int = (λ / 2.0) * mean_pd  # [n]
-        else:
-            term_int = torch.zeros_like(term_conf)
-        
-        # Energy score: confinement - interaction
-        energy_loss = (term_conf - term_int).mean()
-        
-        return energy_loss
+        x0_preds = x0_preds.reshape(n, m, -1)
+
+        return self._compute_energy_score(x0_preds, target_samples, λ)
 
     def sample(self, source_samples, source_latent, target_latent):
         """

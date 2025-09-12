@@ -3,5 +3,5 @@ _target_: generator.energy.EnergyGenerator
 model: ${model}  # This will be instantiated first
 noise_dim: ${experiment.latent_dim} 
 sigma_min: 1.0
-m: 16
+m: 8
 lambda_energy: 1.0

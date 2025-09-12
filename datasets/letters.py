@@ -5,7 +5,7 @@ import os
 from PIL import Image
 from typing import Optional, List
 
-all_letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+all_letters = 'ABCDEFGHIJKLMNOPQRSTUVW'
 
 class Letters(Dataset):
     def __init__(
@@ -14,7 +14,7 @@ class Letters(Dataset):
         samples_per_letter_font: int = 1000,
         set_size: int = 100,
         noise_level: float = 0.1,
-        train_letters: str = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+        train_letters: str = 'ABCDEFGHIJKLMNOPQRSTUVW',
         num_fonts: int = 10,
         seed: Optional[int] = 42,
         data_path='/orcd/archive/abugoot/001/Projects/njwfish/data/letters/'

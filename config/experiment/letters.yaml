@@ -6,7 +6,7 @@ description: "Letters distribution experiment with coupled distribution embeddin
 
 # Override defaults from config.yaml
 defaults:
-  - /dataset: letters_easy
+  - /dataset: letters
   - /encoder: gnn
   - /model: noise_mlp
   - /generator: energy

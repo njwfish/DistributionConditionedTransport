@@ -12,6 +12,7 @@ import time
 import torch.nn as nn
 # Import our resolver for sum operations
 import utils.hash_utils as hash_utils
+from utils.seed import seed_everything, dataloader_seed_worker, make_torch_generator
 
 
 
@@ -35,9 +36,9 @@ def main(cfg: DictConfig):
     logger.info(f"Configuration hash (exclude predictor): {config_hash}")
     logger.info(f"Predictor configuration hash (include predictor): {predictor_config_hash}")
     
-    # Set random seed
+    # Set random seed and deterministic behavior
     if cfg.seed is not None:
-        torch.manual_seed(cfg.seed)
+        seed_everything(int(cfg.seed), deterministic=True)
         
     # Initialize W&B
     run = wandb.init(
@@ -80,7 +81,9 @@ def main(cfg: DictConfig):
             'num_workers': num_workers,
             'pin_memory': True,
             'persistent_workers': True if num_workers > 0 else False,
-            'collate_fn': None
+            'collate_fn': None,
+            'worker_init_fn': dataloader_seed_worker,
+            'generator': make_torch_generator(int(cfg.seed) if hasattr(cfg, 'seed') else None),
         }
         
         sampling_config = cfg.predictor_sampling

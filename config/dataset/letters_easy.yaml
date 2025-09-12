@@ -1,0 +1,4 @@
+# @package _global_.dataset
+_target_: datasets.letters.Letters
+data_shape: [2]
+num_fonts: 2

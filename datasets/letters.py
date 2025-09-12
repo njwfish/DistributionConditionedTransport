@@ -11,7 +11,7 @@ class Letters(Dataset):
     def __init__(
         self, 
         data_shape: List[int],
-        samples_per_letter_font: int = 10000,
+        samples_per_letter_font: int = 1000,
         set_size: int = 100,
         noise_level: float = 0.1,
         train_letters: str = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
@@ -73,7 +73,7 @@ class Letters(Dataset):
         target_idx = np.random.choice(target_samples.shape[0], size=self.set_size, replace=False)
     
         return {
-            'source_samples': source_samples[source_idx],
-            'target_samples': target_samples[target_idx]
+            'source_samples': torch.from_numpy(source_samples[source_idx]),
+            'target_samples': torch.from_numpy(target_samples[target_idx])
         }
             

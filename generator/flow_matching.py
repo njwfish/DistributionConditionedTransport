@@ -110,7 +110,7 @@ class FlowMatchingGenerator(nn.Module):
             # Return only final point
             traj = node.trajectory(
                 source_samples,
-                t_span=torch.linspace(0, 1, 2, device=source_samples.device),  # Just start and end
+                t_span=torch.linspace(0, 1, num_steps, device=source_samples.device),  # Just start and end
             )
             if return_trajectory:
                 # Return full trajectory

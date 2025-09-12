@@ -1,3 +1,0 @@
-# @package _global_.predictor
-_target_: predictor.predictor.Predictor
-# TODO: add mlp predictor

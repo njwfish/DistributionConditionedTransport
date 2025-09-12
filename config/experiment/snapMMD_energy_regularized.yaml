@@ -1,7 +1,7 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: snapMMD_${dataset_name}
+name: snapMMD_energy_reg_mlp_${dataset_name}
 description: "SnapMMD ${dataset_name} experiment with unified dataset class"
 
 # Override defaults from config.yaml
@@ -24,13 +24,6 @@ use_predicted_latent: false
 predictor_loss_weight: 1
 
 train_predictor_posthoc: false
-
-#predictor_model_type: "mlp"
-#predictor_conditioning_mode: "sinusoidal"
-#predictor_condition_type: "none"
-#predictor_model_args:
-#  hidden_dim: 128
-#  num_layers: 2
 
 predictor_model_type: "ridge"
 predictor_conditioning_mode: "concat"

@@ -1,5 +1,5 @@
 # @package _global_.sampling
-_target_: utils.custom_sampler.CustomWeightedSampler
+_target_: sampler.default.Sampler
 weight_mode: ${experiment.weight_mode}
 num_samples: ${experiment.num_samples}
 replacement: true

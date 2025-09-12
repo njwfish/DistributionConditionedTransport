@@ -6,16 +6,16 @@ import math
 class SimpleMLP(nn.Module):
     """Lightweight MLP defined locally to avoid external dependencies."""
 
-    def __init__(self, in_dims, hidden_dim, out_dim, layers):
+    def __init__(self, in_dims, hidden_dim, out_dim, layers, activation):
         super().__init__()
         layers_list = []
 
         current_dim = in_dims
-        self.activation = 
+        self.activation = activation
 
         for _ in range(layers - 1):
             layers_list.append(nn.Linear(current_dim, hidden_dim))
-            layers_list.append(nn.ReLU())
+            layers_list.append(self.activation)
             current_dim = hidden_dim
         layers_list.append(nn.Linear(current_dim, out_dim))
 
@@ -126,6 +126,7 @@ class Predictor(nn.Module):
                 hidden_dim=hidden_dim,
                 out_dim=latent_dim,
                 layers=num_layers,
+                activation=self.latent_act
             )
         elif self.model_type == "ridge":
             self.model = nn.Linear(input_dim, latent_dim)
@@ -160,6 +161,7 @@ class Predictor(nn.Module):
         output = self.model(x_conditioned)
 
         return output
+    
 
     def loss(self, source_latent, target_latent, condition_scalars=None):
         pred_target_latent = self.forward(source_latent, condition_scalars=condition_scalars)

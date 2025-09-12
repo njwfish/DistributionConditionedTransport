@@ -69,7 +69,7 @@ def main(cfg: DictConfig):
             coupling_kwargs = {'pairwise_dist_fn': dataset.pairwise_distance}
         else:
             coupling_kwargs = {}
-            
+
         coupling = hydra.utils.instantiate(cfg.coupling, **coupling_kwargs)
 
         # Base dataloader kwargs

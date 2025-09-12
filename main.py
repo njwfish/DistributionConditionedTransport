@@ -64,18 +64,13 @@ def main(cfg: DictConfig):
         dataloader_start = time.time()
         num_workers = min(2, os.cpu_count())  # Reduced from 4 to 2 to avoid DataLoader warnings and reduce memory contention
 
-        # Handle coupling configuration
         if hasattr(dataset, 'pairwise_distance'):
             coupling_kwargs = {'pairwise_dist_fn': dataset.pairwise_distance}
         else:
             coupling_kwargs = {}
         
-        # Check if coupling should be None (for none.yaml config)
-        if cfg.coupling._target_ == "types.NoneType":
-            coupling = None
-        else:
-            coupling = hydra.utils.instantiate(cfg.coupling, **coupling_kwargs)
-        
+        coupling = hydra.utils.instantiate(cfg.coupling, **coupling_kwargs)
+
         # Base dataloader kwargs
         base_dataloader_kwargs = {
             'batch_size': cfg.experiment.batch_size,
@@ -83,11 +78,8 @@ def main(cfg: DictConfig):
             'num_workers': num_workers,
             'pin_memory': True,
             'persistent_workers': True if num_workers > 0 else False,
+            'collate_fn': coupling
         }
-        
-        # Only add collate_fn if coupling is not None
-        if coupling is not None:
-            base_dataloader_kwargs['collate_fn'] = coupling
         
         sampling_config = cfg.sampling
 

@@ -622,6 +622,7 @@ def compute_mmd_and_emd(dataset_name: str, forecast_NxD: np.ndarray, logger: log
 # PCA helpers for PBMC plotting
 # -----------------------------
 
+
 def setup_pca_for_pbmc(logger: logging.Logger) -> PCA:
     logger.info("Computing PCA for PBMC datasets...")
     data1 = np.load("data/realdata/processed_pbmc_data_sub500_every_2_until20.npz")

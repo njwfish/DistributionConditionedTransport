@@ -8,11 +8,11 @@ description: "Letters distribution experiment with coupled distribution embeddin
 defaults:
   - /dataset: letters
   - /encoder: gnn
-  - /model: noise_mlp
-  - /generator: energy
+  - /model: diffusion_mlp
+  - /generator: flow_matching
   - /training: default5000
   - /sampling: default
-  - /loss: default
+  - /loss: default_source_only
   - /coupling: sinkhorn
 
 train_predictor_posthoc: true

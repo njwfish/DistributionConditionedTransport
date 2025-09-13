@@ -16,4 +16,4 @@ cd "$PROJECT_ROOT"
 export PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH"
 
 
-python main.py experiment=letters +model.source_only=true wandb=offline
+python main.py experiment=letters_mfm +model.source_only=true wandb=offline

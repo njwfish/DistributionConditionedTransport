@@ -1,8 +1,6 @@
 import torch
 
 class LossManager:
-    def __init__(self):
-
     def loss(self, encoder, generator, predictor, batch, device):
         losses = {}
         loss = 0

@@ -32,7 +32,7 @@ def main(cfg: DictConfig):
     # Excluding predictor params (matches encoder/generator run)
     config_hash = hash_utils.hash_config(cfg)
     # Including predictor params (to distinguish predictor-only runs)
-    predictor_config_hash = hash_utils.hash_config(cfg, exclude_predictor=False)
+    predictor_config_hash = hash_utils.hash_config(cfg)
     logger.info(f"Configuration hash (exclude predictor): {config_hash}")
     logger.info(f"Predictor configuration hash (include predictor): {predictor_config_hash}")
     

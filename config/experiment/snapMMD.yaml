@@ -10,7 +10,7 @@ defaults:
   - /encoder: gnn
   - /model: diffusion_mlp
   - /generator: flow_matching  # Use flow matching for coupled embeddings
-  - /training: default10000
+  - /training: default
   - /loss: default
   - /predictor: default  # use unified predictor
   - /predictor_sampling: default
@@ -19,16 +19,11 @@ defaults:
 
 ot_coupling: false
 
-# Control generator conditioning
-# When true, condition generator only on source latent and ignore target latent
-generator_source_only: false
-
 # predictor parameters
-use_predicted_latent: true
+use_predicted_latent: false
 predictor_loss_weight: 0
 
 train_predictor_posthoc: true
-
 
 predictor_model_type: "mlp"
 predictor_conditioning_mode: "sinusoidal"
@@ -37,13 +32,7 @@ predictor_model_args:
   hidden_dim: 128
   num_layers: 2
 
-#predictor_model_type: "ridge"
-#predictor_conditioning_mode: "sinusoidal"
-#predictor_model_args:
-#  ridge_alpha: 1e-3
-
 # sampling parameters
-weight_mode: "uniform"
 num_samples: null
 exponential_weight_scale: 1.44  # approx ln(2)
 selective_pairing_mode: null

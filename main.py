@@ -155,7 +155,7 @@ def main(cfg: DictConfig):
         optimizer = hydra.utils.instantiate(cfg.optimizer)(params=model_parameters)
         scheduler = hydra.utils.instantiate(cfg.scheduler)(optimizer=optimizer)
 
-        if train_predictor_posthoc and cfg.loss._target_ != "loss.default.LossManager":
+        if train_predictor_posthoc and cfg.loss._target_ not in ["loss.default.LossManager", "loss.default_source_only.LossManager"]:
             raise ValueError("Cannot train predictor posthoc with non-default loss")
         
         loss_manager = hydra.utils.instantiate(cfg.loss)

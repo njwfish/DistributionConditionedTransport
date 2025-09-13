@@ -2,13 +2,17 @@ import torch
 import torch.nn as nn
 
 class MLP(nn.Module):
-    def __init__(self, in_dims, hidden_dim, out_dim, layers=2):
+    def __init__(self, in_dims, hidden_dim, out_dim, layers=2, source_only=False):
         super().__init__()
         if isinstance(in_dims, int):
             in_dims = [in_dims]
         
-        self.in_dims = in_dims
-        total_in_dim = sum(in_dims)
+        if source_only:
+            self.in_dims = in_dims[:-1]
+        else:
+            self.in_dims = in_dims
+            
+        total_in_dim = sum(self.in_dims)
         
         self.layers = nn.ModuleList([
             nn.Linear(total_in_dim, hidden_dim),

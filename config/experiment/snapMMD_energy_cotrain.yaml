@@ -1,7 +1,7 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: snapMMD_energy_reg_mlp_${dataset_name}
+name: snapMMD_energy_cotrain_${dataset_name}
 description: "SnapMMD ${dataset_name} experiment with unified dataset class"
 
 # Override defaults from config.yaml
@@ -32,7 +32,6 @@ predictor_model_args:
   ridge_alpha: 1e-3
 
 # sampling parameters
-weight_mode: "uniform"
 num_samples: null
 exponential_weight_scale: 1.44  # approx ln(2)
 selective_pairing_mode: null

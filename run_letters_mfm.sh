@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -t 00:10:00
+#SBATCH -t 02:00:00
 #SBATCH --gres shard:1
 #SBATCH --constraint any-A100
 #SBATCH --partition abugoot
@@ -16,4 +16,4 @@ cd "$PROJECT_ROOT"
 export PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH"
 
 
-python main.py experiment=letters_mfm +model.source_only=true wandb=offline
+python main.py experiment=letters_mfm training.num_epochs=10000 +model.source_only=true wandb=offline

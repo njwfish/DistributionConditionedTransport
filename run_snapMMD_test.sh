@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -t 00:10:00
+#SBATCH -t 02:00:00
 #SBATCH --gres shard:1
 #SBATCH --constraint any-A100
 #SBATCH --partition abugoot

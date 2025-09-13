@@ -12,13 +12,15 @@ class Letters(Dataset):
     def __init__(
         self, 
         data_shape: List[int],
-        samples_per_letter_font: int = 1000,
+        samples_per_letter_font: int = 10000,
         set_size: int = 100,
         noise_level: float = 0.1,
         train_letters: str = 'ABCDEFGHIJKLMNOPQRSTUVW',
+        eval_letters: str = 'XYZ',
         num_fonts: int = 10,
         seed: Optional[int] = 42,
-        data_path='/orcd/archive/abugoot/001/Projects/njwfish/data/letters/'
+        data_path='/orcd/archive/abugoot/001/Projects/njwfish/data/letters/',
+        eval: bool = False
     ):
         if seed is not None:
             np.random.seed(seed)
@@ -29,6 +31,8 @@ class Letters(Dataset):
         self.set_size = set_size
         self.noise_level = noise_level
         self.train_letters = train_letters
+        self.eval_letters = eval_letters
+        self.eval = eval
         self.num_fonts = num_fonts
         self.data = {}
         # load image pngs from data_path
@@ -61,11 +65,11 @@ class Letters(Dataset):
         return unif.astype(np.float32)
 
     def __len__(self):
-        return (self.num_fonts - 1) * len(self.train_letters)
+        return (self.num_fonts - 1) * len(self.train_letters if not self.eval else self.eval_letters)
     
     def __getitem__(self, idx):
         # map idx to letter and font
-        letter = self.train_letters[idx // (self.num_fonts - 1)]
+        letter = self.train_letters[idx // (self.num_fonts - 1)] if not self.eval else self.eval_letters[idx // (self.num_fonts - 1)]
         font = idx % (self.num_fonts - 1)
         source_samples = self.data[letter][font]
         target_samples = self.data[letter][font + 1]

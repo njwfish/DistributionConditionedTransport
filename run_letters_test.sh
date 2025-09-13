@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -t 00:10:00
+#SBATCH -t 02:00:00
 #SBATCH --gres shard:1
 #SBATCH --constraint any-A100
 #SBATCH --partition abugoot
@@ -15,4 +15,4 @@ PROJECT_ROOT="/orcd/archive/abugoot/001/Projects/paolo/tde_main"
 cd "$PROJECT_ROOT"
 export PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH"
 
-python main.py experiment=letters
+python main.py experiment=letters training.num_epochs=10000

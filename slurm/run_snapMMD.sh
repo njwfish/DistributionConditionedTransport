@@ -1,4 +1,5 @@
 #!/bin/bash
+#SBATCH --chdir=/orcd/archive/abugoot/001/Projects/paolo/tde_main
 #SBATCH -t 02:00:00
 #SBATCH --gres shard:1
 #SBATCH --constraint any-A100
@@ -6,15 +7,15 @@
 #SBATCH --mem 5GB
 #SBATCH -o logs/o_%a
 #SBATCH -e logs/e_%a
-#SBATCH --array=0-2:1
+#SBATCH --array=0
 
 export HYDRA_FULL_ERROR=1
 export WANDB_API_KEY="c72e34cd8dc67f7220e3517232e86861cd5c537b"
 
 # Define dataset names (only GoM and PBMC)
-datasets=("PBMC")
+datasets=("LV")
 
-selective_pairing_modes=("null" "single_step" "unidirectional")
+selective_pairing_modes=("null")
 
 # Define seeds
 seeds=(0)

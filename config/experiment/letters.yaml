@@ -13,7 +13,6 @@ defaults:
   - /training: default5000
   - /sampling: default
   - /loss: default
-  - /collate: random_pairing
   - /coupling: sinkhorn
 
 train_predictor_posthoc: true

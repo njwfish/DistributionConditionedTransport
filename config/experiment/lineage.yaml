@@ -10,8 +10,7 @@ defaults:
   - /encoder: gnn
   - /model: noise_mlp
   - /generator: energy
-  - /training: default_very_inpatient
-  - /collate: none
+  - /training: default
   - /loss: default
   - /predictor: default  # use unified predictor
   - /predictor_sampling: default

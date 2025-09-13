@@ -5,7 +5,6 @@ from torch.utils.data import DataLoader, Subset, WeightedRandomSampler
 import logging
 import wandb
 from loss.default import LossManager as DefaultLossManager
-from predictor_training import PredictorTrainer
 import os
 import numpy as np
 import time
@@ -70,7 +69,17 @@ def main(cfg: DictConfig):
         else:
             coupling_kwargs = {}
 
-        coupling = hydra.utils.instantiate(cfg.coupling, **coupling_kwargs)
+        # Handle coupling configuration with robust error handling
+        coupling = None
+        if hasattr(cfg, 'coupling') and cfg.coupling is not None:
+            coupling_target = cfg.coupling.get('_target_', None)
+            if coupling_target is not None and coupling_target != 'types.NoneType':
+                try:
+                    coupling = hydra.utils.instantiate(cfg.coupling, **coupling_kwargs)
+                except Exception as e:
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Failed to instantiate coupling {coupling_target}: {e}")
+                    coupling = None
 
         # Base dataloader kwargs
         base_dataloader_kwargs = {

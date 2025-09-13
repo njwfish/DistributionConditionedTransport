@@ -65,7 +65,7 @@ class LTSeqDataset(Dataset):
         self,
         set_size: int = 100,
         min_cells: int = 3,
-        # n_pcs: int = 50,
+        n_pcs: int = 50,
         root: str = './data',
         data_shape: List[int] = [10000],
         seed: Optional[int] = None
@@ -81,14 +81,15 @@ class LTSeqDataset(Dataset):
         self.data_shape = data_shape
 
         adata = GetLTSeqData(root)
-        # sc.tl.pca(adata, n_comps=n_pcs)
+        sc.tl.pca(adata, n_comps=n_pcs)
         self.adata = adata
 
         self.data, self.metadata = self.generate_clone_sets()
         self.n_sets = len(self.data)
+        self.src_samples, self.tgt_samples, self.src_metadata, self.tgt_metadata = self.generate_clone_set_pairs()
 
     def generate_clone_sets(self):
-        feats = self.adata.X#.obsm['X_pca']
+        feats = self.adata.obsm['X_pca']
         df = self.adata.obs[['clone', 'time']].astype(str)
         df['cluster_id'] = df.agg('--'.join, axis=1)
 
@@ -119,11 +120,60 @@ class LTSeqDataset(Dataset):
         tensor = torch.stack(tensor_list) if tensor_list else torch.empty((0, self.set_size, F))
         return tensor, metadata
 
+    def generate_clone_set_pairs(self):
+        """
+        generate paired clone sets for clones that appear at two consecutive time points.
+        
+        Returns:
+            src_tensor: Tensor of source clone sets.
+            tgt_tensor: Tensor of target clone sets.
+            src_metadata: List of metadata corresponding to source clone sets.
+            tgt_metadata: List of metadata corresponding to target clone sets.
+        """
+        src_tensors = []
+        tgt_tensors = []
+        src_metadata = []
+        tgt_metadata = []
+        
+        # create a dictionary mapping (clone, time) to the indices in the dataset
+        clone_time_dict = {}
+        for idx, meta in enumerate(self.metadata):
+            # meta is a list: [clone, time, set_label]
+            try:
+                time_val = int(meta[1][0])
+            except ValueError:
+                continue
+            key = (meta[0], time_val)
+            if key not in clone_time_dict:
+                clone_time_dict[key] = []
+            clone_time_dict[key].append(idx)
+        
+        # For each clone and for times 2, 4, 6 attempt to find a matching t+1
+        for (clone, t) in clone_time_dict:
+            if t in [2, 4]:
+                target_key = (clone, t + 2)
+                if target_key in clone_time_dict:
+                    # Pair all combinations from source (time t) and target (time t+1)
+                    for src_idx in clone_time_dict[(clone, t)]:
+                        for tgt_idx in clone_time_dict[target_key]:
+                            src_tensors.append(self.data[src_idx])
+                            tgt_tensors.append(self.data[tgt_idx])
+                            src_metadata.append(self.metadata[src_idx])
+                            tgt_metadata.append(self.metadata[tgt_idx])
+        
+        src_tensor = torch.stack(src_tensors)
+        tgt_tensor = torch.stack(tgt_tensors)
+        
+        return src_tensor, tgt_tensor, src_metadata, tgt_metadata
+
     def __len__(self):
-        return self.n_sets
+        return len(self.src_samples)
 
     def __getitem__(self, idx):
+
         return {
-            'samples': self.data[idx],
-            'metadata': self.metadata[idx]
+            'source_samples': self.src_samples[idx],
+            'target_samples': self.tgt_samples[idx],
+            'source_metadata': self.src_metadata[idx],
+            'target_metadata': self.tgt_metadata[idx]
         }

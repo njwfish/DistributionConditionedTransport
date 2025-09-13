@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import DataLoader, Subset, WeightedRandomSampler
 import logging
 import wandb
-from predictor_training import PredictorTrainer
+from training_predictor import PredictorTrainer
 import os
 import numpy as np
 import time

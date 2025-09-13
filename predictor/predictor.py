@@ -118,6 +118,10 @@ class Predictor(nn.Module):
         else:
             raise ValueError(f"Unknown conditioning_mode: {self.conditioning_mode}")
 
+        # Define activation before using it
+        self.latent_act = nn.SELU()
+        self.similarity = nn.CosineSimilarity()
+
         if self.model_type == "mlp":
             hidden_dim = self.model_args.get("hidden_dim", 128)
             num_layers = self.model_args.get("num_layers", 2)
@@ -130,10 +134,6 @@ class Predictor(nn.Module):
             )
         elif self.model_type == "ridge":
             self.model = nn.Linear(input_dim, latent_dim)
-
-        
-        self.latent_act = nn.SELU()
-        self.similarity = nn.CosineSimilarity()
         
 
     def forward(self, x, condition_scalars=None):

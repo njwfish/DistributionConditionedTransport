@@ -1,4 +1,5 @@
 import torch
+from typing import Optional
 
 
 def normalize_latent(latent: torch.Tensor, eps: float = 1e-12) -> torch.Tensor:
@@ -20,7 +21,7 @@ def normalize_latent(latent: torch.Tensor, eps: float = 1e-12) -> torch.Tensor:
 
 
 
-def expand_latent_to_batch(latent: torch.Tensor | None, reference_batch: torch.Tensor) -> torch.Tensor | None:
+def expand_latent_to_batch(latent: Optional[torch.Tensor], reference_batch: torch.Tensor) -> Optional[torch.Tensor]:
     """
     Expand a latent tensor along the batch dimension to match a reference batch size.
 

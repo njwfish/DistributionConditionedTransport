@@ -12,8 +12,6 @@ defaults:
   - /scheduler: cosine
   - /loss: default
   - /predictor: default  
-  - /predictor_sampling: default
-  - /predictor_training: default
   - /sampling: default
   - /training: default_virus
 

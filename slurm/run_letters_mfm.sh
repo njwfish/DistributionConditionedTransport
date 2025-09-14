@@ -1,4 +1,5 @@
 #!/bin/bash
+#SBATCH --chdir=/orcd/archive/abugoot/001/Projects/paolo/main_tde
 #SBATCH -t 02:00:00
 #SBATCH --gres shard:1
 #SBATCH --constraint any-A100

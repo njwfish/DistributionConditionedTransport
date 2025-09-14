@@ -7,7 +7,7 @@
 #SBATCH --mem 5GB
 #SBATCH -o logs/o_%a
 #SBATCH -e logs/e_%a
-#SBATCH --array=0
+#SBATCH --array=0-4:1
 
 export HYDRA_FULL_ERROR=1
 export WANDB_API_KEY="c72e34cd8dc67f7220e3517232e86861cd5c537b"
@@ -15,10 +15,10 @@ export WANDB_API_KEY="c72e34cd8dc67f7220e3517232e86861cd5c537b"
 # Define dataset names (only GoM and PBMC)
 datasets=("PBMC")
 
-selective_pairing_modes=("null")
+selective_pairing_modes=("single_step")
 
 # Define seeds
-seeds=(0)
+seeds=(1 2 3 4 5)
 
 alpha=(0.001)
 
@@ -51,4 +51,4 @@ else
 fi
 
 # Run the unified hyperparameter experiment with the specified hyperparameters
-python main.py experiment=snapMMD_energy_cotrain dataset_name=${dataset_name} experiment.predictor_loss_weight=${alpha} experiment.selective_pairing_mode=${selective_pairing_mode} seed=${seed} experiment.ot_coupling=${ot_coupling}
+python main.py experiment=snapMMD_energy_cotrain dataset_name=${dataset_name} experiment.predictor_loss_weight=${alpha} experiment.selective_pairing_mode=${selective_pairing_mode} seed=${seed} experiment.ot_coupling=${ot_coupling} training.num_epochs=500

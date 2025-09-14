@@ -97,24 +97,6 @@ def main(cfg: DictConfig):
 
         # Load optional lists for the sampler if specified in cfg.experiment
         sampler_kwargs = {}
-        
-        # Check for specific_pairing_pth
-        if hasattr(cfg.experiment, 'specific_pairing_pth'):
-            specific_pairing_path = cfg.experiment.specific_pairing_pth
-
-            data = np.load(specific_pairing_path)
-            specific_pairing = data['specific_pairing'].tolist()
-            sampler_kwargs['specific_pairing'] = specific_pairing
-            logger.info(f"Loaded specific_pairing with {len(specific_pairing)} pairs")
-
-        # Check for precomputed_d_values_pth
-        if hasattr(cfg.experiment, 'precomputed_d_values_pth'):
-            precomputed_d_values_path = cfg.experiment.precomputed_d_values_pth
-
-            data = np.load(precomputed_d_values_path)
-            precomputed_d_values = data['precomputed_d_values']
-            sampler_kwargs['precomputed_d_values'] = precomputed_d_values
-            logger.info(f"Loaded precomputed_d_values with shape {precomputed_d_values.shape}")
 
         sampler = hydra.utils.instantiate(sampling_config, dataset=dataset, **sampler_kwargs)
 

@@ -177,3 +177,104 @@ class LTSeqDataset(Dataset):
             'source_metadata': self.src_metadata[idx],
             'target_metadata': self.tgt_metadata[idx]
         }
+
+class LTSeqDatasetUnstructured(Dataset):
+    """Dataset for lineage-traced scRNA-seq from Weinreb, et al., 2020"""
+
+    def __init__(
+        self,
+        set_size: int = 100,
+        min_cells: int = 3,
+        n_pcs: int = 50,
+        root: str = './data',
+        data_shape: List[int] = [10000],
+        seed: Optional[int] = None
+    ):
+        if seed is not None:
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+
+        self.set_size = set_size
+        self.min_cells = min_cells
+        # self.n_pcs = n_pcs
+        self.root = root
+        self.data_shape = data_shape
+
+        adata = GetLTSeqData(root)
+        sc.tl.pca(adata, n_comps=n_pcs)
+        self.adata = adata
+
+        self.data, self.metadata = self.generate_clone_sets()
+        self.n_sets = len(self.data)
+        self.src_samples, self.tgt_samples, self.src_metadata, self.tgt_metadata = self.generate_random_clone_pairs()
+
+    def generate_clone_sets(self):
+        feats = self.adata.obsm['X_pca']
+        df = self.adata.obs[['clone', 'time']].astype(str)
+        df['cluster_id'] = df.agg('--'.join, axis=1)
+
+        clusters = df['cluster_id'].unique()
+        F = feats.shape[1]
+        tensor_list = []
+        metadata = []
+
+        for cluster in clusters:
+            idxs = np.where(df['cluster_id'] == cluster)[0]
+            n_cells = len(idxs)
+            num_sets = -(-n_cells // self.set_size)  # ceil(n_cells / set_size)
+
+            for set_num in range(num_sets):
+                start = set_num * self.set_size
+                end = min(start + self.set_size, n_cells)
+                selected = feats[idxs[start:end]]
+
+                if len(selected) >= self.min_cells:
+                    if len(selected) < self.set_size:
+                        pad_size = self.set_size - len(selected)
+                        pad_idxs = np.random.choice(idxs[:end], pad_size, replace=True)
+                        selected = np.vstack([selected, feats[pad_idxs]])
+
+                    tensor_list.append(torch.tensor(selected, dtype=torch.float32))
+                    metadata.append(cluster.split('--') + [f"set{set_num+1}"])
+
+        tensor = torch.stack(tensor_list) if tensor_list else torch.empty((0, self.set_size, F))
+        return tensor, metadata
+    
+    def generate_random_clone_pairs(self, n_samples=None):
+        """
+        generate random paired clone sets from the dataset.
+        
+        Returns:
+            src_tensor: Tensor of source clone sets.
+            tgt_tensor: Tensor of target clone sets.
+            src_metadata: List of metadata corresponding to source clone sets.
+            tgt_metadata: List of metadata corresponding to target clone sets.
+        """
+        if n_samples is None:
+            n_samples = len(self.data)
+        indices = np.arange(len(self.data))
+        
+        src_indices = np.random.choice(indices, size=n_samples, replace=True)
+        tgt_indices = np.random.choice(indices, size=n_samples, replace=True)
+        
+        src_tensors = [self.data[i] for i in src_indices]
+        tgt_tensors = [self.data[i] for i in tgt_indices]
+        src_metadata = [self.metadata[i] for i in src_indices]
+        tgt_metadata = [self.metadata[i] for i in tgt_indices]
+        
+        src_tensor = torch.stack(src_tensors)
+        tgt_tensor = torch.stack(tgt_tensors)
+        
+        return src_tensor, tgt_tensor, src_metadata, tgt_metadata
+
+    def __len__(self):
+        return len(self.src_samples)
+
+    def __getitem__(self, idx):
+
+        return {
+            'source_samples': self.src_samples[idx],
+            'target_samples': self.tgt_samples[idx],
+            'source_metadata': self.src_metadata[idx],
+            'target_metadata': self.tgt_metadata[idx]
+        }

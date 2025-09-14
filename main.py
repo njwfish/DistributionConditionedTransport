@@ -8,8 +8,7 @@ from loss.default import LossManager as DefaultLossManager
 import os
 import numpy as np
 import time
-from hydra import compose, initialize_config_dir
-from hydra.core.global_hydra import GlobalHydra
+from hydra import compose
 
 import torch.nn as nn
 # Import our resolver for sum operations
@@ -27,12 +26,9 @@ def main(cfg: DictConfig):
     if predictor_experiment_name is not None:
         main_training_phase = False
         
-        # compose a second, independent full config with its own experiment overrides
-        config_dir = os.path.abspath(os.path.join(hydra.utils.get_original_cwd(), "config"))
-        if GlobalHydra.instance().is_initialized():
-            GlobalHydra.instance().clear()
-        with initialize_config_dir(version_base="1.1", config_dir=config_dir):
-            predictor_cfg = compose(config_name="config", overrides=[f"+predictor_experiment={predictor_experiment_name}"])
+        # Compose a second, independent full config with its own experiment overrides
+        # without clearing Hydra, so original_cwd remains the project root.
+        predictor_cfg = compose(config_name="config", overrides=[f"experiment={predictor_experiment_name}"])
 
     logger = logging.getLogger(__name__)
     logger.info("\n" + OmegaConf.to_yaml(cfg))

@@ -5,22 +5,22 @@
 #SBATCH --constraint any-A100
 #SBATCH --partition abugoot
 #SBATCH --mem 5GB
-#SBATCH -o logs/o_%a
-#SBATCH -e logs/e_%a
-#SBATCH --array=0-4:1
+#SBATCH -o logs/o_gom_%a
+#SBATCH -e logs/e_gom_%a
+#SBATCH --array=0-29:1
 
 export HYDRA_FULL_ERROR=1
 export WANDB_API_KEY="c72e34cd8dc67f7220e3517232e86861cd5c537b"
 
 # Define dataset names (only GoM and PBMC)
-datasets=("PBMC")
+datasets=("GoM")
 
-selective_pairing_modes=("single_step")
+selective_pairing_modes=("single_step" "null" "unidirectional")
 
 # Define seeds
 seeds=(1 2 3 4 5)
 
-alpha=(0.001)
+alpha=(0.01 0.1)
 
 # Calculate indices for this array task
 # Total combinations: 4 datasets × 2 weight_modes × 3 selective_pairing_modes × 10 seeds = 240 jobs
@@ -51,4 +51,4 @@ else
 fi
 
 # Run the unified hyperparameter experiment with the specified hyperparameters
-python main.py experiment=snapMMD_energy_cotrain dataset_name=${dataset_name} experiment.predictor_loss_weight=${alpha} experiment.selective_pairing_mode=${selective_pairing_mode} seed=${seed} experiment.ot_coupling=${ot_coupling} training.num_epochs=500
+python main.py experiment=snapMMD_energy_cotrain dataset_name=${dataset_name} experiment.predictor_loss_weight=${alpha} experiment.selective_pairing_mode=${selective_pairing_mode} seed=${seed} experiment.ot_coupling=${ot_coupling} training.num_epochs=1000

@@ -10,27 +10,26 @@ def build_latent_transition_dataset(
     num_sets: int,
     set_size: int,
     device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+    seed: int = 0,
 ) -> Tuple[np.ndarray, np.ndarray]:
     encoder.eval()
-    rng = np.random.default_rng(0)
+    rng = np.random.default_rng(seed)
     """
     Returns (X_ridge, y_ridge) of source/target latents built from consecutive training timepoints.
     Final held-out timepoint in training['X_val_true'] is NOT used as a target in the pairs.
     """
     Xs = data['Xs']
-    np.random.seed(0)
     with torch.no_grad():
         # Collect latents per timepoint for all training steps + held-out final
         latents_by_time: List[List[np.ndarray]] = []
         for X_np in list(Xs[:-1]):
             time_latents = []
             for _ in range(num_sets):
-                subset_indices = np.random.choice(X_np.shape[0], size=set_size, replace=True)
+                subset_indices = rng.choice(X_np.shape[0], size=set_size, replace=True)
                 subset = torch.tensor(X_np[subset_indices], dtype=torch.float32, device=device).unsqueeze(0)
                 lat = encoder(subset).cpu().numpy()
                 lat = np.squeeze(lat, axis=0).astype(np.float64)
                 time_latents.append(lat)
-                #print(type(lat), lat.shape, subset.shape, subset_indices.shape)
             
             latents_by_time.append(time_latents)
             
@@ -48,12 +47,23 @@ def train_ridge_on_latents(
     X: np.ndarray,
     Y: np.ndarray,
     alpha: float = 1.0,
+    seed: int = 0,
     ):
 
-    model = Ridge(alpha=alpha,random_state=0).fit(X, Y)
+    model = Ridge(alpha=alpha, random_state=seed).fit(X, Y)
     return model
 
-def get_ridge(encoder, data, num_sets=1, set_size=32, alpha = 1.0, device = "cpu"):
-    X, Y = build_latent_transition_dataset(encoder, data, num_sets=num_sets, set_size=set_size, device=device)
-    model = train_ridge_on_latents(X, Y, alpha=alpha)
+def get_ridge(
+    encoder,
+    data,
+    num_sets: int = 1,
+    set_size: int = 32,
+    alpha: float = 1.0,
+    device = "cpu",
+    seed: int = 0,
+):
+    X, Y = build_latent_transition_dataset(
+        encoder, data, num_sets=num_sets, set_size=set_size, device=device, seed=seed
+    )
+    model = train_ridge_on_latents(X, Y, alpha=alpha, seed=seed)
     return model

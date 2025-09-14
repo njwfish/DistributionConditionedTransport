@@ -68,7 +68,9 @@ class LTSeqDataset(Dataset):
         n_pcs: int = 50,
         root: str = './data',
         data_shape: List[int] = [10000],
-        seed: Optional[int] = None
+        holdout_cells: float = 0.1,
+        holdout_clones: float = 0.1,
+        seed: Optional[int] = None,
     ):
         if seed is not None:
             np.random.seed(seed)

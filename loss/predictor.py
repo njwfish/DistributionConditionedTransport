@@ -3,9 +3,9 @@ from utils.conditioning import build_condition_tuple
     
 
 class PredictorLossManager:
-    def __init__(self, predictor_loss_weight=1.0, cotraining_predictor=True):
-        self.cotraining_predictor = cotraining_predictor
-        if self.cotraining_predictor:
+    def __init__(self, predictor_loss_weight=1.0, main_training_phase=True):
+        self.main_training_phase = main_training_phase
+        if self.main_training_phase:
             self.predictor_loss_weight = predictor_loss_weight
         else:
             self.predictor_loss_weight = 1.0
@@ -31,7 +31,7 @@ class PredictorLossManager:
                 condition_scalars,
             )
 
-            if self.cotraining_predictor:
+            if self.main_training_phase:
                 recon_loss = generator.loss(
                     source_samples.view(-1, *source_samples.shape[2:]), 
                     target_samples.view(-1, *target_samples.shape[2:]),
@@ -69,7 +69,7 @@ class PredictorLossManager:
                 condition_scalars,
             )
 
-            if self.cotraining_predictor:
+            if self.main_training_phase:
                 recon_loss = generator.loss(source_samples, target_samples, source_latent, target_latent)
             else:
                 recon_loss = 0

@@ -3,7 +3,7 @@
 # Override defaults from config.yaml
 defaults:
   - /training: default
-  - /loss: predictor
+  - /loss: predictor_posthoc
   - /predictor: ridge 
   - /sampling: default
 

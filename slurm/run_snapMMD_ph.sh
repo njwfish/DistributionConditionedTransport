@@ -51,4 +51,4 @@ else
 fi
 
 # Run the unified hyperparameter experiment with the specified hyperparameters
-python main.py experiment=snapMMD_energy_cotrain dataset_name=${dataset_name} experiment.predictor_loss_weight=${alpha} experiment.selective_pairing_mode=${selective_pairing_mode} seed=${seed} experiment.ot_coupling=${ot_coupling} training.num_epochs=500 predictor_experiment_name=predictor_default
+python main.py experiment=snapMMD_energy_cotrain dataset_name=${dataset_name} experiment.predictor_loss_weight=${alpha} experiment.selective_pairing_mode=${selective_pairing_mode} seed=${seed} experiment.ot_coupling=${ot_coupling} training.num_epochs=500 #predictor_experiment_name=predictor_default

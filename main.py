@@ -154,13 +154,13 @@ def main(cfg: DictConfig):
         if main_training_phase:
             optimizer = hydra.utils.instantiate(cfg.optimizer)(params=model_parameters)
             scheduler = hydra.utils.instantiate(cfg.scheduler)(optimizer=optimizer)
-            loss_manager = hydra.utils.instantiate(cfg.loss)
+            loss_manager = hydra.utils.instantiate(cfg.loss,main_training_phase=main_training_phase)
             trainer = hydra.utils.instantiate(cfg.training)
 
         else:
             optimizer = hydra.utils.instantiate(predictor_cfg.optimizer)(params=model_parameters)
             scheduler = hydra.utils.instantiate(predictor_cfg.scheduler)(optimizer=optimizer)
-            loss_manager = hydra.utils.instantiate(predictor_cfg.loss)
+            loss_manager = hydra.utils.instantiate(predictor_cfg.loss,main_training_phase=main_training_phase)
             trainer = hydra.utils.instantiate(predictor_cfg.training)
 
         # Create trainer

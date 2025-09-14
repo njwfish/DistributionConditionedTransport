@@ -132,7 +132,7 @@ class Trainer:
                     
         return True
     
-    def _find_latest_checkpoint(self, directory):
+    def _find_latest_checkpoint(self, directory, main_training_phase):
         """Find the latest checkpoint in a directory."""
         best_model_path = os.path.join(directory, "best_model.pt")
         if os.path.exists(best_model_path):
@@ -140,7 +140,6 @@ class Trainer:
             
         latest_checkpoint = None
         latest_epoch = -1
-        
         for filename in os.listdir(directory):
             if filename.startswith("checkpoint_epoch_"):
                 try:
@@ -150,7 +149,6 @@ class Trainer:
                         latest_checkpoint = os.path.join(directory, filename)
                 except (ValueError, IndexError):
                     continue
-                    
         return latest_checkpoint
     
     def train(
@@ -165,6 +163,7 @@ class Trainer:
         device=None,
         output_dir='./outputs',
         config=None,
+        main_training_phase=False,
     ):
         """Train the model with W&B logging."""
         training_start = time.time()
@@ -235,7 +234,7 @@ class Trainer:
                     self.logger.info(f"Checking for checkpoints in similar experiment with {num_epochs} epochs: {exp_dir}")
                     
                     # Find the latest checkpoint in this experiment
-                    checkpoint_path = self._find_latest_checkpoint(exp_dir)
+                    checkpoint_path = self._find_latest_checkpoint(exp_dir, main_training_phase)
                     
                     if checkpoint_path:
                         # Copy the checkpoint to our current directory
@@ -362,7 +361,7 @@ class Trainer:
                 wandb.log(wandb_log, step=step)
             
             # Save model checkpoint at regular intervals
-            if (epoch + 1) % self.save_interval == 0:
+            if (epoch + 1) % self.save_interval == 0 and main_training_phase:
                 checkpoint_path = os.path.join(output_dir, f"checkpoint_epoch_{epoch+1}.pt")
                 
                 generator_state = generator.state_dict()
@@ -406,8 +405,10 @@ class Trainer:
                 if eval_loss < self.best_loss:
                     self.best_loss = eval_loss
                     stats['best_epoch'] = epoch + 1
-                    best_model_path = os.path.join(output_dir, "best_model.pt")
-                    
+                    if main_training_phase:
+                        best_model_path = os.path.join(output_dir, "best_model.pt")
+                    else:
+                        best_model_path = os.path.join(output_dir, "best_model_posthoc_predictor.pt")
                     generator_state = generator.state_dict()
 
                     checkpoint_data = {

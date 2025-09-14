@@ -12,24 +12,14 @@ defaults:
   - /generator: energy  # Use flow matching for coupled embeddings
   - /training: default
   - /loss: predictor
-  - /predictor: default  # use unified predictor
-  - /predictor_sampling: default
-  - /predictor_training: default
+  - /predictor: ridge  # use unified predictor
   - /sampling: default
 
 ot_coupling: false
 
-# predictor parameters
-use_predicted_latent: false
 predictor_loss_weight: 1
-
 train_predictor_posthoc: false
-
-predictor_model_type: "ridge"
-predictor_conditioning_mode: "concat"
 predictor_condition_type: "scalar_d"
-predictor_model_args:
-  ridge_alpha: 1e-3
 
 # sampling parameters
 num_samples: null

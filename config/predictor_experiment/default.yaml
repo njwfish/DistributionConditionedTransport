@@ -1,0 +1,25 @@
+# @package _global_.predictor_experiment
+
+# Override defaults from config.yaml
+defaults:
+  - /training: default
+  - /loss: predictor
+  - /predictor: ridge 
+  - /sampling: default
+
+ot_coupling: false
+
+predictor_loss_weight: 1
+predictor_condition_type: "scalar_d"
+
+# sampling parameters
+num_samples: null
+exponential_weight_scale: 1.44  # approx ln(2)
+selective_pairing_mode: "single_step"
+
+# Experiment-specific parameters
+latent_dim: 16
+hidden_dim: 64
+set_size: 32
+batch_size: 4
+lr: 2e-4

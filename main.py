@@ -8,6 +8,8 @@ from loss.default import LossManager as DefaultLossManager
 import os
 import numpy as np
 import time
+from hydra import compose, initialize_config_dir
+from hydra.core.global_hydra import GlobalHydra
 
 import torch.nn as nn
 # Import our resolver for sum operations
@@ -18,6 +20,20 @@ from utils.seed import seed_everything, dataloader_seed_worker, make_torch_gener
 
 @hydra.main(config_path="config", config_name="config", version_base="1.1")
 def main(cfg: DictConfig):
+    
+    # Determine whether we intend to train the encoder and generator (and potentially cotrain the predictor) or whether we are in the predictor posthoc training phase
+    predictor_experiment_name = cfg.get("predictor_experiment_name", None)
+    main_training_phase = True
+    if predictor_experiment_name is not None:
+        main_training_phase = False
+        
+        # compose a second, independent full config with its own experiment overrides
+        config_dir = os.path.abspath(os.path.join(hydra.utils.get_original_cwd(), "config"))
+        if GlobalHydra.instance().is_initialized():
+            GlobalHydra.instance().clear()
+        with initialize_config_dir(version_base="1.1", config_dir=config_dir):
+            predictor_cfg = compose(config_name="config", overrides=[f"+predictor_experiment={predictor_experiment_name}"])
+
     logger = logging.getLogger(__name__)
     logger.info("\n" + OmegaConf.to_yaml(cfg))
     
@@ -25,14 +41,11 @@ def main(cfg: DictConfig):
     original_cwd = hydra.utils.get_original_cwd()
     
     
-    start_time = time.time()
-
     # Compute config hash for reproducibility
     config_hash = hash_utils.hash_config(cfg)
     logger.info(f"Configuration hash: {config_hash}")
     
     # Check if we have already run this experiment
-    check_start = time.time()
     base_output_dir = os.path.join(original_cwd, "outputs")
     existing_dir = hash_utils.find_matching_output_dir(cfg, base_dir=base_output_dir)
     
@@ -54,14 +67,13 @@ def main(cfg: DictConfig):
     # Log config hash to W&B
     if wandb.run is not None:
         wandb.run.summary["config_hash"] = config_hash
-    
+        
     try:
         # Create the dataset
         dataset = hydra.utils.instantiate(cfg.dataset)
 
 
         # Improved DataLoader with parallel workers and pinned memory
-        dataloader_start = time.time()
         num_workers = min(8, os.cpu_count())  # Reduced from 4 to 2 to avoid DataLoader warnings and reduce memory contention
 
         if hasattr(dataset, 'pairwise_distance'):
@@ -93,7 +105,7 @@ def main(cfg: DictConfig):
             'generator': make_torch_generator(int(cfg.seed) if hasattr(cfg, 'seed') else None),
         }
         
-        sampling_config = cfg.sampling
+        sampling_config = cfg.sampling if main_training_phase else predictor_cfg.sampling
 
         # Load optional lists for the sampler if specified in cfg.experiment
         sampler_kwargs = {}
@@ -109,60 +121,80 @@ def main(cfg: DictConfig):
         
         # Create encoder
         encoder = hydra.utils.instantiate(cfg.encoder)
-        
+        generator = hydra.utils.instantiate(cfg.generator)
+
         train_predictor_posthoc = False
-        if hasattr(cfg, "experiment") and hasattr(cfg.experiment, "train_predictor_posthoc"):
+        if hasattr(cfg.experiment, "train_predictor_posthoc"):
             train_predictor_posthoc = bool(cfg.experiment.train_predictor_posthoc)
 
         # Instantiate predictor independently (no longer part of encoder)
         predictor = None
-        if hasattr(cfg, "predictor") and cfg.predictor is not None:
-            predictor = hydra.utils.instantiate(cfg.predictor)
+        if main_training_phase:
+            if hasattr(cfg, "predictor") and cfg.predictor is not None:
+                predictor = hydra.utils.instantiate(cfg.predictor)
+                if hasattr(encoder, "latent_act"):
+                    predictor.latent_act = encoder.latent_act
+                else:
+                    predictor.latent_act = nn.SELU()
+        else:
+            predictor = hydra.utils.instantiate(predictor_cfg.predictor)
             if hasattr(encoder, "latent_act"):
                 predictor.latent_act = encoder.latent_act
             else:
                 predictor.latent_act = nn.SELU()
 
-        generator = hydra.utils.instantiate(cfg.generator)
-        
-        # Get model parameters
-        if not train_predictor_posthoc and predictor is not None:
-            # joint training includes predictor
-            model_parameters = list(encoder.parameters()) + list(generator.parameters()) + list(predictor.parameters())
+        if main_training_phase:
+            # Get model parameters
+            if not train_predictor_posthoc and predictor is not None:
+                # joint training includes predictor
+                model_parameters = list(encoder.parameters()) + list(generator.parameters()) + list(predictor.parameters())
+            else:
+                # predictor separate: train only encoder+generator here
+                model_parameters = list(encoder.parameters()) + list(generator.parameters())
         else:
-            # predictor separate: train only encoder+generator here
-            model_parameters = list(encoder.parameters()) + list(generator.parameters())
+            model_parameters = list(predictor.parameters())
         
         # Create optimizer and scheduler
-        optimizer = hydra.utils.instantiate(cfg.optimizer)(params=model_parameters)
-        scheduler = hydra.utils.instantiate(cfg.scheduler)(optimizer=optimizer)
+        if main_training_phase:
+            optimizer = hydra.utils.instantiate(cfg.optimizer)(params=model_parameters)
+            scheduler = hydra.utils.instantiate(cfg.scheduler)(optimizer=optimizer)
+            loss_manager = hydra.utils.instantiate(cfg.loss)
+            trainer = hydra.utils.instantiate(cfg.training)
 
-        if train_predictor_posthoc and cfg.loss._target_ not in ["loss.default.LossManager", "loss.default_source_only.LossManager"]:
-            raise ValueError("Cannot train predictor posthoc with non-default loss")
-        
-        loss_manager = hydra.utils.instantiate(cfg.loss)
+        else:
+            optimizer = hydra.utils.instantiate(predictor_cfg.optimizer)(params=model_parameters)
+            scheduler = hydra.utils.instantiate(predictor_cfg.scheduler)(optimizer=optimizer)
+            loss_manager = hydra.utils.instantiate(predictor_cfg.loss)
+            trainer = hydra.utils.instantiate(predictor_cfg.training)
 
         # Create trainer
-        trainer = hydra.utils.instantiate(cfg.training)
         
         # GPU Transfer Check
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        gpu_start = time.time()
         encoder = encoder.to(device)
         generator = generator.to(device)
+        if predictor is not None:
+            predictor = predictor.to(device)
+            
+        if not main_training_phase:
+            for param in encoder.parameters():
+                param.requires_grad = False
+            for param in generator.parameters():
+                param.requires_grad = False
+
         
         # Run training with the hash-based output directory
-        train_start = time.time()
         output_dir, stats = trainer.train(
             encoder=encoder,
             generator=generator,
-            predictor=predictor if not train_predictor_posthoc else None,
+            predictor=predictor,
             dataloader=dataloader,
             optimizer=optimizer,
             scheduler=scheduler,
             loss_manager=loss_manager,
             output_dir=base_output_dir,
             config=cfg,
+            main_training_phase=main_training_phase,
         )
         
         logger.info(f"Training completed. Best epoch: {stats['best_epoch']}")    

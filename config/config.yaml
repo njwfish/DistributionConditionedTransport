@@ -13,12 +13,13 @@ defaults:
   - wandb: default  # Default W&B config
   - loss: default  # Default loss config
   - sampling: default  # Default sampling config
-  - experiment: mvn  # Experiment-specific configurations (MUST come after components it overrides)
+  - experiment: none  # Experiment-specific configurations (MUST come after components it overrides)
   - override hydra/launcher: slurm
   - _self_
 
 # Basic experiment settings
 experiment_name: ${experiment.name}  # Name will be defined in experiment config
+predictor_experiment_name: null
 dataset_name: GoM  # Default to GoM, can be: GoM, LV, PBMC, Repressilator
 seed: 42
 device: cuda

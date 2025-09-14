@@ -1,4 +1,0 @@
-# @package _global_.sampling
-_target_: sampler.default.Sampler
-num_samples: ${experiment.num_samples}
-selective_pairing_mode: "single_step"

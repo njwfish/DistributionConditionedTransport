@@ -1,0 +1,4 @@
+# @package _global_.experiment
+# Experiment name and description
+name: none
+description: "no experiment selected"

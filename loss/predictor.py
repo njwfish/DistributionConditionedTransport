@@ -3,13 +3,9 @@ from utils.conditioning import build_condition_tuple
     
 
 class PredictorLossManager:
-    def __init__(self, use_predicted_latent=False, predictor_loss_weight=1.0, generator_source_only=False, cotraining_predictor=True):
+    def __init__(self, use_predicted_latent=False, predictor_loss_weight=1.0, generator_source_only=False):
         self.use_predicted_latent = use_predicted_latent
-        self.cotraining_predictor = cotraining_predictor
-        if self.cotraining_predictor:
-            self.predictor_loss_weight = predictor_loss_weight
-        else:
-            self.predictor_loss_weight = 1.0
+        self.predictor_loss_weight = predictor_loss_weight
         self.generator_source_only = generator_source_only
         
     def loss(self, encoder, generator, predictor, batch, device):
@@ -38,15 +34,13 @@ class PredictorLossManager:
             if self.generator_source_only:
                 target_latent_for_generator = None
 
-            if self.cotraining_predictor:
-                recon_loss = generator.loss(
-                    source_samples.view(-1, *source_samples.shape[2:]), 
-                    target_samples.view(-1, *target_samples.shape[2:]),
-                    source_latent, 
-                    target_latent_for_generator
-                )
-            else:
-                recon_loss = 0
+            recon_loss = generator.loss(
+                source_samples.view(-1, *source_samples.shape[2:]), 
+                target_samples.view(-1, *target_samples.shape[2:]),
+                source_latent, 
+                target_latent_for_generator
+            )
+
         else:
             # For dictionary samples (like PubMed dataset), move tensors to device
             source_samples = {}
@@ -80,10 +74,7 @@ class PredictorLossManager:
             if self.generator_source_only:
                 target_latent_for_generator = None
 
-            if self.cotraining_predictor:
-                recon_loss = generator.loss(source_samples, target_samples, source_latent, target_latent_for_generator)
-            else:
-                recon_loss = 0
+            recon_loss = generator.loss(source_samples, target_samples, source_latent, target_latent_for_generator)
 
 
         loss += recon_loss

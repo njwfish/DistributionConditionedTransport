@@ -38,8 +38,11 @@ def build_latent_transition_dataset(
     
     for t in range(len(latents_by_time) - 1):
         cur, nxt = latents_by_time[t], latents_by_time[t + 1]
-        for a,b in zip(cur, nxt):
-            X_pairs.append(a); y_pairs.append(b)
+        #for a,b in zip(cur, nxt):
+        #    X_pairs.append(a); y_pairs.append(b)
+        for a in cur:
+            for b in nxt:
+                X_pairs.append(a); y_pairs.append(b)
 
     return np.vstack(X_pairs), np.vstack(y_pairs)
 
@@ -50,6 +53,7 @@ def train_ridge_on_latents(
     seed: int = 0,
     ):
 
+    #print(X.shape, Y.shape)
     model = Ridge(alpha=alpha, random_state=seed).fit(X, Y)
     return model
 

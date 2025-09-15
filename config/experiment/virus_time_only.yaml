@@ -1,12 +1,12 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: virus_esm
+name: virus_time_only
 description: "full dataset of virus evolution"
 
 # Override defaults from config.yaml
 defaults:
-  - /dataset: virus
+  - /dataset: virus_time_only
   - /encoder: esm
   - /generator: esm_dfm
   - /scheduler: cosine
@@ -15,9 +15,9 @@ defaults:
   - /sampling: default
   - /training: default
 
-data_file: /orcd/archive/abugoot/001/Projects/paolo/main_tde/data/spikeprot0430/iclr5_filtered_aggregated_data_country_efficient_subsampled.pt
+data_file: /orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430/iclr5_filtered_aggregated_data_country.pt
 
-train_predictor_posthoc: true
+train_predictor_posthoc: false
 
 # Experiment-specific parameters
 use_predicted_latent: false
@@ -25,7 +25,7 @@ predictor_loss_weight: 0.1
 
 predictor_model_type: "mlp"
 predictor_conditioning_mode: "concat"
-predictor_condition_type: "scalar_d"
+predictor_condition_type: null
 predictor_model_args:
   hidden_dim: 128
   num_layers: 2
@@ -33,7 +33,7 @@ predictor_model_args:
 
 num_samples: 50
 exponential_weight_scale: 1.0
-selective_pairing_mode: null
+selective_pairing_mode: single_step
 
 # Experiment-specific parameters
 latent_dim: 128 # TODO: make sure that this is really the correct latent_dim for the ESM2 8M model. Also make sure that there is no conflict due to double usage.
@@ -42,6 +42,9 @@ hidden_dim: 256 # TODO: is this really the correct hidden_dim for the ESM2 model
 batch_size: 1
 set_size: 16
 lr: 2e-5
+
+progen2_model_name: 'hugohrban/progen2-base'
+freeze_progen2: false
 
 # ESM model settings
 esm_model_name: 'facebook/esm2_t6_8M_UR50D'

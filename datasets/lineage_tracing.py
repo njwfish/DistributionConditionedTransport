@@ -121,7 +121,7 @@ class LTSeqDataset(Dataset):
         # finish setting up!
         self.n_sets = len(self.data)
         # self.src_samples, self.tgt_samples, self.src_metadata, self.tgt_metadata = self.generate_clone_set_pairs()
-        self.paired_data = self.generate_clone_set_pairs(test_split=0.9)
+        self.paired_data = self.generate_clone_set_pairs(test_split=0.5)
 
         self.train_srcs, self.train_tgts, self.train_src_meta, self.train_tgt_meta = self.paired_data['train']
         self.test_srcs, self.test_tgts, self.test_src_meta, self.test_tgt_meta = self.paired_data['test']
@@ -299,7 +299,7 @@ class LTSeqDatasetUnstructured(Dataset):
         # finish setting up!
         self.n_sets = len(self.data)
         # self.src_samples, self.tgt_samples, self.src_metadata, self.tgt_metadata = self.generate_clone_set_pairs()
-        self.paired_data = self.generate_clone_set_pairs(test_split=0.9)
+        self.paired_data = self.generate_clone_set_pairs(test_split=0.5)
 
         self.train_srcs, self.train_tgts, self.train_src_meta, self.train_tgt_meta = self.paired_data['train']
         self.test_srcs, self.test_tgts, self.test_src_meta, self.test_tgt_meta = self.paired_data['test']
@@ -417,11 +417,12 @@ class LTSeqDatasetUnstructured(Dataset):
                 if (c, t) in clone_map and (c, tgt_t) not in clone_map:
                     if time_map[tgt_t]:
                         for src_i in clone_map[(c, t)]:
-                            tgt_i = random.choice(time_map[tgt_t])
-                            srcs.append(self.data[src_i])
-                            tgts.append(self.data[tgt_i])
-                            src_meta.append(self.metadata[src_i])
-                            tgt_meta.append(self.metadata[tgt_i])
+                            for _ in range(100):
+                                tgt_i = random.choice(time_map[tgt_t])
+                                srcs.append(self.data[src_i])
+                                tgts.append(self.data[tgt_i])
+                                src_meta.append(self.metadata[src_i])
+                                tgt_meta.append(self.metadata[tgt_i])
 
         return torch.stack(srcs), torch.stack(tgts), src_meta, tgt_meta
 

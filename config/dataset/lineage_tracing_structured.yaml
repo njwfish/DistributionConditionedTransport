@@ -1,5 +1,5 @@
 # @package _global_.dataset
-_target_: datasets.lineage_tracing.LTSeqDatasetUnstructured
+_target_: datasets.lineage_tracing.LTSeqDataset
 set_size: 100
 min_cells: 3
 data_shape: [50,]

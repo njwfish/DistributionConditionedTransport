@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -t 00:05:00
+#SBATCH -t 00:30:00
 #SBATCH --gres=gpu:a100:1
 #SBATCH --partition abugoot
 #SBATCH --mem 50GB

@@ -19,6 +19,7 @@ class ESMFeatureExtractor(nn.Module):
         if hasattr(self.esm, 'dtype'):
             prev_dtype = next(self.esm.parameters()).dtype
         x = self.esm(input_ids, attention_mask=attention_mask).last_hidden_state
+        print(x.shape)
 
         return x
 

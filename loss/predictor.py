@@ -3,10 +3,14 @@ from utils.conditioning import build_condition_tuple
     
 
 class PredictorLossManager:
-    def __init__(self, use_predicted_latent=False, predictor_loss_weight=1.0, generator_source_only=False):
+    def __init__(self, use_predicted_latent=False, predictor_loss_weight=1.0, generator_source_only=False, set_size=None, microbatch_set_size=None, empty_cache_between_microbatches=True):
         self.use_predicted_latent = use_predicted_latent
         self.predictor_loss_weight = predictor_loss_weight
         self.generator_source_only = generator_source_only
+        self.set_size = set_size
+        self.microbatch_set_size = microbatch_set_size
+        self.empty_cache_between_microbatches = empty_cache_between_microbatches
+        self.use_microbatching = bool(self.microbatch_set_size) and self.microbatch_set_size > 0
         
     def loss(self, encoder, generator, predictor, batch, device):
         losses = {}
@@ -70,6 +74,82 @@ class PredictorLossManager:
                 condition_scalars,
             )
 
+            # Microbatch across set dimension when requested
+            if self.use_microbatching:
+                # Prepare detached latent placeholders to accumulate microbatch grads
+                source_latent_detached = source_latent.detach().requires_grad_(True)
+                # Choose which target latent to use for generator (predicted or ground-truth)
+                if self.use_predicted_latent:
+                    target_for_gen = pred_target_latent
+                else:
+                    target_for_gen = target_latent
+                # Respect generator_source_only flag
+                if self.generator_source_only:
+                    target_for_gen = None
+                if target_for_gen is not None:
+                    target_latent_detached = target_for_gen.detach().requires_grad_(True)
+                else:
+                    target_latent_detached = None
+
+                total_recon_value = 0.0
+                # Iterate over set dimension [B, S, ...] using provided set_size
+                for start_s in range(0, self.set_size, self.microbatch_set_size):
+                    end_s = min(start_s + self.microbatch_set_size, self.set_size)
+
+                    x_source_mb = {}
+                    x_target_mb = {}
+                    for key, v in source_samples.items():
+                        if isinstance(v, torch.Tensor) and v.dim() >= 3 and v.shape[1] == self.set_size:
+                            x_source_mb[key] = v[:, start_s:end_s, ...]
+                        else:
+                            x_source_mb[key] = v
+                    for key, v in target_samples.items():
+                        if isinstance(v, torch.Tensor) and v.dim() >= 3 and v.shape[1] == self.set_size:
+                            x_target_mb[key] = v[:, start_s:end_s, ...]
+                        else:
+                            x_target_mb[key] = v
+
+                    loss_mb = generator.loss(
+                        x_source_mb,
+                        x_target_mb,
+                        source_latent_detached,
+                        target_latent_detached,
+                    )
+
+                    # Normalize by total set_size to keep loss scale consistent
+                    frac = (end_s - start_s) / max(self.set_size, 1)
+                    loss_mb_scaled = loss_mb * frac
+                    if torch.is_grad_enabled():
+                        loss_mb_scaled.backward()
+                    total_recon_value += float(loss_mb_scaled.detach().item())
+
+                    del x_source_mb, x_target_mb, loss_mb, loss_mb_scaled
+                    # Optionally clear cache between microbatches (disabled by default)
+                    # if self.empty_cache_between_microbatches and torch.cuda.is_available():
+                    #     torch.cuda.empty_cache()
+
+                # Backprop latent grads to encoder/predictor once (retain graph for predictor loss)
+                if torch.is_grad_enabled():
+                    autograd_roots = [source_latent]
+                    autograd_grads = [source_latent_detached.grad]
+                    if not self.generator_source_only and target_for_gen is not None:
+                        autograd_roots.append(target_for_gen)
+                        autograd_grads.append(target_latent_detached.grad)
+                    torch.autograd.backward(
+                        autograd_roots,
+                        autograd_grads,
+                        retain_graph=True
+                    )
+                    # Now backprop predictor loss
+                    (self.predictor_loss_weight * predictor_loss).backward()
+
+                recon_tensor = torch.tensor(total_recon_value, device=device)
+                total_tensor = recon_tensor + (self.predictor_loss_weight * predictor_loss.detach())
+                losses['reconstruction_loss'] = recon_tensor.detach()
+                losses['predictor_loss'] = (self.predictor_loss_weight * predictor_loss).detach()
+                return total_tensor.detach(), losses
+
+            # No microbatching requested: single pass
             target_latent_for_generator = target_latent if not self.use_predicted_latent else pred_target_latent
             if self.generator_source_only:
                 target_latent_for_generator = None

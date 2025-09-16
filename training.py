@@ -305,8 +305,9 @@ class Trainer:
                 with autocast_context:
                     loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 
-                # Standard backward and optimizer step per batch
-                loss.backward()
+                # Standard backward unless loss was already backpropagated inside the loss manager (no grad)
+                if getattr(loss, "requires_grad", False):
+                    loss.backward()
                 optimizer.step()
                 
                 # Record batch loss

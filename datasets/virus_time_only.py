@@ -50,7 +50,7 @@ class ViralDataset(Dataset):
         self.progen_tokenizer.bos_token = '<|bos|>'
         self.progen_tokenizer.eos_token = '<|eos|>'
 
-        self.tokenized_data_file = "/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430/iclr5_filtered_aggregated_data_country.pt" #f'{self.data_dir}/{self.data_file}' #virus_tokenized_data_for_tde.pt'
+        self.tokenized_data_file = "/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430/iclr6_filtered_aggregated_data_country_state_efficient_filtered_min16_max16.pt" #f'{self.data_dir}/{self.data_file}' #virus_tokenized_data_for_tde.pt'
 
         # NOTE: Important, hold out last time point for forecasting benchmarks.
         self.data = torch.load(self.tokenized_data_file)[:-1]
@@ -83,13 +83,13 @@ class ViralDataset(Dataset):
 
         return datetime.strptime(date_str, "%Y-%m"), location_str
 
-    def d_fun(self, time_loc_1, time_loc_2):
+    def d_fun(self, date_1, date_2):
         """
         Calculate the difference in months between two time-loc strings.
         
         Args:
-            time_loc_1: First time-loc string (source)
-            time_loc_2: Second time-loc string (target)
+            date_1: First date (source)
+            date_2: Second date (target)
             
         Returns:
             Integer representing the difference in months (target - source)
@@ -97,15 +97,12 @@ class ViralDataset(Dataset):
             Negative values mean target is earlier than source
             Returns 0 if either date cannot be parsed
         """
-        date1 = self._parse_time_loc(time_loc_1)
-        date2 = self._parse_time_loc(time_loc_2)
-        
-        if date1 is None or date2 is None:
-            logger.warning(f"Date parsing failed for time_loc_1='{time_loc_1}' or time_loc_2='{time_loc_2}', returning 0 month difference")
-            return 0  # Return 0 instead of None to avoid DataLoader collation errors
+
+        if date_1 is None or date_2 is None:
+            raise ValueError(f"Date parsing failed for date_1='{date_1}' or date_2='{date_2}'")
         
         # Calculate month difference (target - source)
-        month_diff = (date2.year - date1.year) * 12 + (date2.month - date1.month)
+        month_diff = (date_2.year - date_1.year) * 12 + (date_2.month - date_1.month)
         return month_diff
 
     def __len__(self):
@@ -168,8 +165,8 @@ class ViralDataset(Dataset):
 
         # Calculate month difference between source and target times
         month_difference = self.d_fun(
-            item_source['time'], 
-            item_target['time']
+            date_source, 
+            date_target
         )
         
         # TODO: in it's current version sometimes the source and target samples seem to have different batch sizes... not sure right now why, just had a weird bug.

@@ -72,7 +72,7 @@ DATASET_CONFIGS: Dict[str, Dict[str, Any]] = {
 }
 def load_cfg_and_ckpt(ckpt_dir):
     # Resolve and validate checkpoint directory
-    experiment_dir = os.path.join(os.path.abspath(os.path.expanduser("outputs")), ckpt_dir)
+    experiment_dir = os.path.join(os.path.abspath(os.path.expanduser("outputs_snapMMD_MFM")), ckpt_dir)
     cfg_path = os.path.join(experiment_dir, 'config.yaml')
     ckpt_path = os.path.join(experiment_dir, 'best_model.pt')
     # Load trained config and use it as the active config
@@ -92,11 +92,11 @@ def load_models(cfg,ckpt_path):
 
     encoder.load_state_dict(checkpoint['encoder_state_dict'])
     generator.load_state_dict(checkpoint['generator_state_dict'])
-    predictor.load_state_dict(checkpoint['predictor_state_dict'])
+    #predictor.load_state_dict(checkpoint['predictor_state_dict'])
     
     encoder.eval()
     generator.eval()
-    predictor.eval()
+    #predictor.eval()
     return encoder, generator, predictor
 
 
@@ -110,7 +110,7 @@ def find_matching_ckpt_dirs(ckpt_dir):
     Returns:
         List of checkpoint directory names that have configs differing only by seed
     """
-    outputs_dir = os.path.abspath(os.path.expanduser("outputs"))
+    outputs_dir = os.path.abspath(os.path.expanduser("outputs_snapMMD_MFM"))
     matching_dirs = []
     
     cfg_path = os.path.join(outputs_dir, ckpt_dir, 'config.yaml')
@@ -326,24 +326,18 @@ def run_analysis(predictor_loss_weight, selective_pairing_mode, predictor_type =
     if two_step and predictor_type == "cotrained":
         raise ValueError("cotrained predictor does not support two-step forecasting")
     
-    for ckpt_dir in os.listdir("outputs"):
-        if ckpt_dir.startswith("snapMMD_energy_cotrain_GoM"):
+    for ckpt_dir in os.listdir("outputs_snapMMD_MFM"):
+        if ckpt_dir.startswith("snapMMD_MFM_PBMC_"):
             try:
                 cfg_ref,_ = load_cfg_and_ckpt(ckpt_dir)
-            except:
-                continue
-            if cfg_ref['experiment']['predictor_loss_weight'] == predictor_loss_weight and cfg_ref['experiment']['selective_pairing_mode'] == selective_pairing_mode:
-                print(ckpt_dir)
                 ckpt_dir_ref = ckpt_dir
                 break
-                
-        
-    print(cfg_ref['experiment']['predictor_loss_weight'])
-    print(cfg_ref['experiment']['selective_pairing_mode'])
+            except:
+                continue
 
+                
     matching_dirs = find_matching_ckpt_dirs(ckpt_dir_ref)
 
-    print(cfg_ref)
 
 
     plot_seed = 3
@@ -374,7 +368,7 @@ def run_analysis(predictor_loss_weight, selective_pairing_mode, predictor_type =
         if j == plot_seed:
             print(forecast.shape, type(forecast), forecast.device)
             plot_forecast(cfg, data, forecast)
-            plt.savefig(f"outputs/snapMMD_MFM_GoM_{predictor_type}_{predictor_loss_weight}_{selective_pairing_mode}.png")
+            plt.savefig(f"outputs_snapMMD_MFM/snapMMD_MFM_PBMC_{predictor_type}_{predictor_loss_weight}_{selective_pairing_mode}.png")
         
         
         

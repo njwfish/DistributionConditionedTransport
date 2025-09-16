@@ -10,7 +10,7 @@ defaults:
   - /encoder: esm
   - /generator: esm_dfm
   - /scheduler: cosine
-  - /loss: default
+  - /loss: predictor_microb
   - /predictor: default  
   - /sampling: default
   - /training: default
@@ -53,7 +53,7 @@ freeze_esm2: false
 seq_length: 1000
 tokenize: false 
 condition_dim: 32
-set_microbatch_size: 1
+microbatch_set_size: 1
 
 condition_method: "additive"
 temperature: 1.0

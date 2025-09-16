@@ -51,7 +51,7 @@ class ViralDataset(Dataset):
         self.progen_tokenizer.bos_token = '<|bos|>'
         self.progen_tokenizer.eos_token = '<|eos|>'
 
-        self.tokenized_data_file = "/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430/iclr5_filtered_aggregated_data_country_efficient.pt" #f'{self.data_dir}/{self.data_file}' #virus_tokenized_data_for_tde.pt'
+        self.tokenized_data_file = "/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430/iclr6_filtered_aggregated_data_country_state_efficient_filtered_min16_max16.pt" #f'{self.data_dir}/{self.data_file}' #virus_tokenized_data_for_tde.pt'
 
         # NOTE: Important, hold out last time point for forecasting benchmarks.
         self.data = torch.load(self.tokenized_data_file)[4:-5]

@@ -1,0 +1,6 @@
+# @package _global_.loss
+_target_: loss.predictor.PredictorLossManager
+use_predicted_latent: ${experiment.use_predicted_latent}
+predictor_loss_weight: ${experiment.predictor_loss_weight}
+set_size: ${experiment.set_size}
+microbatch_set_size: ${experiment.microbatch_set_size}

@@ -1,0 +1,47 @@
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/hydra/_internal/hydra.py:119: UserWarning: Future Hydra versions will no longer change working directory at job runtime by default.
+See https://hydra.cc/docs/1.2/upgrades/1.1_to_1.2/changes_to_job_working_dir/ for more information.
+  ret = run_job(
+wandb: Tracking run with wandb version 0.21.1
+wandb: W&B syncing is set to `offline` in this directory. Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.
+wandb: Run data is saved locally in /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_MFM_GoM/2025-09-15_09-56-42/wandb/offline-run-20250915_095643-g0ub3kda
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch/utils/data/dataloader.py:557: UserWarning: This DataLoader will create 8 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(_create_warning_msg(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch_geometric/typing.py:68: UserWarning: An issue occurred while importing 'pyg-lib'. Disabling its usage. Stacktrace: /lib64/libm.so.6: version `GLIBC_2.29' not found (required by /orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/libpyg.so)
+  warnings.warn(f"An issue occurred while importing 'pyg-lib'. "
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch_geometric/typing.py:124: UserWarning: An issue occurred while importing 'torch-sparse'. Disabling its usage. Stacktrace: /lib64/libm.so.6: version `GLIBC_2.29' not found (required by /orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/libpyg.so)
+  warnings.warn(f"An issue occurred while importing 'torch-sparse'. "
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch/utils/data/dataloader.py:557: UserWarning: This DataLoader will create 8 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(_create_warning_msg(
+wandb: WARNING Saving files without folders. If you want to preserve subdirectories pass base_path to wandb.save, i.e. wandb.save("/mnt/folder/file.h5", base_path="/mnt")
+wandb:                                                                                
+wandb: 
+wandb: Run history:
+wandb:               batch/epoch ▁▁▁▁▂▂▂▂▂▃▃▃▃▃▃▃▄▄▄▄▄▄▄▅▅▅▅▅▅▆▆▆▇▇▇▇▇███
+wandb:                batch/loss █▂▂▂▄▂▁▁▁▄▂▃▂▂▂▂▁▂▁▂▁▂▂▃▃▃▂▅▃▁▄▂▂▂▂▁▂▂▁▃
+wandb: batch/reconstruction_loss ▆▇▂█▂▂▄▄▄▃▂▁▁▂▁▂▂▁▂▂▂▄▁▂▂▄▂▂▂▂▄▅▁▃▁▃▄▅▂▃
+wandb:                batch/step ▁▁▁▁▁▂▂▂▂▂▂▃▃▃▃▃▃▃▃▃▄▄▄▅▅▅▅▅▅▅▆▆▇▇▇▇████
+wandb:               epoch/epoch ▁▁▁▁▁▂▂▂▂▃▃▃▃▃▃▃▄▄▄▄▄▄▄▅▅▅▆▆▆▆▆▆▇▇██████
+wandb:           epoch/eval_loss ▇█▆▇▇▆▃▄▆▃▄▅▆▄▄▄▄▄▃▃▄▄▅▂▄▄▁▃▂▄▂▄▂▄▃▃▄▄▃▂
+wandb:       epoch/learning_rate ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:          epoch/train_loss █▄▃▂▂▃▃▄▂▂▂▂▂▂▃▁▂▁▂▂▂▂▂▁▂▁▂▁▂▁▂▁▁▁▂▂▁▁▁▁
+wandb: 
+wandb: Run summary:
+wandb:               batch/epoch 5000
+wandb:                batch/loss 0.00858
+wandb: batch/reconstruction_loss 0.00858
+wandb:                batch/step 114977
+wandb:                best_epoch 3400
+wandb:                 best_loss 0.00419
+wandb:               config_hash 16e413c11a16525d08af...
+wandb:               epoch/epoch 5000
+wandb:           epoch/eval_loss 0.00523
+wandb:       epoch/learning_rate 0.0002
+wandb:          epoch/train_loss 0.00564
+wandb:           final_eval_loss 0.00523
+wandb:          final_train_loss 0.00564
+wandb:                total_time 1653.5778
+wandb: 
+wandb: You can sync this run to the cloud by running:
+wandb: wandb sync /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_MFM_GoM/2025-09-15_09-56-42/wandb/offline-run-20250915_095643-g0ub3kda
+wandb: Find logs at: ./wandb/offline-run-20250915_095643-g0ub3kda/logs
+slurmstepd: error: *** JOB 43158215 ON node114 CANCELLED AT 2025-09-15T10:42:41 DUE TO TIME LIMIT ***

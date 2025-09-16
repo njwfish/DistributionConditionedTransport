@@ -1,0 +1,16 @@
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/hydra/_internal/hydra.py:119: UserWarning: Future Hydra versions will no longer change working directory at job runtime by default.
+See https://hydra.cc/docs/1.2/upgrades/1.1_to_1.2/changes_to_job_working_dir/ for more information.
+  ret = run_job(
+wandb: Currently logged in as: paolo-lb-fischer (paolo-lb-fischer-harvard-university) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.21.1
+wandb: Run data is saved locally in /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_PBMC/2025-09-14_18-16-22/wandb/run-20250914_181622-r2lwpwua
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run cool-serenity-7858
+wandb: ⭐️ View project at https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings
+wandb: 🚀 View run at https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings/runs/r2lwpwua
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch/utils/data/dataloader.py:557: UserWarning: This DataLoader will create 8 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(_create_warning_msg(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch/utils/data/dataloader.py:557: UserWarning: This DataLoader will create 8 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(_create_warning_msg(
+wandb: WARNING Saving files without folders. If you want to preserve subdirectories pass base_path to wandb.save, i.e. wandb.save("/mnt/folder/file.h5", base_path="/mnt")
+slurmstepd: error: *** JOB 43152924 ON node112 CANCELLED AT 2025-09-14T18:43:05 ***

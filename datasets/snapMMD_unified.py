@@ -129,24 +129,24 @@ class SnapMMDUnified(Dataset):
             source_samples = source_samples[subset_indices]
             target_samples = target_samples[subset_indices]
 
-            if self.ot_coupling:
-                # NOTE: converted to numpy to avoid CUDA issues.  
-                # Compute OT coupling using POT with NumPy backend to avoid CUDA init in DataLoader workers
-                source_np = source_samples.cpu().numpy()
-                target_np = target_samples.cpu().numpy()
-                cost = ot.dist(source_np, target_np, metric="sqeuclidean")
-                G = ot.emd([], [], cost)
-                # G = ot.sinkhorn([], [], cost, 1e-1)
-                # G = ot.bregman.empirical_sinkhorn(src, tgt, 1e-1)
-
-                # use all elements from ot plan
-                # TODO: is random shuffling needed here?
-                choices = np.arange(G.shape[0] * G.shape[1])
-                idx0, idx1 = np.divmod(choices, G.shape[1])
-
-                # OT paired samples
-                source_samples = source_samples[idx0]
-                target_samples = target_samples[idx1]
+            #if self.ot_coupling:
+            #    # NOTE: converted to numpy to avoid CUDA issues.  
+            #    # Compute OT coupling using POT with NumPy backend to avoid CUDA init in DataLoader workers
+            #    source_np = source_samples.cpu().numpy()
+            #    target_np = target_samples.cpu().numpy()
+            #    cost = ot.dist(source_np, target_np, metric="sqeuclidean")
+            #    G = ot.emd([], [], cost)
+            #    # G = ot.sinkhorn([], [], cost, 1e-1)
+            #    # G = ot.bregman.empirical_sinkhorn(src, tgt, 1e-1)
+#
+            #    # use all elements from ot plan
+            #    # TODO: is random shuffling needed here?
+            #    choices = np.arange(G.shape[0] * G.shape[1])
+            #    idx0, idx1 = np.divmod(choices, G.shape[1])
+#
+            #    # OT paired samples
+            #    source_samples = source_samples[idx0]
+            #    target_samples = target_samples[idx1]
             
             
             return {

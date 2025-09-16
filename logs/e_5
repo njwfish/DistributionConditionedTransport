@@ -1,0 +1,53 @@
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/hydra/_internal/hydra.py:119: UserWarning: Future Hydra versions will no longer change working directory at job runtime by default.
+See https://hydra.cc/docs/1.2/upgrades/1.1_to_1.2/changes_to_job_working_dir/ for more information.
+  ret = run_job(
+wandb: Currently logged in as: paolo-lb-fischer (paolo-lb-fischer-harvard-university) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.21.1
+wandb: Run data is saved locally in /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC/2025-09-14_15-40-33/wandb/run-20250914_154034-wz9ckexb
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run mild-bush-7722
+wandb: ⭐️ View project at https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings
+wandb: 🚀 View run at https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings/runs/wz9ckexb
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch/utils/data/dataloader.py:557: UserWarning: This DataLoader will create 8 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(_create_warning_msg(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch/utils/data/dataloader.py:557: UserWarning: This DataLoader will create 8 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(_create_warning_msg(
+wandb: WARNING Saving files without folders. If you want to preserve subdirectories pass base_path to wandb.save, i.e. wandb.save("/mnt/folder/file.h5", base_path="/mnt")
+wandb: uploading output.log; uploading config.yaml; uploading snapMMD_energy_cotrain_PBMC_f288cecb6bbd6c38003583f7e757d9f8/best_model.pt
+wandb: uploading snapMMD_energy_cotrain_PBMC_f288cecb6bbd6c38003583f7e757d9f8/best_model.pt
+wandb:                                                                                
+wandb: 
+wandb: Run history:
+wandb:               batch/epoch ▁▁▁▁▁▂▂▂▂▂▃▃▃▃▃▃▃▄▄▄▄▅▅▅▅▅▅▆▆▆▇▇▇▇▇█████
+wandb:                batch/loss █▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:      batch/predictor_loss █▁▂▁▂▁▁▁▂▁▁▁▁▁▂▁▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb: batch/reconstruction_loss █▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:                batch/step ▁▁▁▂▂▂▂▂▂▂▃▃▄▄▄▄▄▄▄▄▅▅▅▅▅▆▆▆▆▆▆▇▇▇▇▇▇▇██
+wandb:               epoch/epoch ▁▁▁▁▁▂▂▂▂▂▂▂▂▃▃▃▃▄▄▄▄▅▅▅▅▆▆▆▆▆▆▆▇▇▇▇▇▇██
+wandb:           epoch/eval_loss █▅▄▃▃▃▂▂▂▁▂▂▂▂▁▂▁▁▁▁
+wandb:       epoch/learning_rate ▁▁██████████████████████████████████████
+wandb:          epoch/train_loss █▆▄▃▄▃▃▂▃▂▂▂▂▂▂▂▂▂▂▂▂▁▂▁▁▁▂▁▁▁▂▂▁▁▁▁▂▁▁▂
+wandb: 
+wandb: Run summary:
+wandb:               batch/epoch 200
+wandb:                batch/loss 1.06522
+wandb:      batch/predictor_loss 0.00048
+wandb: batch/reconstruction_loss 1.06474
+wandb:                batch/step 18905
+wandb:                best_epoch 150
+wandb:                 best_loss 1.04672
+wandb:               config_hash f288cecb6bbd6c380035...
+wandb:               epoch/epoch 200
+wandb:           epoch/eval_loss 1.04841
+wandb:       epoch/learning_rate 0.0002
+wandb:          epoch/train_loss 1.05486
+wandb:           final_eval_loss 1.04841
+wandb:          final_train_loss 1.05486
+wandb:             stopped_early True
+wandb:             stopped_epoch 200
+wandb:                total_time 474.59674
+wandb: 
+wandb: 🚀 View run mild-bush-7722 at: https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings/runs/wz9ckexb
+wandb: ⭐️ View project at: https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 1 other file(s)
+wandb: Find logs at: ./wandb/run-20250914_154034-wz9ckexb/logs

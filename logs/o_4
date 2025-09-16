@@ -1,0 +1,792 @@
+Running job 4: dataset=PBMC, selective_pairing_mode=single_step, seed=3
+[2025-09-14 15:40:33,729][__main__][INFO] - 
+dataset:
+  _target_: datasets.snapMMD_unified.SnapMMDUnified
+  dataset_name: ${dataset_name}
+  seed: ${seed}
+  testing_method: forecast
+  set_size: ${experiment.set_size}
+  data_shape_map:
+    GoM:
+    - 2
+    LV:
+    - 2
+    PBMC:
+    - 30
+    Repressilator:
+    - 3
+  data_shape: ${.data_shape_map.${dataset_name}}
+  ot_coupling: ${experiment.ot_coupling}
+encoder:
+  _target_: encoder.encoders.DistributionEncoderGNN
+  in_dim: ${dataset.data_shape[0]}
+  latent_dim: ${experiment.latent_dim}
+  hidden_dim: ${experiment.hidden_dim}
+  set_size: ${experiment.set_size}
+  layers: 2
+  fc_layers: 2
+model:
+  _target_: layers.MLP
+  in_dims:
+  - ${dataset.data_shape[0]}
+  - ${experiment.latent_dim}
+  - ${experiment.latent_dim}
+  - ${generator.noise_dim}
+  hidden_dim: ${experiment.hidden_dim}
+  out_dim: ${dataset.data_shape[0]}
+  layers: 4
+coupling:
+  _target_: types.NoneType
+generator:
+  _target_: generator.energy.EnergyGenerator
+  model: ${model}
+  noise_dim: ${experiment.latent_dim}
+  sigma_min: 1.0
+  m: 8
+  lambda_energy: 1.0
+optimizer:
+  _target_: torch.optim.Adam
+  _partial_: true
+  lr: ${experiment.lr}
+  betas:
+  - 0.9
+  - 0.999
+  eps: 1.0e-08
+  weight_decay: 0
+scheduler:
+  _target_: torch.optim.lr_scheduler.ConstantLR
+  _partial_: true
+training:
+  _target_: training.Trainer
+  num_epochs: 1000
+  log_interval: 100
+  save_interval: 10
+  eval_interval: 10
+  early_stopping: true
+  patience: 5
+  use_tqdm: false
+wandb:
+  _target_: wandb_utils.setup_wandb
+  project: distribution-embeddings
+  entity: null
+  name: null
+  mode: online
+  tags: []
+  notes: null
+  group: null
+  save_code: true
+loss:
+  _target_: loss.predictor.PredictorLossManager
+  use_predicted_latent: ${experiment.use_predicted_latent}
+  predictor_loss_weight: ${experiment.predictor_loss_weight}
+sampling:
+  _target_: sampler.default.Sampler
+  num_samples: ${experiment.num_samples}
+  selective_pairing_mode: ${experiment.selective_pairing_mode}
+predictor:
+  _target_: predictor.predictor.Predictor
+  latent_dim: ${experiment.latent_dim}
+  model_type: ${experiment.predictor_model_type}
+  model_args: ${experiment.predictor_model_args}
+  conditioning_mode: ${experiment.predictor_conditioning_mode}
+  condition_type: ${experiment.predictor_condition_type}
+  d_embed_dim: 16
+  loss_type: cosine
+experiment:
+  name: snapMMD_energy_cotrain_${dataset_name}
+  description: SnapMMD ${dataset_name} experiment with unified dataset class
+  ot_coupling: true
+  use_predicted_latent: false
+  predictor_loss_weight: 0.01
+  train_predictor_posthoc: false
+  predictor_model_type: ridge
+  predictor_conditioning_mode: concat
+  predictor_condition_type: scalar_d
+  predictor_model_args:
+    ridge_alpha: 0.001
+  num_samples: null
+  exponential_weight_scale: 1.44
+  selective_pairing_mode: single_step
+  latent_dim: 16
+  hidden_dim: 64
+  set_size: 32
+  batch_size: 4
+  lr: 0.0002
+experiment_name: ${experiment.name}
+dataset_name: PBMC
+seed: 3
+device: cuda
+
+[2025-09-14 15:40:33,748][__main__][INFO] - Configuration hash: 42bd99167c24ed689e365dabe63b8cc6
+[2025-09-14 15:40:37,741][numexpr.utils][INFO] - Note: detected 192 virtual cores but NumExpr set to maximum of 64, check "NUMEXPR_MAX_THREADS" environment variable.
+[2025-09-14 15:40:37,741][numexpr.utils][INFO] - Note: NumExpr detected 192 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 16.
+[2025-09-14 15:40:37,741][numexpr.utils][INFO] - NumExpr defaulting to 16 threads.
+[2025-09-14 15:40:39,424][training][INFO] - Sub epoch interval: 1000, save interval: 10, eval interval: 10
+[2025-09-14 15:40:40,295][utils.hash_utils][INFO] - Created output directory: /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6
+[2025-09-14 15:40:40,303][training][INFO] - Using hash-based output directory: /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6
+[2025-09-14 15:40:40,303][training][INFO] - No checkpoints found. Looking for similar experiments with different epoch counts...
+similar_experiments []
+[2025-09-14 15:40:40,681][training][INFO] - Starting training on cuda...
+[2025-09-14 15:40:45,545][training][INFO] - Epoch 1, Batch 0/95, Loss: 6.243121
+[2025-09-14 15:40:47,501][training][INFO] - Learning rate: 0.000067
+[2025-09-14 15:40:47,502][training][INFO] - Epoch 1 complete. Avg Loss: 5.303493
+[2025-09-14 15:40:47,590][training][INFO] - Epoch 2, Batch 0/95, Loss: 4.103705
+[2025-09-14 15:40:49,820][training][INFO] - Learning rate: 0.000067
+[2025-09-14 15:40:49,820][training][INFO] - Epoch 2 complete. Avg Loss: 2.535355
+[2025-09-14 15:40:49,914][training][INFO] - Epoch 3, Batch 0/95, Loss: 1.488417
+[2025-09-14 15:40:52,002][training][INFO] - Learning rate: 0.000067
+[2025-09-14 15:40:52,003][training][INFO] - Epoch 3 complete. Avg Loss: 1.401137
+[2025-09-14 15:40:52,078][training][INFO] - Epoch 4, Batch 0/95, Loss: 1.337064
+[2025-09-14 15:40:54,146][training][INFO] - Learning rate: 0.000067
+[2025-09-14 15:40:54,146][training][INFO] - Epoch 4 complete. Avg Loss: 1.310418
+[2025-09-14 15:40:54,230][training][INFO] - Epoch 5, Batch 0/95, Loss: 1.284407
+[2025-09-14 15:40:56,295][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:40:56,295][training][INFO] - Epoch 5 complete. Avg Loss: 1.278039
+[2025-09-14 15:40:56,376][training][INFO] - Epoch 6, Batch 0/95, Loss: 1.238714
+[2025-09-14 15:40:58,442][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:40:58,443][training][INFO] - Epoch 6 complete. Avg Loss: 1.256172
+[2025-09-14 15:40:58,522][training][INFO] - Epoch 7, Batch 0/95, Loss: 1.214330
+[2025-09-14 15:41:00,590][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:00,590][training][INFO] - Epoch 7 complete. Avg Loss: 1.218817
+[2025-09-14 15:41:00,668][training][INFO] - Epoch 8, Batch 0/95, Loss: 1.204634
+[2025-09-14 15:41:02,743][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:02,743][training][INFO] - Epoch 8 complete. Avg Loss: 1.160010
+[2025-09-14 15:41:02,825][training][INFO] - Epoch 9, Batch 0/95, Loss: 1.134694
+[2025-09-14 15:41:04,895][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:04,896][training][INFO] - Epoch 9 complete. Avg Loss: 1.122670
+[2025-09-14 15:41:04,978][training][INFO] - Epoch 10, Batch 0/95, Loss: 1.067694
+[2025-09-14 15:41:07,050][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:07,050][training][INFO] - Epoch 10 complete. Avg Loss: 1.109607
+[2025-09-14 15:41:07,062][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_10.pt
+[2025-09-14 15:41:08,121][training][INFO] - Evaluation Loss: 1.114812
+[2025-09-14 15:41:08,131][training][INFO] - New best model saved to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/best_model.pt
+[2025-09-14 15:41:08,214][training][INFO] - Epoch 11, Batch 0/95, Loss: 1.077410
+[2025-09-14 15:41:10,285][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:10,286][training][INFO] - Epoch 11 complete. Avg Loss: 1.106357
+[2025-09-14 15:41:10,373][training][INFO] - Epoch 12, Batch 0/95, Loss: 1.111906
+[2025-09-14 15:41:12,452][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:12,453][training][INFO] - Epoch 12 complete. Avg Loss: 1.099073
+[2025-09-14 15:41:12,535][training][INFO] - Epoch 13, Batch 0/95, Loss: 1.083278
+[2025-09-14 15:41:14,612][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:14,613][training][INFO] - Epoch 13 complete. Avg Loss: 1.097822
+[2025-09-14 15:41:14,693][training][INFO] - Epoch 14, Batch 0/95, Loss: 1.128767
+[2025-09-14 15:41:16,776][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:16,777][training][INFO] - Epoch 14 complete. Avg Loss: 1.098489
+[2025-09-14 15:41:16,862][training][INFO] - Epoch 15, Batch 0/95, Loss: 1.099329
+[2025-09-14 15:41:18,937][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:18,937][training][INFO] - Epoch 15 complete. Avg Loss: 1.090029
+[2025-09-14 15:41:19,027][training][INFO] - Epoch 16, Batch 0/95, Loss: 1.091068
+[2025-09-14 15:41:21,115][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:21,115][training][INFO] - Epoch 16 complete. Avg Loss: 1.088843
+[2025-09-14 15:41:21,201][training][INFO] - Epoch 17, Batch 0/95, Loss: 1.090654
+[2025-09-14 15:41:23,281][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:23,281][training][INFO] - Epoch 17 complete. Avg Loss: 1.091617
+[2025-09-14 15:41:23,364][training][INFO] - Epoch 18, Batch 0/95, Loss: 1.093996
+[2025-09-14 15:41:25,444][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:25,444][training][INFO] - Epoch 18 complete. Avg Loss: 1.087060
+[2025-09-14 15:41:25,533][training][INFO] - Epoch 19, Batch 0/95, Loss: 1.140348
+[2025-09-14 15:41:27,616][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:27,616][training][INFO] - Epoch 19 complete. Avg Loss: 1.083442
+[2025-09-14 15:41:27,700][training][INFO] - Epoch 20, Batch 0/95, Loss: 1.108505
+[2025-09-14 15:41:29,783][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:29,783][training][INFO] - Epoch 20 complete. Avg Loss: 1.086173
+[2025-09-14 15:41:29,794][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_20.pt
+[2025-09-14 15:41:30,845][training][INFO] - Evaluation Loss: 1.081496
+[2025-09-14 15:41:30,855][training][INFO] - New best model saved to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/best_model.pt
+[2025-09-14 15:41:30,940][training][INFO] - Epoch 21, Batch 0/95, Loss: 1.060096
+[2025-09-14 15:41:33,035][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:33,035][training][INFO] - Epoch 21 complete. Avg Loss: 1.084385
+[2025-09-14 15:41:33,123][training][INFO] - Epoch 22, Batch 0/95, Loss: 1.084222
+[2025-09-14 15:41:35,215][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:35,215][training][INFO] - Epoch 22 complete. Avg Loss: 1.077700
+[2025-09-14 15:41:35,297][training][INFO] - Epoch 23, Batch 0/95, Loss: 1.062496
+[2025-09-14 15:41:37,393][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:37,393][training][INFO] - Epoch 23 complete. Avg Loss: 1.078559
+[2025-09-14 15:41:37,477][training][INFO] - Epoch 24, Batch 0/95, Loss: 1.062802
+[2025-09-14 15:41:39,570][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:39,570][training][INFO] - Epoch 24 complete. Avg Loss: 1.080067
+[2025-09-14 15:41:39,658][training][INFO] - Epoch 25, Batch 0/95, Loss: 1.064905
+[2025-09-14 15:41:41,748][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:41,748][training][INFO] - Epoch 25 complete. Avg Loss: 1.077364
+[2025-09-14 15:41:41,828][training][INFO] - Epoch 26, Batch 0/95, Loss: 1.075452
+[2025-09-14 15:41:43,923][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:43,923][training][INFO] - Epoch 26 complete. Avg Loss: 1.072608
+[2025-09-14 15:41:44,005][training][INFO] - Epoch 27, Batch 0/95, Loss: 1.067670
+[2025-09-14 15:41:46,108][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:46,108][training][INFO] - Epoch 27 complete. Avg Loss: 1.078921
+[2025-09-14 15:41:46,192][training][INFO] - Epoch 28, Batch 0/95, Loss: 1.087337
+[2025-09-14 15:41:48,285][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:48,286][training][INFO] - Epoch 28 complete. Avg Loss: 1.076910
+[2025-09-14 15:41:48,375][training][INFO] - Epoch 29, Batch 0/95, Loss: 1.066941
+[2025-09-14 15:41:50,463][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:50,463][training][INFO] - Epoch 29 complete. Avg Loss: 1.076424
+[2025-09-14 15:41:50,544][training][INFO] - Epoch 30, Batch 0/95, Loss: 1.070143
+[2025-09-14 15:41:52,632][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:52,632][training][INFO] - Epoch 30 complete. Avg Loss: 1.071464
+[2025-09-14 15:41:52,643][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_30.pt
+[2025-09-14 15:41:53,703][training][INFO] - Evaluation Loss: 1.073359
+[2025-09-14 15:41:53,714][training][INFO] - New best model saved to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/best_model.pt
+[2025-09-14 15:41:53,795][training][INFO] - Epoch 31, Batch 0/95, Loss: 1.098072
+[2025-09-14 15:41:55,897][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:55,897][training][INFO] - Epoch 31 complete. Avg Loss: 1.071655
+[2025-09-14 15:41:55,982][training][INFO] - Epoch 32, Batch 0/95, Loss: 1.093408
+[2025-09-14 15:41:58,070][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:41:58,070][training][INFO] - Epoch 32 complete. Avg Loss: 1.072383
+[2025-09-14 15:41:58,152][training][INFO] - Epoch 33, Batch 0/95, Loss: 1.059376
+[2025-09-14 15:42:00,243][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:00,244][training][INFO] - Epoch 33 complete. Avg Loss: 1.070198
+[2025-09-14 15:42:00,332][training][INFO] - Epoch 34, Batch 0/95, Loss: 1.077595
+[2025-09-14 15:42:02,423][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:02,424][training][INFO] - Epoch 34 complete. Avg Loss: 1.067359
+[2025-09-14 15:42:02,510][training][INFO] - Epoch 35, Batch 0/95, Loss: 1.052914
+[2025-09-14 15:42:04,603][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:04,603][training][INFO] - Epoch 35 complete. Avg Loss: 1.068350
+[2025-09-14 15:42:04,686][training][INFO] - Epoch 36, Batch 0/95, Loss: 1.076348
+[2025-09-14 15:42:06,781][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:06,781][training][INFO] - Epoch 36 complete. Avg Loss: 1.068198
+[2025-09-14 15:42:06,867][training][INFO] - Epoch 37, Batch 0/95, Loss: 1.024009
+[2025-09-14 15:42:08,954][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:08,955][training][INFO] - Epoch 37 complete. Avg Loss: 1.066568
+[2025-09-14 15:42:09,034][training][INFO] - Epoch 38, Batch 0/95, Loss: 1.062191
+[2025-09-14 15:42:11,134][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:11,134][training][INFO] - Epoch 38 complete. Avg Loss: 1.062843
+[2025-09-14 15:42:11,223][training][INFO] - Epoch 39, Batch 0/95, Loss: 1.088496
+[2025-09-14 15:42:13,322][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:13,322][training][INFO] - Epoch 39 complete. Avg Loss: 1.065231
+[2025-09-14 15:42:13,410][training][INFO] - Epoch 40, Batch 0/95, Loss: 1.068040
+[2025-09-14 15:42:15,500][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:15,500][training][INFO] - Epoch 40 complete. Avg Loss: 1.066113
+[2025-09-14 15:42:15,510][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_40.pt
+[2025-09-14 15:42:16,564][training][INFO] - Evaluation Loss: 1.061600
+[2025-09-14 15:42:16,576][training][INFO] - New best model saved to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/best_model.pt
+[2025-09-14 15:42:16,652][training][INFO] - Epoch 41, Batch 0/95, Loss: 1.043941
+[2025-09-14 15:42:18,749][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:18,749][training][INFO] - Epoch 41 complete. Avg Loss: 1.064421
+[2025-09-14 15:42:18,841][training][INFO] - Epoch 42, Batch 0/95, Loss: 1.103552
+[2025-09-14 15:42:20,940][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:20,940][training][INFO] - Epoch 42 complete. Avg Loss: 1.062252
+[2025-09-14 15:42:21,023][training][INFO] - Epoch 43, Batch 0/95, Loss: 1.033006
+[2025-09-14 15:42:23,125][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:23,126][training][INFO] - Epoch 43 complete. Avg Loss: 1.061094
+[2025-09-14 15:42:23,195][training][INFO] - Epoch 44, Batch 0/95, Loss: 1.041491
+[2025-09-14 15:42:25,311][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:25,312][training][INFO] - Epoch 44 complete. Avg Loss: 1.060942
+[2025-09-14 15:42:25,394][training][INFO] - Epoch 45, Batch 0/95, Loss: 1.037056
+[2025-09-14 15:42:27,499][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:27,499][training][INFO] - Epoch 45 complete. Avg Loss: 1.061244
+[2025-09-14 15:42:27,581][training][INFO] - Epoch 46, Batch 0/95, Loss: 1.060771
+[2025-09-14 15:42:29,624][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:29,624][training][INFO] - Epoch 46 complete. Avg Loss: 1.061525
+[2025-09-14 15:42:29,710][training][INFO] - Epoch 47, Batch 0/95, Loss: 1.040638
+[2025-09-14 15:42:31,707][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:31,708][training][INFO] - Epoch 47 complete. Avg Loss: 1.058904
+[2025-09-14 15:42:31,795][training][INFO] - Epoch 48, Batch 0/95, Loss: 1.094498
+[2025-09-14 15:42:33,791][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:33,792][training][INFO] - Epoch 48 complete. Avg Loss: 1.057322
+[2025-09-14 15:42:33,875][training][INFO] - Epoch 49, Batch 0/95, Loss: 1.089060
+[2025-09-14 15:42:35,880][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:35,880][training][INFO] - Epoch 49 complete. Avg Loss: 1.058622
+[2025-09-14 15:42:35,967][training][INFO] - Epoch 50, Batch 0/95, Loss: 1.057348
+[2025-09-14 15:42:37,966][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:37,966][training][INFO] - Epoch 50 complete. Avg Loss: 1.063185
+[2025-09-14 15:42:38,035][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_50.pt
+[2025-09-14 15:42:39,045][training][INFO] - Evaluation Loss: 1.059090
+[2025-09-14 15:42:39,056][training][INFO] - New best model saved to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/best_model.pt
+[2025-09-14 15:42:39,143][training][INFO] - Epoch 51, Batch 0/95, Loss: 1.055559
+[2025-09-14 15:42:41,411][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:41,412][training][INFO] - Epoch 51 complete. Avg Loss: 1.057382
+[2025-09-14 15:42:41,501][training][INFO] - Epoch 52, Batch 0/95, Loss: 1.067822
+[2025-09-14 15:42:43,604][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:43,604][training][INFO] - Epoch 52 complete. Avg Loss: 1.059090
+[2025-09-14 15:42:43,692][training][INFO] - Epoch 53, Batch 0/95, Loss: 1.033321
+[2025-09-14 15:42:45,778][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:45,778][training][INFO] - Epoch 53 complete. Avg Loss: 1.060389
+[2025-09-14 15:42:45,858][training][INFO] - Epoch 54, Batch 0/95, Loss: 1.026838
+[2025-09-14 15:42:47,954][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:47,954][training][INFO] - Epoch 54 complete. Avg Loss: 1.060142
+[2025-09-14 15:42:48,033][training][INFO] - Epoch 55, Batch 0/95, Loss: 1.035046
+[2025-09-14 15:42:50,138][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:50,138][training][INFO] - Epoch 55 complete. Avg Loss: 1.059832
+[2025-09-14 15:42:50,220][training][INFO] - Epoch 56, Batch 0/95, Loss: 1.026535
+[2025-09-14 15:42:52,323][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:52,323][training][INFO] - Epoch 56 complete. Avg Loss: 1.058631
+[2025-09-14 15:42:52,409][training][INFO] - Epoch 57, Batch 0/95, Loss: 1.026209
+[2025-09-14 15:42:54,494][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:54,494][training][INFO] - Epoch 57 complete. Avg Loss: 1.056865
+[2025-09-14 15:42:54,568][training][INFO] - Epoch 58, Batch 0/95, Loss: 1.067130
+[2025-09-14 15:42:56,669][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:56,669][training][INFO] - Epoch 58 complete. Avg Loss: 1.056827
+[2025-09-14 15:42:56,761][training][INFO] - Epoch 59, Batch 0/95, Loss: 1.081118
+[2025-09-14 15:42:58,848][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:42:58,849][training][INFO] - Epoch 59 complete. Avg Loss: 1.057453
+[2025-09-14 15:42:58,937][training][INFO] - Epoch 60, Batch 0/95, Loss: 1.041766
+[2025-09-14 15:43:01,028][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:01,028][training][INFO] - Epoch 60 complete. Avg Loss: 1.055321
+[2025-09-14 15:43:01,039][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_60.pt
+[2025-09-14 15:43:02,091][training][INFO] - Evaluation Loss: 1.059509
+[2025-09-14 15:43:02,092][training][INFO] - No improvement for 1 evaluations
+[2025-09-14 15:43:02,175][training][INFO] - Epoch 61, Batch 0/95, Loss: 1.060323
+[2025-09-14 15:43:04,271][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:04,271][training][INFO] - Epoch 61 complete. Avg Loss: 1.055398
+[2025-09-14 15:43:04,360][training][INFO] - Epoch 62, Batch 0/95, Loss: 1.056427
+[2025-09-14 15:43:06,453][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:06,453][training][INFO] - Epoch 62 complete. Avg Loss: 1.058139
+[2025-09-14 15:43:06,540][training][INFO] - Epoch 63, Batch 0/95, Loss: 1.058288
+[2025-09-14 15:43:08,630][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:08,630][training][INFO] - Epoch 63 complete. Avg Loss: 1.060396
+[2025-09-14 15:43:08,716][training][INFO] - Epoch 64, Batch 0/95, Loss: 1.041200
+[2025-09-14 15:43:10,805][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:10,805][training][INFO] - Epoch 64 complete. Avg Loss: 1.055354
+[2025-09-14 15:43:10,893][training][INFO] - Epoch 65, Batch 0/95, Loss: 1.052964
+[2025-09-14 15:43:12,976][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:12,976][training][INFO] - Epoch 65 complete. Avg Loss: 1.057405
+[2025-09-14 15:43:13,051][training][INFO] - Epoch 66, Batch 0/95, Loss: 1.036533
+[2025-09-14 15:43:15,145][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:15,145][training][INFO] - Epoch 66 complete. Avg Loss: 1.053855
+[2025-09-14 15:43:15,223][training][INFO] - Epoch 67, Batch 0/95, Loss: 1.058399
+[2025-09-14 15:43:17,320][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:17,320][training][INFO] - Epoch 67 complete. Avg Loss: 1.055513
+[2025-09-14 15:43:17,402][training][INFO] - Epoch 68, Batch 0/95, Loss: 1.025530
+[2025-09-14 15:43:19,486][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:19,487][training][INFO] - Epoch 68 complete. Avg Loss: 1.054692
+[2025-09-14 15:43:19,575][training][INFO] - Epoch 69, Batch 0/95, Loss: 1.075719
+[2025-09-14 15:43:21,667][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:21,667][training][INFO] - Epoch 69 complete. Avg Loss: 1.055659
+[2025-09-14 15:43:21,754][training][INFO] - Epoch 70, Batch 0/95, Loss: 1.073813
+[2025-09-14 15:43:23,839][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:23,839][training][INFO] - Epoch 70 complete. Avg Loss: 1.055987
+[2025-09-14 15:43:23,850][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_70.pt
+[2025-09-14 15:43:24,902][training][INFO] - Evaluation Loss: 1.055605
+[2025-09-14 15:43:24,913][training][INFO] - New best model saved to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/best_model.pt
+[2025-09-14 15:43:24,990][training][INFO] - Epoch 71, Batch 0/95, Loss: 1.070555
+[2025-09-14 15:43:27,095][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:27,095][training][INFO] - Epoch 71 complete. Avg Loss: 1.057669
+[2025-09-14 15:43:27,184][training][INFO] - Epoch 72, Batch 0/95, Loss: 1.058148
+[2025-09-14 15:43:29,275][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:29,276][training][INFO] - Epoch 72 complete. Avg Loss: 1.054668
+[2025-09-14 15:43:29,363][training][INFO] - Epoch 73, Batch 0/95, Loss: 1.073511
+[2025-09-14 15:43:31,457][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:31,457][training][INFO] - Epoch 73 complete. Avg Loss: 1.058795
+[2025-09-14 15:43:31,535][training][INFO] - Epoch 74, Batch 0/95, Loss: 1.065186
+[2025-09-14 15:43:33,632][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:33,632][training][INFO] - Epoch 74 complete. Avg Loss: 1.050261
+[2025-09-14 15:43:33,725][training][INFO] - Epoch 75, Batch 0/95, Loss: 1.016434
+[2025-09-14 15:43:35,815][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:35,815][training][INFO] - Epoch 75 complete. Avg Loss: 1.057031
+[2025-09-14 15:43:35,898][training][INFO] - Epoch 76, Batch 0/95, Loss: 1.066967
+[2025-09-14 15:43:37,984][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:37,984][training][INFO] - Epoch 76 complete. Avg Loss: 1.052651
+[2025-09-14 15:43:38,071][training][INFO] - Epoch 77, Batch 0/95, Loss: 1.077669
+[2025-09-14 15:43:40,152][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:40,152][training][INFO] - Epoch 77 complete. Avg Loss: 1.055848
+[2025-09-14 15:43:40,241][training][INFO] - Epoch 78, Batch 0/95, Loss: 1.055131
+[2025-09-14 15:43:42,325][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:42,325][training][INFO] - Epoch 78 complete. Avg Loss: 1.053095
+[2025-09-14 15:43:42,412][training][INFO] - Epoch 79, Batch 0/95, Loss: 1.063061
+[2025-09-14 15:43:44,490][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:44,491][training][INFO] - Epoch 79 complete. Avg Loss: 1.054859
+[2025-09-14 15:43:44,576][training][INFO] - Epoch 80, Batch 0/95, Loss: 1.061308
+[2025-09-14 15:43:46,658][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:46,659][training][INFO] - Epoch 80 complete. Avg Loss: 1.054416
+[2025-09-14 15:43:46,669][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_80.pt
+[2025-09-14 15:43:47,719][training][INFO] - Evaluation Loss: 1.053753
+[2025-09-14 15:43:47,730][training][INFO] - New best model saved to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/best_model.pt
+[2025-09-14 15:43:47,816][training][INFO] - Epoch 81, Batch 0/95, Loss: 1.068908
+[2025-09-14 15:43:49,902][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:49,902][training][INFO] - Epoch 81 complete. Avg Loss: 1.052849
+[2025-09-14 15:43:49,991][training][INFO] - Epoch 82, Batch 0/95, Loss: 1.090448
+[2025-09-14 15:43:52,081][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:52,081][training][INFO] - Epoch 82 complete. Avg Loss: 1.052190
+[2025-09-14 15:43:52,165][training][INFO] - Epoch 83, Batch 0/95, Loss: 1.035392
+[2025-09-14 15:43:54,244][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:54,244][training][INFO] - Epoch 83 complete. Avg Loss: 1.052180
+[2025-09-14 15:43:54,332][training][INFO] - Epoch 84, Batch 0/95, Loss: 1.067100
+[2025-09-14 15:43:56,413][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:56,413][training][INFO] - Epoch 84 complete. Avg Loss: 1.050916
+[2025-09-14 15:43:56,496][training][INFO] - Epoch 85, Batch 0/95, Loss: 1.089188
+[2025-09-14 15:43:58,570][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:43:58,570][training][INFO] - Epoch 85 complete. Avg Loss: 1.058327
+[2025-09-14 15:43:58,653][training][INFO] - Epoch 86, Batch 0/95, Loss: 1.112815
+[2025-09-14 15:44:00,739][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:00,740][training][INFO] - Epoch 86 complete. Avg Loss: 1.052092
+[2025-09-14 15:44:00,830][training][INFO] - Epoch 87, Batch 0/95, Loss: 1.044109
+[2025-09-14 15:44:02,912][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:02,912][training][INFO] - Epoch 87 complete. Avg Loss: 1.053705
+[2025-09-14 15:44:02,986][training][INFO] - Epoch 88, Batch 0/95, Loss: 1.023187
+[2025-09-14 15:44:05,078][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:05,078][training][INFO] - Epoch 88 complete. Avg Loss: 1.052143
+[2025-09-14 15:44:05,168][training][INFO] - Epoch 89, Batch 0/95, Loss: 1.057263
+[2025-09-14 15:44:07,256][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:07,257][training][INFO] - Epoch 89 complete. Avg Loss: 1.054319
+[2025-09-14 15:44:07,347][training][INFO] - Epoch 90, Batch 0/95, Loss: 1.034884
+[2025-09-14 15:44:09,423][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:09,424][training][INFO] - Epoch 90 complete. Avg Loss: 1.052471
+[2025-09-14 15:44:09,433][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_90.pt
+[2025-09-14 15:44:10,484][training][INFO] - Evaluation Loss: 1.053465
+[2025-09-14 15:44:10,494][training][INFO] - New best model saved to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/best_model.pt
+[2025-09-14 15:44:10,576][training][INFO] - Epoch 91, Batch 0/95, Loss: 1.032550
+[2025-09-14 15:44:12,666][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:12,666][training][INFO] - Epoch 91 complete. Avg Loss: 1.050445
+[2025-09-14 15:44:12,750][training][INFO] - Epoch 92, Batch 0/95, Loss: 1.057979
+[2025-09-14 15:44:14,838][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:14,838][training][INFO] - Epoch 92 complete. Avg Loss: 1.055220
+[2025-09-14 15:44:14,922][training][INFO] - Epoch 93, Batch 0/95, Loss: 1.053922
+[2025-09-14 15:44:17,012][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:17,013][training][INFO] - Epoch 93 complete. Avg Loss: 1.055653
+[2025-09-14 15:44:17,094][training][INFO] - Epoch 94, Batch 0/95, Loss: 1.056628
+[2025-09-14 15:44:19,175][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:19,175][training][INFO] - Epoch 94 complete. Avg Loss: 1.051882
+[2025-09-14 15:44:19,252][training][INFO] - Epoch 95, Batch 0/95, Loss: 1.072896
+[2025-09-14 15:44:21,334][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:21,334][training][INFO] - Epoch 95 complete. Avg Loss: 1.052829
+[2025-09-14 15:44:21,402][training][INFO] - Epoch 96, Batch 0/95, Loss: 1.112969
+[2025-09-14 15:44:23,424][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:23,424][training][INFO] - Epoch 96 complete. Avg Loss: 1.052501
+[2025-09-14 15:44:23,514][training][INFO] - Epoch 97, Batch 0/95, Loss: 1.033858
+[2025-09-14 15:44:25,507][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:25,507][training][INFO] - Epoch 97 complete. Avg Loss: 1.048480
+[2025-09-14 15:44:25,597][training][INFO] - Epoch 98, Batch 0/95, Loss: 1.060079
+[2025-09-14 15:44:27,591][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:27,591][training][INFO] - Epoch 98 complete. Avg Loss: 1.053358
+[2025-09-14 15:44:27,674][training][INFO] - Epoch 99, Batch 0/95, Loss: 1.021858
+[2025-09-14 15:44:29,678][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:29,678][training][INFO] - Epoch 99 complete. Avg Loss: 1.051812
+[2025-09-14 15:44:29,769][training][INFO] - Epoch 100, Batch 0/95, Loss: 1.080941
+[2025-09-14 15:44:31,764][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:31,765][training][INFO] - Epoch 100 complete. Avg Loss: 1.051656
+[2025-09-14 15:44:31,775][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_100.pt
+[2025-09-14 15:44:32,963][training][INFO] - Evaluation Loss: 1.049998
+[2025-09-14 15:44:32,975][training][INFO] - New best model saved to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/best_model.pt
+[2025-09-14 15:44:33,076][training][INFO] - Epoch 101, Batch 0/95, Loss: 1.033448
+[2025-09-14 15:44:35,267][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:35,267][training][INFO] - Epoch 101 complete. Avg Loss: 1.054408
+[2025-09-14 15:44:35,357][training][INFO] - Epoch 102, Batch 0/95, Loss: 1.046804
+[2025-09-14 15:44:37,450][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:37,450][training][INFO] - Epoch 102 complete. Avg Loss: 1.055697
+[2025-09-14 15:44:37,540][training][INFO] - Epoch 103, Batch 0/95, Loss: 1.036949
+[2025-09-14 15:44:39,623][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:39,623][training][INFO] - Epoch 103 complete. Avg Loss: 1.056138
+[2025-09-14 15:44:39,711][training][INFO] - Epoch 104, Batch 0/95, Loss: 1.040407
+[2025-09-14 15:44:41,797][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:41,798][training][INFO] - Epoch 104 complete. Avg Loss: 1.051046
+[2025-09-14 15:44:41,879][training][INFO] - Epoch 105, Batch 0/95, Loss: 1.038463
+[2025-09-14 15:44:43,970][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:43,970][training][INFO] - Epoch 105 complete. Avg Loss: 1.054234
+[2025-09-14 15:44:44,056][training][INFO] - Epoch 106, Batch 0/95, Loss: 1.046653
+[2025-09-14 15:44:46,136][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:46,137][training][INFO] - Epoch 106 complete. Avg Loss: 1.056684
+[2025-09-14 15:44:46,220][training][INFO] - Epoch 107, Batch 0/95, Loss: 1.054954
+[2025-09-14 15:44:48,312][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:48,313][training][INFO] - Epoch 107 complete. Avg Loss: 1.049832
+[2025-09-14 15:44:48,396][training][INFO] - Epoch 108, Batch 0/95, Loss: 1.062323
+[2025-09-14 15:44:50,485][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:50,486][training][INFO] - Epoch 108 complete. Avg Loss: 1.053309
+[2025-09-14 15:44:50,574][training][INFO] - Epoch 109, Batch 0/95, Loss: 1.042367
+[2025-09-14 15:44:52,664][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:52,664][training][INFO] - Epoch 109 complete. Avg Loss: 1.050472
+[2025-09-14 15:44:52,754][training][INFO] - Epoch 110, Batch 0/95, Loss: 1.066959
+[2025-09-14 15:44:54,838][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:54,838][training][INFO] - Epoch 110 complete. Avg Loss: 1.052580
+[2025-09-14 15:44:54,850][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_110.pt
+[2025-09-14 15:44:55,912][training][INFO] - Evaluation Loss: 1.054258
+[2025-09-14 15:44:55,913][training][INFO] - No improvement for 1 evaluations
+[2025-09-14 15:44:56,002][training][INFO] - Epoch 111, Batch 0/95, Loss: 1.047486
+[2025-09-14 15:44:58,090][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:44:58,091][training][INFO] - Epoch 111 complete. Avg Loss: 1.053055
+[2025-09-14 15:44:58,168][training][INFO] - Epoch 112, Batch 0/95, Loss: 1.083996
+[2025-09-14 15:45:00,267][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:00,267][training][INFO] - Epoch 112 complete. Avg Loss: 1.053535
+[2025-09-14 15:45:00,358][training][INFO] - Epoch 113, Batch 0/95, Loss: 1.042673
+[2025-09-14 15:45:02,453][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:02,453][training][INFO] - Epoch 113 complete. Avg Loss: 1.052474
+[2025-09-14 15:45:02,537][training][INFO] - Epoch 114, Batch 0/95, Loss: 1.030877
+[2025-09-14 15:45:04,636][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:04,636][training][INFO] - Epoch 114 complete. Avg Loss: 1.051821
+[2025-09-14 15:45:04,725][training][INFO] - Epoch 115, Batch 0/95, Loss: 1.037934
+[2025-09-14 15:45:06,831][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:06,832][training][INFO] - Epoch 115 complete. Avg Loss: 1.052177
+[2025-09-14 15:45:06,908][training][INFO] - Epoch 116, Batch 0/95, Loss: 1.045891
+[2025-09-14 15:45:09,017][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:09,017][training][INFO] - Epoch 116 complete. Avg Loss: 1.053504
+[2025-09-14 15:45:09,104][training][INFO] - Epoch 117, Batch 0/95, Loss: 1.036978
+[2025-09-14 15:45:11,201][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:11,201][training][INFO] - Epoch 117 complete. Avg Loss: 1.051693
+[2025-09-14 15:45:11,289][training][INFO] - Epoch 118, Batch 0/95, Loss: 1.046364
+[2025-09-14 15:45:13,384][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:13,385][training][INFO] - Epoch 118 complete. Avg Loss: 1.054883
+[2025-09-14 15:45:13,468][training][INFO] - Epoch 119, Batch 0/95, Loss: 0.993680
+[2025-09-14 15:45:15,562][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:15,562][training][INFO] - Epoch 119 complete. Avg Loss: 1.048878
+[2025-09-14 15:45:15,647][training][INFO] - Epoch 120, Batch 0/95, Loss: 1.030027
+[2025-09-14 15:45:17,742][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:17,742][training][INFO] - Epoch 120 complete. Avg Loss: 1.049395
+[2025-09-14 15:45:17,871][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_120.pt
+[2025-09-14 15:45:18,935][training][INFO] - Evaluation Loss: 1.053535
+[2025-09-14 15:45:18,935][training][INFO] - No improvement for 2 evaluations
+[2025-09-14 15:45:19,016][training][INFO] - Epoch 121, Batch 0/95, Loss: 1.040993
+[2025-09-14 15:45:21,118][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:21,118][training][INFO] - Epoch 121 complete. Avg Loss: 1.050703
+[2025-09-14 15:45:21,210][training][INFO] - Epoch 122, Batch 0/95, Loss: 1.031695
+[2025-09-14 15:45:23,299][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:23,299][training][INFO] - Epoch 122 complete. Avg Loss: 1.049837
+[2025-09-14 15:45:23,383][training][INFO] - Epoch 123, Batch 0/95, Loss: 1.077286
+[2025-09-14 15:45:25,476][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:25,477][training][INFO] - Epoch 123 complete. Avg Loss: 1.053511
+[2025-09-14 15:45:25,560][training][INFO] - Epoch 124, Batch 0/95, Loss: 1.062518
+[2025-09-14 15:45:27,656][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:27,656][training][INFO] - Epoch 124 complete. Avg Loss: 1.055032
+[2025-09-14 15:45:27,736][training][INFO] - Epoch 125, Batch 0/95, Loss: 1.040768
+[2025-09-14 15:45:29,832][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:29,832][training][INFO] - Epoch 125 complete. Avg Loss: 1.052344
+[2025-09-14 15:45:29,923][training][INFO] - Epoch 126, Batch 0/95, Loss: 1.004594
+[2025-09-14 15:45:32,014][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:32,014][training][INFO] - Epoch 126 complete. Avg Loss: 1.049405
+[2025-09-14 15:45:32,104][training][INFO] - Epoch 127, Batch 0/95, Loss: 1.046540
+[2025-09-14 15:45:34,190][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:34,191][training][INFO] - Epoch 127 complete. Avg Loss: 1.052525
+[2025-09-14 15:45:34,279][training][INFO] - Epoch 128, Batch 0/95, Loss: 1.042115
+[2025-09-14 15:45:36,375][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:36,376][training][INFO] - Epoch 128 complete. Avg Loss: 1.050931
+[2025-09-14 15:45:36,464][training][INFO] - Epoch 129, Batch 0/95, Loss: 1.037055
+[2025-09-14 15:45:38,554][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:38,554][training][INFO] - Epoch 129 complete. Avg Loss: 1.052218
+[2025-09-14 15:45:38,637][training][INFO] - Epoch 130, Batch 0/95, Loss: 1.055079
+[2025-09-14 15:45:40,734][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:40,734][training][INFO] - Epoch 130 complete. Avg Loss: 1.049805
+[2025-09-14 15:45:40,745][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_130.pt
+[2025-09-14 15:45:41,799][training][INFO] - Evaluation Loss: 1.052107
+[2025-09-14 15:45:41,799][training][INFO] - No improvement for 3 evaluations
+[2025-09-14 15:45:41,882][training][INFO] - Epoch 131, Batch 0/95, Loss: 1.063696
+[2025-09-14 15:45:43,984][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:43,984][training][INFO] - Epoch 131 complete. Avg Loss: 1.051337
+[2025-09-14 15:45:44,065][training][INFO] - Epoch 132, Batch 0/95, Loss: 1.055477
+[2025-09-14 15:45:46,165][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:46,166][training][INFO] - Epoch 132 complete. Avg Loss: 1.050181
+[2025-09-14 15:45:46,255][training][INFO] - Epoch 133, Batch 0/95, Loss: 1.047402
+[2025-09-14 15:45:48,348][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:48,348][training][INFO] - Epoch 133 complete. Avg Loss: 1.047401
+[2025-09-14 15:45:48,429][training][INFO] - Epoch 134, Batch 0/95, Loss: 1.061559
+[2025-09-14 15:45:50,532][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:50,533][training][INFO] - Epoch 134 complete. Avg Loss: 1.053091
+[2025-09-14 15:45:50,619][training][INFO] - Epoch 135, Batch 0/95, Loss: 1.065451
+[2025-09-14 15:45:52,719][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:52,719][training][INFO] - Epoch 135 complete. Avg Loss: 1.046154
+[2025-09-14 15:45:52,799][training][INFO] - Epoch 136, Batch 0/95, Loss: 1.026944
+[2025-09-14 15:45:54,903][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:54,904][training][INFO] - Epoch 136 complete. Avg Loss: 1.050063
+[2025-09-14 15:45:54,992][training][INFO] - Epoch 137, Batch 0/95, Loss: 1.044325
+[2025-09-14 15:45:57,090][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:57,091][training][INFO] - Epoch 137 complete. Avg Loss: 1.052304
+[2025-09-14 15:45:57,177][training][INFO] - Epoch 138, Batch 0/95, Loss: 1.065927
+[2025-09-14 15:45:59,278][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:45:59,278][training][INFO] - Epoch 138 complete. Avg Loss: 1.048360
+[2025-09-14 15:45:59,364][training][INFO] - Epoch 139, Batch 0/95, Loss: 1.078974
+[2025-09-14 15:46:01,464][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:01,465][training][INFO] - Epoch 139 complete. Avg Loss: 1.049478
+[2025-09-14 15:46:01,554][training][INFO] - Epoch 140, Batch 0/95, Loss: 1.058571
+[2025-09-14 15:46:03,654][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:03,654][training][INFO] - Epoch 140 complete. Avg Loss: 1.051340
+[2025-09-14 15:46:03,664][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_140.pt
+[2025-09-14 15:46:04,721][training][INFO] - Evaluation Loss: 1.052135
+[2025-09-14 15:46:04,721][training][INFO] - No improvement for 4 evaluations
+[2025-09-14 15:46:04,811][training][INFO] - Epoch 141, Batch 0/95, Loss: 1.053950
+[2025-09-14 15:46:06,917][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:06,917][training][INFO] - Epoch 141 complete. Avg Loss: 1.052200
+[2025-09-14 15:46:07,005][training][INFO] - Epoch 142, Batch 0/95, Loss: 1.042023
+[2025-09-14 15:46:09,101][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:09,101][training][INFO] - Epoch 142 complete. Avg Loss: 1.048316
+[2025-09-14 15:46:09,187][training][INFO] - Epoch 143, Batch 0/95, Loss: 1.060506
+[2025-09-14 15:46:11,284][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:11,285][training][INFO] - Epoch 143 complete. Avg Loss: 1.048541
+[2025-09-14 15:46:11,364][training][INFO] - Epoch 144, Batch 0/95, Loss: 1.012745
+[2025-09-14 15:46:13,426][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:13,426][training][INFO] - Epoch 144 complete. Avg Loss: 1.048515
+[2025-09-14 15:46:13,512][training][INFO] - Epoch 145, Batch 0/95, Loss: 1.046273
+[2025-09-14 15:46:15,521][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:15,521][training][INFO] - Epoch 145 complete. Avg Loss: 1.050929
+[2025-09-14 15:46:15,609][training][INFO] - Epoch 146, Batch 0/95, Loss: 1.035782
+[2025-09-14 15:46:17,618][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:17,619][training][INFO] - Epoch 146 complete. Avg Loss: 1.052019
+[2025-09-14 15:46:17,700][training][INFO] - Epoch 147, Batch 0/95, Loss: 1.072817
+[2025-09-14 15:46:19,711][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:19,711][training][INFO] - Epoch 147 complete. Avg Loss: 1.047491
+[2025-09-14 15:46:19,799][training][INFO] - Epoch 148, Batch 0/95, Loss: 1.052882
+[2025-09-14 15:46:21,814][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:21,814][training][INFO] - Epoch 148 complete. Avg Loss: 1.049438
+[2025-09-14 15:46:21,883][training][INFO] - Epoch 149, Batch 0/95, Loss: 1.080899
+[2025-09-14 15:46:23,971][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:23,972][training][INFO] - Epoch 149 complete. Avg Loss: 1.051480
+[2025-09-14 15:46:24,060][training][INFO] - Epoch 150, Batch 0/95, Loss: 1.049365
+[2025-09-14 15:46:26,314][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:26,315][training][INFO] - Epoch 150 complete. Avg Loss: 1.053516
+[2025-09-14 15:46:26,325][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_150.pt
+[2025-09-14 15:46:27,389][training][INFO] - Evaluation Loss: 1.044780
+[2025-09-14 15:46:27,399][training][INFO] - New best model saved to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/best_model.pt
+[2025-09-14 15:46:27,498][training][INFO] - Epoch 151, Batch 0/95, Loss: 1.016472
+[2025-09-14 15:46:29,594][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:29,595][training][INFO] - Epoch 151 complete. Avg Loss: 1.051529
+[2025-09-14 15:46:29,685][training][INFO] - Epoch 152, Batch 0/95, Loss: 1.044372
+[2025-09-14 15:46:31,778][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:31,779][training][INFO] - Epoch 152 complete. Avg Loss: 1.052175
+[2025-09-14 15:46:31,872][training][INFO] - Epoch 153, Batch 0/95, Loss: 1.008657
+[2025-09-14 15:46:33,962][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:33,962][training][INFO] - Epoch 153 complete. Avg Loss: 1.047255
+[2025-09-14 15:46:34,053][training][INFO] - Epoch 154, Batch 0/95, Loss: 1.047158
+[2025-09-14 15:46:36,154][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:36,154][training][INFO] - Epoch 154 complete. Avg Loss: 1.049602
+[2025-09-14 15:46:36,239][training][INFO] - Epoch 155, Batch 0/95, Loss: 1.054903
+[2025-09-14 15:46:38,325][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:38,326][training][INFO] - Epoch 155 complete. Avg Loss: 1.050989
+[2025-09-14 15:46:38,416][training][INFO] - Epoch 156, Batch 0/95, Loss: 1.059847
+[2025-09-14 15:46:40,505][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:40,505][training][INFO] - Epoch 156 complete. Avg Loss: 1.047900
+[2025-09-14 15:46:40,592][training][INFO] - Epoch 157, Batch 0/95, Loss: 1.085128
+[2025-09-14 15:46:42,683][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:42,683][training][INFO] - Epoch 157 complete. Avg Loss: 1.050206
+[2025-09-14 15:46:42,760][training][INFO] - Epoch 158, Batch 0/95, Loss: 1.011980
+[2025-09-14 15:46:44,860][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:44,860][training][INFO] - Epoch 158 complete. Avg Loss: 1.049829
+[2025-09-14 15:46:44,941][training][INFO] - Epoch 159, Batch 0/95, Loss: 1.060711
+[2025-09-14 15:46:47,040][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:47,040][training][INFO] - Epoch 159 complete. Avg Loss: 1.051397
+[2025-09-14 15:46:47,121][training][INFO] - Epoch 160, Batch 0/95, Loss: 1.006223
+[2025-09-14 15:46:49,220][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:49,220][training][INFO] - Epoch 160 complete. Avg Loss: 1.050956
+[2025-09-14 15:46:49,230][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_160.pt
+[2025-09-14 15:46:50,288][training][INFO] - Evaluation Loss: 1.049815
+[2025-09-14 15:46:50,289][training][INFO] - No improvement for 1 evaluations
+[2025-09-14 15:46:50,376][training][INFO] - Epoch 161, Batch 0/95, Loss: 1.019266
+[2025-09-14 15:46:52,466][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:52,466][training][INFO] - Epoch 161 complete. Avg Loss: 1.050399
+[2025-09-14 15:46:52,549][training][INFO] - Epoch 162, Batch 0/95, Loss: 1.047316
+[2025-09-14 15:46:54,646][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:54,647][training][INFO] - Epoch 162 complete. Avg Loss: 1.051302
+[2025-09-14 15:46:54,737][training][INFO] - Epoch 163, Batch 0/95, Loss: 1.049179
+[2025-09-14 15:46:56,826][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:56,826][training][INFO] - Epoch 163 complete. Avg Loss: 1.050593
+[2025-09-14 15:46:56,913][training][INFO] - Epoch 164, Batch 0/95, Loss: 1.032382
+[2025-09-14 15:46:59,001][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:46:59,001][training][INFO] - Epoch 164 complete. Avg Loss: 1.049250
+[2025-09-14 15:46:59,090][training][INFO] - Epoch 165, Batch 0/95, Loss: 1.075875
+[2025-09-14 15:47:01,185][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:01,186][training][INFO] - Epoch 165 complete. Avg Loss: 1.047652
+[2025-09-14 15:47:01,274][training][INFO] - Epoch 166, Batch 0/95, Loss: 1.052732
+[2025-09-14 15:47:03,366][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:03,366][training][INFO] - Epoch 166 complete. Avg Loss: 1.050754
+[2025-09-14 15:47:03,448][training][INFO] - Epoch 167, Batch 0/95, Loss: 1.042794
+[2025-09-14 15:47:05,550][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:05,551][training][INFO] - Epoch 167 complete. Avg Loss: 1.052666
+[2025-09-14 15:47:05,631][training][INFO] - Epoch 168, Batch 0/95, Loss: 1.076587
+[2025-09-14 15:47:07,724][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:07,725][training][INFO] - Epoch 168 complete. Avg Loss: 1.051016
+[2025-09-14 15:47:07,813][training][INFO] - Epoch 169, Batch 0/95, Loss: 1.043957
+[2025-09-14 15:47:09,908][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:09,908][training][INFO] - Epoch 169 complete. Avg Loss: 1.052002
+[2025-09-14 15:47:09,988][training][INFO] - Epoch 170, Batch 0/95, Loss: 1.034092
+[2025-09-14 15:47:12,089][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:12,089][training][INFO] - Epoch 170 complete. Avg Loss: 1.048365
+[2025-09-14 15:47:12,100][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_170.pt
+[2025-09-14 15:47:13,154][training][INFO] - Evaluation Loss: 1.049280
+[2025-09-14 15:47:13,155][training][INFO] - No improvement for 2 evaluations
+[2025-09-14 15:47:13,242][training][INFO] - Epoch 171, Batch 0/95, Loss: 1.010625
+[2025-09-14 15:47:15,334][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:15,335][training][INFO] - Epoch 171 complete. Avg Loss: 1.047186
+[2025-09-14 15:47:15,422][training][INFO] - Epoch 172, Batch 0/95, Loss: 1.045638
+[2025-09-14 15:47:17,518][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:17,518][training][INFO] - Epoch 172 complete. Avg Loss: 1.049364
+[2025-09-14 15:47:17,608][training][INFO] - Epoch 173, Batch 0/95, Loss: 1.066363
+[2025-09-14 15:47:19,703][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:19,704][training][INFO] - Epoch 173 complete. Avg Loss: 1.048166
+[2025-09-14 15:47:19,793][training][INFO] - Epoch 174, Batch 0/95, Loss: 1.026170
+[2025-09-14 15:47:21,897][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:21,897][training][INFO] - Epoch 174 complete. Avg Loss: 1.048520
+[2025-09-14 15:47:21,985][training][INFO] - Epoch 175, Batch 0/95, Loss: 1.059208
+[2025-09-14 15:47:24,087][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:24,087][training][INFO] - Epoch 175 complete. Avg Loss: 1.050386
+[2025-09-14 15:47:24,175][training][INFO] - Epoch 176, Batch 0/95, Loss: 1.022092
+[2025-09-14 15:47:26,279][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:26,279][training][INFO] - Epoch 176 complete. Avg Loss: 1.048326
+[2025-09-14 15:47:26,369][training][INFO] - Epoch 177, Batch 0/95, Loss: 1.051872
+[2025-09-14 15:47:28,466][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:28,466][training][INFO] - Epoch 177 complete. Avg Loss: 1.049564
+[2025-09-14 15:47:28,554][training][INFO] - Epoch 178, Batch 0/95, Loss: 1.010859
+[2025-09-14 15:47:30,656][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:30,657][training][INFO] - Epoch 178 complete. Avg Loss: 1.049884
+[2025-09-14 15:47:30,735][training][INFO] - Epoch 179, Batch 0/95, Loss: 0.994881
+[2025-09-14 15:47:32,839][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:32,839][training][INFO] - Epoch 179 complete. Avg Loss: 1.048549
+[2025-09-14 15:47:32,920][training][INFO] - Epoch 180, Batch 0/95, Loss: 1.027061
+[2025-09-14 15:47:35,023][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:35,024][training][INFO] - Epoch 180 complete. Avg Loss: 1.052602
+[2025-09-14 15:47:35,034][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_180.pt
+[2025-09-14 15:47:36,103][training][INFO] - Evaluation Loss: 1.049064
+[2025-09-14 15:47:36,103][training][INFO] - No improvement for 3 evaluations
+[2025-09-14 15:47:36,180][training][INFO] - Epoch 181, Batch 0/95, Loss: 1.040948
+[2025-09-14 15:47:38,288][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:38,288][training][INFO] - Epoch 181 complete. Avg Loss: 1.051458
+[2025-09-14 15:47:38,371][training][INFO] - Epoch 182, Batch 0/95, Loss: 1.097577
+[2025-09-14 15:47:40,468][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:40,469][training][INFO] - Epoch 182 complete. Avg Loss: 1.050115
+[2025-09-14 15:47:40,557][training][INFO] - Epoch 183, Batch 0/95, Loss: 1.057291
+[2025-09-14 15:47:42,645][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:42,646][training][INFO] - Epoch 183 complete. Avg Loss: 1.049193
+[2025-09-14 15:47:42,738][training][INFO] - Epoch 184, Batch 0/95, Loss: 1.054376
+[2025-09-14 15:47:44,826][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:44,826][training][INFO] - Epoch 184 complete. Avg Loss: 1.045081
+[2025-09-14 15:47:44,907][training][INFO] - Epoch 185, Batch 0/95, Loss: 1.049706
+[2025-09-14 15:47:47,013][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:47,013][training][INFO] - Epoch 185 complete. Avg Loss: 1.043511
+[2025-09-14 15:47:47,104][training][INFO] - Epoch 186, Batch 0/95, Loss: 1.069474
+[2025-09-14 15:47:49,195][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:49,196][training][INFO] - Epoch 186 complete. Avg Loss: 1.047912
+[2025-09-14 15:47:49,281][training][INFO] - Epoch 187, Batch 0/95, Loss: 1.043893
+[2025-09-14 15:47:51,379][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:51,379][training][INFO] - Epoch 187 complete. Avg Loss: 1.047470
+[2025-09-14 15:47:51,467][training][INFO] - Epoch 188, Batch 0/95, Loss: 1.052150
+[2025-09-14 15:47:53,562][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:53,563][training][INFO] - Epoch 188 complete. Avg Loss: 1.050478
+[2025-09-14 15:47:53,649][training][INFO] - Epoch 189, Batch 0/95, Loss: 1.049605
+[2025-09-14 15:47:55,748][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:55,748][training][INFO] - Epoch 189 complete. Avg Loss: 1.051259
+[2025-09-14 15:47:55,840][training][INFO] - Epoch 190, Batch 0/95, Loss: 1.040770
+[2025-09-14 15:47:57,928][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:47:57,928][training][INFO] - Epoch 190 complete. Avg Loss: 1.046992
+[2025-09-14 15:47:57,939][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_190.pt
+[2025-09-14 15:47:59,007][training][INFO] - Evaluation Loss: 1.047481
+[2025-09-14 15:47:59,008][training][INFO] - No improvement for 4 evaluations
+[2025-09-14 15:47:59,094][training][INFO] - Epoch 191, Batch 0/95, Loss: 1.059793
+[2025-09-14 15:48:01,191][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:48:01,191][training][INFO] - Epoch 191 complete. Avg Loss: 1.045749
+[2025-09-14 15:48:01,281][training][INFO] - Epoch 192, Batch 0/95, Loss: 1.021828
+[2025-09-14 15:48:03,377][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:48:03,378][training][INFO] - Epoch 192 complete. Avg Loss: 1.046636
+[2025-09-14 15:48:03,464][training][INFO] - Epoch 193, Batch 0/95, Loss: 1.065495
+[2025-09-14 15:48:05,537][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:48:05,538][training][INFO] - Epoch 193 complete. Avg Loss: 1.047421
+[2025-09-14 15:48:05,617][training][INFO] - Epoch 194, Batch 0/95, Loss: 1.082689
+[2025-09-14 15:48:07,632][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:48:07,632][training][INFO] - Epoch 194 complete. Avg Loss: 1.050920
+[2025-09-14 15:48:07,719][training][INFO] - Epoch 195, Batch 0/95, Loss: 1.062397
+[2025-09-14 15:48:09,723][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:48:09,723][training][INFO] - Epoch 195 complete. Avg Loss: 1.053863
+[2025-09-14 15:48:09,810][training][INFO] - Epoch 196, Batch 0/95, Loss: 1.089954
+[2025-09-14 15:48:11,810][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:48:11,811][training][INFO] - Epoch 196 complete. Avg Loss: 1.051306
+[2025-09-14 15:48:11,898][training][INFO] - Epoch 197, Batch 0/95, Loss: 1.054722
+[2025-09-14 15:48:13,905][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:48:13,905][training][INFO] - Epoch 197 complete. Avg Loss: 1.048040
+[2025-09-14 15:48:13,983][training][INFO] - Epoch 198, Batch 0/95, Loss: 1.070552
+[2025-09-14 15:48:16,058][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:48:16,059][training][INFO] - Epoch 198 complete. Avg Loss: 1.047686
+[2025-09-14 15:48:16,155][training][INFO] - Epoch 199, Batch 0/95, Loss: 1.036697
+[2025-09-14 15:48:18,406][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:48:18,406][training][INFO] - Epoch 199 complete. Avg Loss: 1.047575
+[2025-09-14 15:48:18,494][training][INFO] - Epoch 200, Batch 0/95, Loss: 1.060645
+[2025-09-14 15:48:20,593][training][INFO] - Learning rate: 0.000200
+[2025-09-14 15:48:20,594][training][INFO] - Epoch 200 complete. Avg Loss: 1.053008
+[2025-09-14 15:48:20,605][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_PBMC_42bd99167c24ed689e365dabe63b8cc6/checkpoint_epoch_200.pt
+[2025-09-14 15:48:21,665][training][INFO] - Evaluation Loss: 1.046497
+[2025-09-14 15:48:21,666][training][INFO] - No improvement for 5 evaluations
+[2025-09-14 15:48:21,666][training][INFO] - Early stopping triggered after 200 epochs
+[2025-09-14 15:48:21,666][training][INFO] - Training completed in 460.99 seconds
+[2025-09-14 15:48:21,667][__main__][INFO] - Training completed. Best epoch: 150

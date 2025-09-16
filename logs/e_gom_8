@@ -1,0 +1,71 @@
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/hydra/_internal/hydra.py:119: UserWarning: Future Hydra versions will no longer change working directory at job runtime by default.
+See https://hydra.cc/docs/1.2/upgrades/1.1_to_1.2/changes_to_job_working_dir/ for more information.
+  ret = run_job(
+wandb: Currently logged in as: paolo-lb-fischer (paolo-lb-fischer-harvard-university) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: creating run
+wandb: Tracking run with wandb version 0.21.1
+wandb: Run data is saved locally in /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_ot_PBMC/2025-09-15_06-31-35/wandb/run-20250915_063136-uzhsoxcz
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run cerulean-shadow-8046
+wandb: ⭐️ View project at https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings
+wandb: 🚀 View run at https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings/runs/uzhsoxcz
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch/utils/data/dataloader.py:557: UserWarning: This DataLoader will create 8 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(_create_warning_msg(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch/utils/data/dataloader.py:557: UserWarning: This DataLoader will create 8 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(_create_warning_msg(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/ot/bregman/_sinkhorn.py:667: UserWarning: Sinkhorn did not converge. You might want to increase the number of iterations `numItermax` or the regularization parameter `reg`.
+  warnings.warn(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/ot/bregman/_sinkhorn.py:667: UserWarning: Sinkhorn did not converge. You might want to increase the number of iterations `numItermax` or the regularization parameter `reg`.
+  warnings.warn(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/ot/bregman/_sinkhorn.py:667: UserWarning: Sinkhorn did not converge. You might want to increase the number of iterations `numItermax` or the regularization parameter `reg`.
+  warnings.warn(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/ot/bregman/_sinkhorn.py:667: UserWarning: Sinkhorn did not converge. You might want to increase the number of iterations `numItermax` or the regularization parameter `reg`.
+  warnings.warn(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/ot/bregman/_sinkhorn.py:667: UserWarning: Sinkhorn did not converge. You might want to increase the number of iterations `numItermax` or the regularization parameter `reg`.
+  warnings.warn(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/ot/bregman/_sinkhorn.py:667: UserWarning: Sinkhorn did not converge. You might want to increase the number of iterations `numItermax` or the regularization parameter `reg`.
+  warnings.warn(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/ot/bregman/_sinkhorn.py:667: UserWarning: Sinkhorn did not converge. You might want to increase the number of iterations `numItermax` or the regularization parameter `reg`.
+  warnings.warn(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/ot/bregman/_sinkhorn.py:667: UserWarning: Sinkhorn did not converge. You might want to increase the number of iterations `numItermax` or the regularization parameter `reg`.
+  warnings.warn(
+wandb: WARNING Saving files without folders. If you want to preserve subdirectories pass base_path to wandb.save, i.e. wandb.save("/mnt/folder/file.h5", base_path="/mnt")
+wandb: uploading snapMMD_energy_cotrain_ot_PBMC_ee4008b8d3a89a96a2a1f28fa710cd7e/best_model.pt
+wandb: uploading snapMMD_energy_cotrain_ot_PBMC_ee4008b8d3a89a96a2a1f28fa710cd7e/best_model.pt; uploading history steps 178-180, summary, console lines 600-610
+wandb: uploading snapMMD_energy_cotrain_ot_PBMC_ee4008b8d3a89a96a2a1f28fa710cd7e/best_model.pt
+wandb:                                                                                
+wandb: 
+wandb: Run history:
+wandb:               batch/epoch ▁▁▁▁▂▂▂▂▃▃▃▃▃▃▃▃▃▄▄▄▄▄▅▅▅▅▅▆▆▆▆▆▆▇▇▇▇▇▇█
+wandb:                batch/loss █▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:      batch/predictor_loss █▄▃▁▂▂▂▁▁▂▁▁▂▁▂▂▁▂▁▁▁▁▁▁▁▂▁▁▁▂▂▁▁▁▁▁▁▁▁▁
+wandb: batch/reconstruction_loss █▃▄▂▃▂▂▂▃▁▁▃▂▂▂▂▁▁▃▁▁▁▁▂▃▂▂▂▃▃▂▁▂▃▂▁▁▂▁▃
+wandb:                batch/step ▁▁▁▂▂▃▃▃▃▃▃▄▄▄▄▄▅▅▅▅▅▅▅▅▆▆▆▆▆▆▇▇▇▇▇▇▇▇██
+wandb:               epoch/epoch ▁▁▁▁▂▂▂▃▃▃▃▃▄▄▄▄▄▄▄▄▄▄▅▅▆▆▆▆▆▆▆▇▇▇▇█████
+wandb:           epoch/eval_loss █▅▄▄▂▃▂▂▂▂▂▂▁▁▂▁▁▁
+wandb:       epoch/learning_rate ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:          epoch/train_loss █▃▃▂▂▂▂▂▂▂▂▂▂▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁▁▁
+wandb: 
+wandb: Run summary:
+wandb:               batch/epoch 180
+wandb:                batch/loss 0.6518
+wandb:      batch/predictor_loss 7e-05
+wandb: batch/reconstruction_loss 0.65172
+wandb:                batch/step 17005
+wandb:                best_epoch 130
+wandb:                 best_loss 0.61918
+wandb:               config_hash ee4008b8d3a89a96a2a1...
+wandb:               epoch/epoch 180
+wandb:           epoch/eval_loss 0.62567
+wandb:       epoch/learning_rate 0.0002
+wandb:          epoch/train_loss 0.62264
+wandb:           final_eval_loss 0.62567
+wandb:          final_train_loss 0.62264
+wandb:             stopped_early True
+wandb:             stopped_epoch 180
+wandb:                total_time 692.36643
+wandb: 
+wandb: 🚀 View run cerulean-shadow-8046 at: https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings/runs/uzhsoxcz
+wandb: ⭐️ View project at: https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 1 other file(s)
+wandb: Find logs at: ./wandb/run-20250915_063136-uzhsoxcz/logs

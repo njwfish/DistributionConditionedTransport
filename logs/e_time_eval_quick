@@ -1,0 +1,8 @@
+Some weights of EsmModel were not initialized from the model checkpoint at facebook/esm2_t6_8M_UR50D and are newly initialized: ['pooler.dense.bias', 'pooler.dense.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+Some weights of TimeAwareEsmForFlow were not initialized from the model checkpoint at facebook/esm2_t6_8M_UR50D and are newly initialized: ['condition_proj.0.bias', 'condition_proj.0.weight', 'condition_proj.2.bias', 'condition_proj.2.weight', 'cross_attn_layers.0.attn.in_proj_bias', 'cross_attn_layers.0.attn.in_proj_weight', 'cross_attn_layers.0.attn.out_proj.bias', 'cross_attn_layers.0.attn.out_proj.weight', 'cross_attn_layers.0.ff.0.bias', 'cross_attn_layers.0.ff.0.weight', 'cross_attn_layers.0.ff.2.bias', 'cross_attn_layers.0.ff.2.weight', 'cross_attn_layers.0.ln1.bias', 'cross_attn_layers.0.ln1.weight', 'cross_attn_layers.0.ln2.bias', 'cross_attn_layers.0.ln2.weight', 'cross_attn_scales.0', 'cross_ff_scales.0', 'latent_proj.bias', 'latent_proj.weight', 'mem_ln.bias', 'mem_ln.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+Some weights of EsmModel were not initialized from the model checkpoint at facebook/esm2_t6_8M_UR50D and are newly initialized: ['pooler.dense.bias', 'pooler.dense.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/tde_mo/lib/python3.9/site-packages/sklearn/neural_network/_multilayer_perceptron.py:691: ConvergenceWarning: Stochastic Optimizer: Maximum iterations (500) reached and the optimization hasn't converged yet.
+  warnings.warn(

@@ -1,0 +1,394 @@
+[2025-09-15 22:21:02,448][__main__][INFO] - 
+dataset:
+  _target_: datasets.virus_time_and_location.ViralDataset
+  data_dir: /orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430
+  data_file: ${experiment.data_file}
+  set_size: ${experiment.set_size}
+  seq_length: ${experiment.seq_length}
+  esm_name: ${experiment.esm_model_name}
+  progen_name: ${experiment.progen2_model_name}
+  lines_to_read: 100000000
+  max_sets_per_fam: 100
+  tokenize: ${experiment.tokenize}
+  seed: ${seed}
+encoder:
+  _target_: encoder.protein_encoders.ProteinSetEncoder
+  esm_model_name: ${experiment.esm_model_name}
+  latent_dim: ${experiment.latent_dim}
+  hidden_dim: ${experiment.hidden_dim}
+  pooling: mean
+  freeze: true
+  dist_type: tx
+  layers: 2
+  heads: 4
+model:
+  _target_: types.NoneType
+coupling:
+  _target_: types.NoneType
+generator:
+  _target_: generator.protein.ESM2_DFM_Generator
+  model_name: ${experiment.esm_model_name}
+  latent_dim: ${experiment.latent_dim}
+  condition_dim: ${experiment.condition_dim}
+  freeze_esm2: ${experiment.freeze_esm2}
+  condition_method: ${experiment.condition_method}
+  temperature: ${experiment.temperature}
+  seq_length: ${experiment.seq_length}
+optimizer:
+  _target_: torch.optim.Adam
+  _partial_: true
+  lr: ${experiment.lr}
+  betas:
+  - 0.9
+  - 0.999
+  eps: 1.0e-08
+  weight_decay: 0
+scheduler:
+  _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+  _partial_: true
+  T_max: 250
+  eta_min: 1.0e-05
+training:
+  _target_: training.Trainer
+  num_epochs: 1000
+  log_interval: 100
+  save_interval: 10
+  eval_interval: 10
+  early_stopping: true
+  patience: 5
+  use_tqdm: false
+wandb:
+  _target_: wandb_utils.setup_wandb
+  project: distribution-embeddings
+  entity: null
+  name: null
+  mode: online
+  tags: []
+  notes: null
+  group: null
+  save_code: true
+loss:
+  _target_: loss.default.LossManager
+sampling:
+  _target_: sampler.default.Sampler
+  num_samples: ${experiment.num_samples}
+  selective_pairing_mode: ${experiment.selective_pairing_mode}
+predictor:
+  _target_: predictor.predictor.Predictor
+  latent_dim: ${experiment.latent_dim}
+  model_type: ${experiment.predictor_model_type}
+  model_args: ${experiment.predictor_model_args}
+  conditioning_mode: ${experiment.predictor_conditioning_mode}
+  condition_type: ${experiment.predictor_condition_type}
+  d_embed_dim: 16
+  loss_type: cosine
+experiment:
+  name: virus_time_and_location
+  description: full dataset of virus evolution
+  data_file: /orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430/iclr5_filtered_aggregated_data_country_efficient.pt
+  train_predictor_posthoc: true
+  use_predicted_latent: false
+  predictor_loss_weight: 0.0
+  predictor_model_type: mlp
+  predictor_conditioning_mode: concat
+  predictor_condition_type: null
+  predictor_model_args:
+    hidden_dim: 128
+    num_layers: 2
+  num_samples: 50
+  exponential_weight_scale: 1.0
+  selective_pairing_mode: single_step
+  latent_dim: 128
+  hidden_dim: 256
+  batch_size: 1
+  set_size: 16
+  lr: 2.0e-05
+  progen2_model_name: hugohrban/progen2-base
+  freeze_progen2: false
+  esm_model_name: facebook/esm2_t6_8M_UR50D
+  freeze_esm2: false
+  seq_length: 1000
+  tokenize: false
+  condition_dim: 32
+  microbatch_set_size: 1
+  condition_method: additive
+  temperature: 1.0
+experiment_name: ${experiment.name}
+dataset_name: GoM
+seed: 42
+device: cuda
+
+[2025-09-15 22:21:02,461][__main__][INFO] - Configuration hash: 4202a380ab61bc2c774fe6cbb52c7e83
+[2025-09-15 22:21:18,585][training][INFO] - Sub epoch interval: 1000, save interval: 10, eval interval: 10
+[2025-09-15 22:21:19,260][utils.hash_utils][INFO] - Created output directory: /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/virus_time_and_location_4202a380ab61bc2c774fe6cbb52c7e83
+[2025-09-15 22:21:19,270][training][INFO] - Using hash-based output directory: /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/virus_time_and_location_4202a380ab61bc2c774fe6cbb52c7e83
+[2025-09-15 22:21:19,270][training][INFO] - No checkpoints found. Looking for similar experiments with different epoch counts...
+similar_experiments []
+[2025-09-15 22:21:19,339][training][INFO] - Starting training on cuda...
+[2025-09-15 22:21:21,786][training][INFO] - Epoch 1, Batch 0/50, Loss: 2.036937
+[2025-09-15 22:21:49,780][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:21:49,781][training][INFO] - Epoch 1 complete. Avg Loss: 0.875430
+[2025-09-15 22:21:50,398][training][INFO] - Epoch 2, Batch 0/50, Loss: 0.085831
+[2025-09-15 22:22:18,447][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:22:18,447][training][INFO] - Epoch 2 complete. Avg Loss: 0.613228
+[2025-09-15 22:22:19,082][training][INFO] - Epoch 3, Batch 0/50, Loss: 0.078034
+[2025-09-15 22:22:47,286][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:22:47,287][training][INFO] - Epoch 3 complete. Avg Loss: 0.674309
+[2025-09-15 22:22:47,904][training][INFO] - Epoch 4, Batch 0/50, Loss: 0.064629
+[2025-09-15 22:23:16,117][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:23:16,118][training][INFO] - Epoch 4 complete. Avg Loss: 0.481149
+[2025-09-15 22:23:16,725][training][INFO] - Epoch 5, Batch 0/50, Loss: 0.514822
+[2025-09-15 22:23:44,905][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:23:44,906][training][INFO] - Epoch 5 complete. Avg Loss: 0.524671
+[2025-09-15 22:23:45,535][training][INFO] - Epoch 6, Batch 0/50, Loss: 0.142740
+[2025-09-15 22:24:13,814][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:24:13,814][training][INFO] - Epoch 6 complete. Avg Loss: 0.592801
+[2025-09-15 22:24:14,428][training][INFO] - Epoch 7, Batch 0/50, Loss: 0.049525
+[2025-09-15 22:24:42,679][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:24:42,680][training][INFO] - Epoch 7 complete. Avg Loss: 0.512240
+[2025-09-15 22:24:43,295][training][INFO] - Epoch 8, Batch 0/50, Loss: 1.177153
+[2025-09-15 22:25:11,559][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:25:11,560][training][INFO] - Epoch 8 complete. Avg Loss: 0.509439
+[2025-09-15 22:25:12,184][training][INFO] - Epoch 9, Batch 0/50, Loss: 0.017803
+[2025-09-15 22:25:40,410][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:25:40,411][training][INFO] - Epoch 9 complete. Avg Loss: 0.490894
+[2025-09-15 22:25:41,038][training][INFO] - Epoch 10, Batch 0/50, Loss: 0.661128
+[2025-09-15 22:26:09,232][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:26:09,233][training][INFO] - Epoch 10 complete. Avg Loss: 0.474204
+[2025-09-15 22:26:09,546][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/virus_time_and_location_4202a380ab61bc2c774fe6cbb52c7e83/checkpoint_epoch_10.pt
+[2025-09-15 22:26:28,651][training][INFO] - Evaluation Loss: 0.533229
+[2025-09-15 22:26:28,948][training][INFO] - New best model saved to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/virus_time_and_location_4202a380ab61bc2c774fe6cbb52c7e83/best_model.pt
+[2025-09-15 22:26:29,586][training][INFO] - Epoch 11, Batch 0/50, Loss: 0.374947
+[2025-09-15 22:26:57,821][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:26:57,822][training][INFO] - Epoch 11 complete. Avg Loss: 0.567535
+[2025-09-15 22:26:58,434][training][INFO] - Epoch 12, Batch 0/50, Loss: 0.205375
+[2025-09-15 22:27:26,714][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:27:26,715][training][INFO] - Epoch 12 complete. Avg Loss: 0.462321
+[2025-09-15 22:27:27,312][training][INFO] - Epoch 13, Batch 0/50, Loss: 0.054858
+[2025-09-15 22:27:55,547][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:27:55,548][training][INFO] - Epoch 13 complete. Avg Loss: 0.630878
+[2025-09-15 22:27:56,172][training][INFO] - Epoch 14, Batch 0/50, Loss: 0.091597
+[2025-09-15 22:28:24,482][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:28:24,483][training][INFO] - Epoch 14 complete. Avg Loss: 0.473223
+[2025-09-15 22:28:25,057][training][INFO] - Epoch 15, Batch 0/50, Loss: 0.019970
+[2025-09-15 22:28:53,329][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:28:53,330][training][INFO] - Epoch 15 complete. Avg Loss: 0.409465
+[2025-09-15 22:28:53,964][training][INFO] - Epoch 16, Batch 0/50, Loss: 0.007461
+[2025-09-15 22:29:21,433][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:29:21,434][training][INFO] - Epoch 16 complete. Avg Loss: 0.447002
+[2025-09-15 22:29:22,059][training][INFO] - Epoch 17, Batch 0/50, Loss: 1.118502
+[2025-09-15 22:29:49,409][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:29:49,410][training][INFO] - Epoch 17 complete. Avg Loss: 0.635736
+[2025-09-15 22:29:50,032][training][INFO] - Epoch 18, Batch 0/50, Loss: 1.777669
+[2025-09-15 22:30:18,318][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:30:18,322][training][INFO] - Epoch 18 complete. Avg Loss: 0.565356
+[2025-09-15 22:30:18,945][training][INFO] - Epoch 19, Batch 0/50, Loss: 0.531564
+[2025-09-15 22:30:47,211][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:30:47,212][training][INFO] - Epoch 19 complete. Avg Loss: 0.467699
+[2025-09-15 22:30:47,826][training][INFO] - Epoch 20, Batch 0/50, Loss: 0.285597
+[2025-09-15 22:31:16,097][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:31:16,098][training][INFO] - Epoch 20 complete. Avg Loss: 0.539207
+[2025-09-15 22:31:16,486][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/virus_time_and_location_4202a380ab61bc2c774fe6cbb52c7e83/checkpoint_epoch_20.pt
+[2025-09-15 22:31:35,591][training][INFO] - Evaluation Loss: 0.552688
+[2025-09-15 22:31:35,593][training][INFO] - No improvement for 1 evaluations
+[2025-09-15 22:31:36,216][training][INFO] - Epoch 21, Batch 0/50, Loss: 0.296288
+[2025-09-15 22:32:04,490][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:32:04,491][training][INFO] - Epoch 21 complete. Avg Loss: 0.476120
+[2025-09-15 22:32:05,108][training][INFO] - Epoch 22, Batch 0/50, Loss: 1.087970
+[2025-09-15 22:32:33,417][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:32:33,418][training][INFO] - Epoch 22 complete. Avg Loss: 0.463673
+[2025-09-15 22:32:34,029][training][INFO] - Epoch 23, Batch 0/50, Loss: 0.013786
+[2025-09-15 22:33:02,331][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:33:02,332][training][INFO] - Epoch 23 complete. Avg Loss: 0.541140
+[2025-09-15 22:33:02,939][training][INFO] - Epoch 24, Batch 0/50, Loss: 0.203158
+[2025-09-15 22:33:31,223][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:33:31,224][training][INFO] - Epoch 24 complete. Avg Loss: 0.374253
+[2025-09-15 22:33:31,843][training][INFO] - Epoch 25, Batch 0/50, Loss: 0.127002
+[2025-09-15 22:34:00,169][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:34:00,170][training][INFO] - Epoch 25 complete. Avg Loss: 0.460037
+[2025-09-15 22:34:00,804][training][INFO] - Epoch 26, Batch 0/50, Loss: 0.029004
+[2025-09-15 22:34:29,035][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:34:29,036][training][INFO] - Epoch 26 complete. Avg Loss: 0.423476
+[2025-09-15 22:34:29,655][training][INFO] - Epoch 27, Batch 0/50, Loss: 0.582928
+[2025-09-15 22:34:57,989][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:34:57,990][training][INFO] - Epoch 27 complete. Avg Loss: 0.451396
+[2025-09-15 22:34:58,620][training][INFO] - Epoch 28, Batch 0/50, Loss: 0.005458
+[2025-09-15 22:35:26,878][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:35:26,879][training][INFO] - Epoch 28 complete. Avg Loss: 0.456528
+[2025-09-15 22:35:27,503][training][INFO] - Epoch 29, Batch 0/50, Loss: 0.007497
+[2025-09-15 22:35:55,743][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:35:55,744][training][INFO] - Epoch 29 complete. Avg Loss: 0.482714
+[2025-09-15 22:35:56,384][training][INFO] - Epoch 30, Batch 0/50, Loss: 0.003593
+[2025-09-15 22:36:24,686][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:36:24,687][training][INFO] - Epoch 30 complete. Avg Loss: 0.333752
+[2025-09-15 22:36:25,005][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/virus_time_and_location_4202a380ab61bc2c774fe6cbb52c7e83/checkpoint_epoch_30.pt
+[2025-09-15 22:36:44,058][training][INFO] - Evaluation Loss: 0.316262
+[2025-09-15 22:36:44,331][training][INFO] - New best model saved to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/virus_time_and_location_4202a380ab61bc2c774fe6cbb52c7e83/best_model.pt
+[2025-09-15 22:36:44,934][training][INFO] - Epoch 31, Batch 0/50, Loss: 0.722999
+[2025-09-15 22:37:13,223][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:37:13,225][training][INFO] - Epoch 31 complete. Avg Loss: 0.491734
+[2025-09-15 22:37:13,847][training][INFO] - Epoch 32, Batch 0/50, Loss: 0.028207
+[2025-09-15 22:37:40,720][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:37:40,721][training][INFO] - Epoch 32 complete. Avg Loss: 0.415917
+[2025-09-15 22:37:41,333][training][INFO] - Epoch 33, Batch 0/50, Loss: 0.017768
+[2025-09-15 22:38:09,544][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:38:09,545][training][INFO] - Epoch 33 complete. Avg Loss: 0.349151
+[2025-09-15 22:38:10,166][training][INFO] - Epoch 34, Batch 0/50, Loss: 0.012721
+[2025-09-15 22:38:38,440][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:38:38,441][training][INFO] - Epoch 34 complete. Avg Loss: 0.472521
+[2025-09-15 22:38:39,043][training][INFO] - Epoch 35, Batch 0/50, Loss: 0.232461
+[2025-09-15 22:39:07,572][training][INFO] - Learning rate: 0.000020
+[2025-09-15 22:39:07,573][training][INFO] - Epoch 35 complete. Avg Loss: 0.524086
+[2025-09-15 22:39:08,211][training][INFO] - Epoch 36, Batch 0/50, Loss: 0.784335
+[2025-09-15 22:39:36,822][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:39:36,822][training][INFO] - Epoch 36 complete. Avg Loss: 0.436402
+[2025-09-15 22:39:37,436][training][INFO] - Epoch 37, Batch 0/50, Loss: 0.441671
+[2025-09-15 22:40:06,090][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:40:06,091][training][INFO] - Epoch 37 complete. Avg Loss: 0.379751
+[2025-09-15 22:40:06,741][training][INFO] - Epoch 38, Batch 0/50, Loss: 1.092654
+[2025-09-15 22:40:35,248][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:40:35,249][training][INFO] - Epoch 38 complete. Avg Loss: 0.472734
+[2025-09-15 22:40:35,868][training][INFO] - Epoch 39, Batch 0/50, Loss: 0.006539
+[2025-09-15 22:41:04,397][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:41:04,397][training][INFO] - Epoch 39 complete. Avg Loss: 0.461251
+[2025-09-15 22:41:05,032][training][INFO] - Epoch 40, Batch 0/50, Loss: 0.456289
+[2025-09-15 22:41:33,538][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:41:33,538][training][INFO] - Epoch 40 complete. Avg Loss: 0.496857
+[2025-09-15 22:41:33,907][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/virus_time_and_location_4202a380ab61bc2c774fe6cbb52c7e83/checkpoint_epoch_40.pt
+[2025-09-15 22:41:53,006][training][INFO] - Evaluation Loss: 0.490625
+[2025-09-15 22:41:53,007][training][INFO] - No improvement for 1 evaluations
+[2025-09-15 22:41:53,632][training][INFO] - Epoch 41, Batch 0/50, Loss: 0.046003
+[2025-09-15 22:42:22,326][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:42:22,327][training][INFO] - Epoch 41 complete. Avg Loss: 0.416064
+[2025-09-15 22:42:22,940][training][INFO] - Epoch 42, Batch 0/50, Loss: 0.107563
+[2025-09-15 22:42:51,548][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:42:51,549][training][INFO] - Epoch 42 complete. Avg Loss: 0.293081
+[2025-09-15 22:42:52,200][training][INFO] - Epoch 43, Batch 0/50, Loss: 0.373535
+[2025-09-15 22:43:20,822][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:43:20,823][training][INFO] - Epoch 43 complete. Avg Loss: 0.416862
+[2025-09-15 22:43:21,429][training][INFO] - Epoch 44, Batch 0/50, Loss: 0.963713
+[2025-09-15 22:43:50,092][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:43:50,092][training][INFO] - Epoch 44 complete. Avg Loss: 0.493758
+[2025-09-15 22:43:50,725][training][INFO] - Epoch 45, Batch 0/50, Loss: 0.104692
+[2025-09-15 22:44:19,364][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:44:19,365][training][INFO] - Epoch 45 complete. Avg Loss: 0.371916
+[2025-09-15 22:44:19,971][training][INFO] - Epoch 46, Batch 0/50, Loss: 0.325282
+[2025-09-15 22:44:48,694][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:44:48,695][training][INFO] - Epoch 46 complete. Avg Loss: 0.460318
+[2025-09-15 22:44:49,321][training][INFO] - Epoch 47, Batch 0/50, Loss: 0.780346
+[2025-09-15 22:45:17,961][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:45:17,962][training][INFO] - Epoch 47 complete. Avg Loss: 0.457362
+[2025-09-15 22:45:18,562][training][INFO] - Epoch 48, Batch 0/50, Loss: 1.362869
+[2025-09-15 22:45:46,502][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:45:46,504][training][INFO] - Epoch 48 complete. Avg Loss: 0.461071
+[2025-09-15 22:45:47,109][training][INFO] - Epoch 49, Batch 0/50, Loss: 0.511328
+[2025-09-15 22:46:14,336][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:46:14,337][training][INFO] - Epoch 49 complete. Avg Loss: 0.433782
+[2025-09-15 22:46:14,977][training][INFO] - Epoch 50, Batch 0/50, Loss: 0.259796
+[2025-09-15 22:46:43,296][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:46:43,297][training][INFO] - Epoch 50 complete. Avg Loss: 0.448804
+[2025-09-15 22:46:43,643][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/virus_time_and_location_4202a380ab61bc2c774fe6cbb52c7e83/checkpoint_epoch_50.pt
+[2025-09-15 22:47:02,743][training][INFO] - Evaluation Loss: 0.508990
+[2025-09-15 22:47:02,745][training][INFO] - No improvement for 2 evaluations
+[2025-09-15 22:47:03,366][training][INFO] - Epoch 51, Batch 0/50, Loss: 0.034194
+[2025-09-15 22:47:31,739][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:47:31,740][training][INFO] - Epoch 51 complete. Avg Loss: 0.383590
+[2025-09-15 22:47:32,351][training][INFO] - Epoch 52, Batch 0/50, Loss: 0.857521
+[2025-09-15 22:48:00,655][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:48:00,657][training][INFO] - Epoch 52 complete. Avg Loss: 0.508570
+[2025-09-15 22:48:01,303][training][INFO] - Epoch 53, Batch 0/50, Loss: 1.004929
+[2025-09-15 22:48:29,584][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:48:29,586][training][INFO] - Epoch 53 complete. Avg Loss: 0.374900
+[2025-09-15 22:48:30,199][training][INFO] - Epoch 54, Batch 0/50, Loss: 0.131894
+[2025-09-15 22:48:58,546][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:48:58,547][training][INFO] - Epoch 54 complete. Avg Loss: 0.359661
+[2025-09-15 22:48:59,189][training][INFO] - Epoch 55, Batch 0/50, Loss: 0.847277
+[2025-09-15 22:49:27,473][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:49:27,474][training][INFO] - Epoch 55 complete. Avg Loss: 0.398275
+[2025-09-15 22:49:28,084][training][INFO] - Epoch 56, Batch 0/50, Loss: 0.005163
+[2025-09-15 22:49:56,412][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:49:56,413][training][INFO] - Epoch 56 complete. Avg Loss: 0.384148
+[2025-09-15 22:49:57,051][training][INFO] - Epoch 57, Batch 0/50, Loss: 0.706387
+[2025-09-15 22:50:25,404][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:50:25,405][training][INFO] - Epoch 57 complete. Avg Loss: 0.481628
+[2025-09-15 22:50:26,027][training][INFO] - Epoch 58, Batch 0/50, Loss: 0.011486
+[2025-09-15 22:50:54,312][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:50:54,313][training][INFO] - Epoch 58 complete. Avg Loss: 0.383511
+[2025-09-15 22:50:54,947][training][INFO] - Epoch 59, Batch 0/50, Loss: 0.788844
+[2025-09-15 22:51:23,326][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:51:23,328][training][INFO] - Epoch 59 complete. Avg Loss: 0.435464
+[2025-09-15 22:51:23,946][training][INFO] - Epoch 60, Batch 0/50, Loss: 0.547996
+[2025-09-15 22:51:52,219][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:51:52,220][training][INFO] - Epoch 60 complete. Avg Loss: 0.397812
+[2025-09-15 22:51:52,545][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/virus_time_and_location_4202a380ab61bc2c774fe6cbb52c7e83/checkpoint_epoch_60.pt
+[2025-09-15 22:52:11,694][training][INFO] - Evaluation Loss: 0.381111
+[2025-09-15 22:52:11,696][training][INFO] - No improvement for 3 evaluations
+[2025-09-15 22:52:12,317][training][INFO] - Epoch 61, Batch 0/50, Loss: 0.305671
+[2025-09-15 22:52:40,609][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:52:40,610][training][INFO] - Epoch 61 complete. Avg Loss: 0.385809
+[2025-09-15 22:52:41,248][training][INFO] - Epoch 62, Batch 0/50, Loss: 1.266368
+[2025-09-15 22:53:09,564][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:53:09,565][training][INFO] - Epoch 62 complete. Avg Loss: 0.490378
+[2025-09-15 22:53:10,190][training][INFO] - Epoch 63, Batch 0/50, Loss: 0.013851
+[2025-09-15 22:53:38,541][training][INFO] - Learning rate: 0.000019
+[2025-09-15 22:53:38,542][training][INFO] - Epoch 63 complete. Avg Loss: 0.412324
+[2025-09-15 22:53:39,176][training][INFO] - Epoch 64, Batch 0/50, Loss: 0.153170
+[2025-09-15 22:54:06,384][training][INFO] - Learning rate: 0.000018
+[2025-09-15 22:54:06,385][training][INFO] - Epoch 64 complete. Avg Loss: 0.269807
+[2025-09-15 22:54:07,010][training][INFO] - Epoch 65, Batch 0/50, Loss: 0.004466
+[2025-09-15 22:54:35,231][training][INFO] - Learning rate: 0.000018
+[2025-09-15 22:54:35,233][training][INFO] - Epoch 65 complete. Avg Loss: 0.322727
+[2025-09-15 22:54:35,857][training][INFO] - Epoch 66, Batch 0/50, Loss: 0.188990
+[2025-09-15 22:55:04,153][training][INFO] - Learning rate: 0.000018
+[2025-09-15 22:55:04,154][training][INFO] - Epoch 66 complete. Avg Loss: 0.402122
+[2025-09-15 22:55:04,781][training][INFO] - Epoch 67, Batch 0/50, Loss: 0.815329
+[2025-09-15 22:55:33,137][training][INFO] - Learning rate: 0.000018
+[2025-09-15 22:55:33,138][training][INFO] - Epoch 67 complete. Avg Loss: 0.410267
+[2025-09-15 22:55:33,767][training][INFO] - Epoch 68, Batch 0/50, Loss: 0.918503
+[2025-09-15 22:56:02,098][training][INFO] - Learning rate: 0.000018
+[2025-09-15 22:56:02,099][training][INFO] - Epoch 68 complete. Avg Loss: 0.417221
+[2025-09-15 22:56:02,741][training][INFO] - Epoch 69, Batch 0/50, Loss: 0.009058
+[2025-09-15 22:56:31,113][training][INFO] - Learning rate: 0.000018
+[2025-09-15 22:56:31,115][training][INFO] - Epoch 69 complete. Avg Loss: 0.427118
+[2025-09-15 22:56:31,743][training][INFO] - Epoch 70, Batch 0/50, Loss: 0.347811
+[2025-09-15 22:57:00,039][training][INFO] - Learning rate: 0.000018
+[2025-09-15 22:57:00,040][training][INFO] - Epoch 70 complete. Avg Loss: 0.402700
+[2025-09-15 22:57:00,330][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/virus_time_and_location_4202a380ab61bc2c774fe6cbb52c7e83/checkpoint_epoch_70.pt
+[2025-09-15 22:57:19,465][training][INFO] - Evaluation Loss: 0.432149
+[2025-09-15 22:57:19,466][training][INFO] - No improvement for 4 evaluations
+[2025-09-15 22:57:20,075][training][INFO] - Epoch 71, Batch 0/50, Loss: 0.015468
+[2025-09-15 22:57:48,297][training][INFO] - Learning rate: 0.000018
+[2025-09-15 22:57:48,298][training][INFO] - Epoch 71 complete. Avg Loss: 0.314153
+[2025-09-15 22:57:48,908][training][INFO] - Epoch 72, Batch 0/50, Loss: 0.073540
+[2025-09-15 22:58:17,152][training][INFO] - Learning rate: 0.000018
+[2025-09-15 22:58:17,153][training][INFO] - Epoch 72 complete. Avg Loss: 0.366782
+[2025-09-15 22:58:17,781][training][INFO] - Epoch 73, Batch 0/50, Loss: 0.083393
+[2025-09-15 22:58:46,069][training][INFO] - Learning rate: 0.000018
+[2025-09-15 22:58:46,070][training][INFO] - Epoch 73 complete. Avg Loss: 0.450756
+[2025-09-15 22:58:46,683][training][INFO] - Epoch 74, Batch 0/50, Loss: 0.686024
+[2025-09-15 22:59:14,899][training][INFO] - Learning rate: 0.000018
+[2025-09-15 22:59:14,901][training][INFO] - Epoch 74 complete. Avg Loss: 0.445882
+[2025-09-15 22:59:15,512][training][INFO] - Epoch 75, Batch 0/50, Loss: 0.298782
+[2025-09-15 22:59:43,792][training][INFO] - Learning rate: 0.000018
+[2025-09-15 22:59:43,793][training][INFO] - Epoch 75 complete. Avg Loss: 0.375452
+[2025-09-15 22:59:44,412][training][INFO] - Epoch 76, Batch 0/50, Loss: 0.016904
+[2025-09-15 23:00:12,769][training][INFO] - Learning rate: 0.000018
+[2025-09-15 23:00:12,770][training][INFO] - Epoch 76 complete. Avg Loss: 0.385332
+[2025-09-15 23:00:13,378][training][INFO] - Epoch 77, Batch 0/50, Loss: 0.173060
+[2025-09-15 23:00:41,709][training][INFO] - Learning rate: 0.000018
+[2025-09-15 23:00:41,710][training][INFO] - Epoch 77 complete. Avg Loss: 0.393817
+[2025-09-15 23:00:42,341][training][INFO] - Epoch 78, Batch 0/50, Loss: 0.012281
+[2025-09-15 23:01:10,852][training][INFO] - Learning rate: 0.000018
+[2025-09-15 23:01:10,853][training][INFO] - Epoch 78 complete. Avg Loss: 0.403124
+[2025-09-15 23:01:11,486][training][INFO] - Epoch 79, Batch 0/50, Loss: 0.475927
+[2025-09-15 23:01:40,033][training][INFO] - Learning rate: 0.000018
+[2025-09-15 23:01:40,034][training][INFO] - Epoch 79 complete. Avg Loss: 0.426216
+[2025-09-15 23:01:40,668][training][INFO] - Epoch 80, Batch 0/50, Loss: 0.010027
+[2025-09-15 23:02:08,546][training][INFO] - Learning rate: 0.000018
+[2025-09-15 23:02:08,547][training][INFO] - Epoch 80 complete. Avg Loss: 0.392760
+[2025-09-15 23:02:08,921][training][INFO] - Saved checkpoint to /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/virus_time_and_location_4202a380ab61bc2c774fe6cbb52c7e83/checkpoint_epoch_80.pt
+[2025-09-15 23:02:27,846][training][INFO] - Evaluation Loss: 0.360578
+[2025-09-15 23:02:27,848][training][INFO] - No improvement for 5 evaluations
+[2025-09-15 23:02:27,848][training][INFO] - Early stopping triggered after 80 epochs
+[2025-09-15 23:02:27,849][training][INFO] - Training completed in 2468.51 seconds
+[2025-09-15 23:02:27,851][__main__][INFO] - Training completed. Best epoch: 30

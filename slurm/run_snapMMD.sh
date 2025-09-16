@@ -20,7 +20,7 @@ selective_pairing_modes=("single_step" "null" "unidirectional")
 # Define seeds
 seeds=(40 41 42 43 44)
 
-alpha=(0.01 0.1)
+alpha=(0.001 0.1)
 
 # Calculate indices for this array task
 # Total combinations: 4 datasets × 2 weight_modes × 3 selective_pairing_modes × 10 seeds = 240 jobs
@@ -51,4 +51,4 @@ else
 fi
 
 # Run the unified hyperparameter experiment with the specified hyperparameters
-python main.py experiment=snapMMD_energy_cotrain dataset_name=${dataset_name} experiment.predictor_loss_weight=${alpha} experiment.selective_pairing_mode=${selective_pairing_mode} seed=${seed} experiment.ot_coupling=${ot_coupling} training.num_epochs=1000 predictor.loss_type="MSE"
+python main.py experiment=snapMMD_energy_cotrain_ot dataset_name=${dataset_name} experiment.predictor_loss_weight=${alpha} experiment.selective_pairing_mode=${selective_pairing_mode} seed=${seed} experiment.ot_coupling=${ot_coupling} training.num_epochs=1000

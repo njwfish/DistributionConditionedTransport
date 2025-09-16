@@ -7,7 +7,7 @@
 #SBATCH --mem 5GB
 #SBATCH -o logs/o_pbmc_%a
 #SBATCH -e logs/e_pbmc_%a
-#SBATCH --array=0-29:1
+#SBATCH --array=0-19:1
 
 export HYDRA_FULL_ERROR=1
 export WANDB_API_KEY="c72e34cd8dc67f7220e3517232e86861cd5c537b"
@@ -15,12 +15,12 @@ export WANDB_API_KEY="c72e34cd8dc67f7220e3517232e86861cd5c537b"
 # Define dataset names (only GoM and PBMC)
 datasets=("PBMC")
 
-selective_pairing_modes=("single_step" "null" "unidirectional")
+selective_pairing_modes=("single_step" "null")
 
 # Define seeds
 seeds=(40 41 42 43 44)
 
-alpha=(0.01 0.1)
+alpha=(0.001 0.1)
 
 # Calculate indices for this array task
 # Total combinations: 4 datasets × 2 weight_modes × 3 selective_pairing_modes × 10 seeds = 240 jobs

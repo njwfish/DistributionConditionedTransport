@@ -1,0 +1,68 @@
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/hydra/_internal/hydra.py:119: UserWarning: Future Hydra versions will no longer change working directory at job runtime by default.
+See https://hydra.cc/docs/1.2/upgrades/1.1_to_1.2/changes_to_job_working_dir/ for more information.
+  ret = run_job(
+wandb: Currently logged in as: paolo-lb-fischer (paolo-lb-fischer-harvard-university) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.21.1
+wandb: Run data is saved locally in /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/snapMMD_energy_cotrain_ot_PBMC/2025-09-15_06-43-04/wandb/run-20250915_064305-klyw9dcn
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run comfy-bush-8068
+wandb: ⭐️ View project at https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings
+wandb: 🚀 View run at https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings/runs/klyw9dcn
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch/utils/data/dataloader.py:557: UserWarning: This DataLoader will create 8 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(_create_warning_msg(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch/utils/data/dataloader.py:557: UserWarning: This DataLoader will create 8 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(_create_warning_msg(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/ot/bregman/_sinkhorn.py:667: UserWarning: Sinkhorn did not converge. You might want to increase the number of iterations `numItermax` or the regularization parameter `reg`.
+  warnings.warn(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/ot/bregman/_sinkhorn.py:667: UserWarning: Sinkhorn did not converge. You might want to increase the number of iterations `numItermax` or the regularization parameter `reg`.
+  warnings.warn(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/ot/bregman/_sinkhorn.py:667: UserWarning: Sinkhorn did not converge. You might want to increase the number of iterations `numItermax` or the regularization parameter `reg`.
+  warnings.warn(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/ot/bregman/_sinkhorn.py:667: UserWarning: Sinkhorn did not converge. You might want to increase the number of iterations `numItermax` or the regularization parameter `reg`.
+  warnings.warn(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/ot/bregman/_sinkhorn.py:667: UserWarning: Sinkhorn did not converge. You might want to increase the number of iterations `numItermax` or the regularization parameter `reg`.
+  warnings.warn(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/ot/bregman/_sinkhorn.py:667: UserWarning: Sinkhorn did not converge. You might want to increase the number of iterations `numItermax` or the regularization parameter `reg`.
+  warnings.warn(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/ot/bregman/_sinkhorn.py:667: UserWarning: Sinkhorn did not converge. You might want to increase the number of iterations `numItermax` or the regularization parameter `reg`.
+  warnings.warn(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/ot/bregman/_sinkhorn.py:667: UserWarning: Sinkhorn did not converge. You might want to increase the number of iterations `numItermax` or the regularization parameter `reg`.
+  warnings.warn(
+wandb: WARNING Saving files without folders. If you want to preserve subdirectories pass base_path to wandb.save, i.e. wandb.save("/mnt/folder/file.h5", base_path="/mnt")
+wandb: uploading snapMMD_energy_cotrain_ot_PBMC_9efe4e98310c9adcb3e840038a5df07d/best_model.pt
+wandb:                                                                                
+wandb: 
+wandb: Run history:
+wandb:               batch/epoch ▁▁▂▂▂▂▂▂▂▂▃▃▃▃▃▄▄▄▄▄▄▄▄▄▄▅▆▆▆▆▆▆▇▇▇▇▇▇▇█
+wandb:                batch/loss █▃▂▃▂▂▂▂▂▂▂▂▂▁▂▂▂▂▂▁▂▂▂▂▂▃▃▁▂▂▃▂▂▂▂▃▁▃▁▃
+wandb:      batch/predictor_loss ▃▅▃█▂▃▄▂▇▂▄▃▄▄▄▃▅▂▄▆▁▂▅▄▄▁▇▂▆▂▃▅▃▄▄▃▂▂▄▅
+wandb: batch/reconstruction_loss █▂▂▃▄▂▂▃▃▃▁▂▃▂▃▂▂▂▂▃▂▂▂▁▂▂▄▂▂▂▁▁▃▂▃▂▂▂▁▂
+wandb:                batch/step ▁▁▁▁▁▁▁▂▂▂▂▃▃▃▃▄▄▄▄▅▅▅▅▆▆▆▆▆▆▇▇▇▇▇▇█████
+wandb:               epoch/epoch ▁▁▁▂▂▂▂▂▂▂▃▃▃▄▄▄▄▄▅▅▅▅▅▆▆▆▆▆▆▆▇▇▇▇▇█████
+wandb:           epoch/eval_loss █▆▅▄▃▃▃▃▂▂▂▂▂▂▂▃▂▁▃▂▁▁▂▂▁▁
+wandb:       epoch/learning_rate ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:          epoch/train_loss █▇▃▂▂▂▂▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb: 
+wandb: Run summary:
+wandb:               batch/epoch 260
+wandb:                batch/loss 0.63479
+wandb:      batch/predictor_loss 0.00014
+wandb: batch/reconstruction_loss 0.63465
+wandb:                batch/step 24605
+wandb:                best_epoch 210
+wandb:                 best_loss 0.62344
+wandb:               config_hash 9efe4e98310c9adcb3e8...
+wandb:               epoch/epoch 260
+wandb:           epoch/eval_loss 0.62797
+wandb:       epoch/learning_rate 0.0002
+wandb:          epoch/train_loss 0.6262
+wandb:           final_eval_loss 0.62797
+wandb:          final_train_loss 0.6262
+wandb:             stopped_early True
+wandb:             stopped_epoch 260
+wandb:                total_time 1013.32405
+wandb: 
+wandb: 🚀 View run comfy-bush-8068 at: https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings/runs/klyw9dcn
+wandb: ⭐️ View project at: https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 1 other file(s)
+wandb: Find logs at: ./wandb/run-20250915_064305-klyw9dcn/logs

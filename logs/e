@@ -1,0 +1,22 @@
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/hydra/_internal/hydra.py:119: UserWarning: Future Hydra versions will no longer change working directory at job runtime by default.
+See https://hydra.cc/docs/1.2/upgrades/1.1_to_1.2/changes_to_job_working_dir/ for more information.
+  ret = run_job(
+wandb: Currently logged in as: paolo-lb-fischer (paolo-lb-fischer-harvard-university) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.21.1
+wandb: Run data is saved locally in /orcd/archive/abugoot/001/Projects/paolo/main_tde/outputs/virus_synthetic/2025-09-14_20-01-27/wandb/run-20250914_200128-swmzmw91
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run splendid-firebrand-7910
+wandb: ⭐️ View project at https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings
+wandb: 🚀 View run at https://wandb.ai/paolo-lb-fischer-harvard-university/distribution-embeddings/runs/swmzmw91
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch/utils/data/dataloader.py:557: UserWarning: This DataLoader will create 8 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(_create_warning_msg(
+Some weights of EsmModel were not initialized from the model checkpoint at facebook/esm2_t6_8M_UR50D and are newly initialized: ['pooler.dense.bias', 'pooler.dense.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+Some weights of TimeAwareEsmForFlow were not initialized from the model checkpoint at facebook/esm2_t6_8M_UR50D and are newly initialized: ['condition_proj.0.bias', 'condition_proj.0.weight', 'condition_proj.2.bias', 'condition_proj.2.weight', 'cross_attn_layers.0.attn.in_proj_bias', 'cross_attn_layers.0.attn.in_proj_weight', 'cross_attn_layers.0.attn.out_proj.bias', 'cross_attn_layers.0.attn.out_proj.weight', 'cross_attn_layers.0.ff.0.bias', 'cross_attn_layers.0.ff.0.weight', 'cross_attn_layers.0.ff.2.bias', 'cross_attn_layers.0.ff.2.weight', 'cross_attn_layers.0.ln1.bias', 'cross_attn_layers.0.ln1.weight', 'cross_attn_layers.0.ln2.bias', 'cross_attn_layers.0.ln2.weight', 'cross_attn_scales.0', 'cross_ff_scales.0', 'latent_proj.bias', 'latent_proj.weight', 'mem_ln.bias', 'mem_ln.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch/utils/data/dataloader.py:557: UserWarning: This DataLoader will create 8 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(_create_warning_msg(
+/orcd/archive/abugoot/001/Projects/paolo/tde_mfm/tde_mfm/lib/python3.9/site-packages/torch/nn/functional.py:3104: UserWarning: nll_loss2d_forward_out_cuda_template does not have a deterministic implementation, but you set 'torch.use_deterministic_algorithms(True, warn_only=True)'. You can file an issue at https://github.com/pytorch/pytorch/issues to help us prioritize adding deterministic support for this operation. (Triggered internally at /opt/conda/conda-bld/pytorch_1720538643151/work/aten/src/ATen/Context.cpp:83.)
+  return torch._C._nn.cross_entropy_loss(input, target, weight, _Reduction.get_enum(reduction), ignore_index, label_smoothing)
+wandb: WARNING Saving files without folders. If you want to preserve subdirectories pass base_path to wandb.save, i.e. wandb.save("/mnt/folder/file.h5", base_path="/mnt")
+slurmstepd: error: *** JOB 43154168 ON node114 CANCELLED AT 2025-09-14T20:21:38 DUE TO TIME LIMIT ***

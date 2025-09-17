@@ -41,7 +41,7 @@ def load_all(ckpt_dir):
 
 
 #ckpt_dir = "outputs/virus_time_and_location_5b834ff383274001ef4622150e1d9f12"
-ckpt_dir = "outputs/virus_time_only_c5c8f9165fab7be5f7678b6dbac3973b"
+ckpt_dir = "outputs/virus_time_only_54488d0be1a9b1ccea388879c81eb082"
 
 cfg, ckpt_path, encoder, generator, dataset = load_all(ckpt_dir)
 idx = 0
@@ -69,7 +69,7 @@ def edit_distance(seq1, seq2):
     return 1 - identity
 
 for j, batch in enumerate(loader):
-    if j > 12:
+    if j > 20:
         break
     if j < 10:
         continue
@@ -163,7 +163,7 @@ for j, batch in enumerate(loader):
     #print([edit_distance(scs_seq[0][1:-1], tgt_seq) for scs_seq, tgt_seq in zip(scs_seqs, texts[0])])
     for j, text in enumerate(texts[0]):
         with open("debug_log.log", "a") as f:
-            f.write(f"text is being compared")
+            f.write(f"text is being compared \n")
 
-            f.write(f"{np.amin([edit_distance(scs_seq[:-2], text) for scs_seq in scs_seqs])}")
+            f.write(f"{np.amin([edit_distance(scs_seq[:-2], text) for scs_seq in scs_seqs])} \n")
     #print("--------------------------------")

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class ViralDataset(Dataset):
     def __init__(self,
                  data_dir: str = 'data/spikeprot0430',
-                 data_file: str = 'virus_tokenized_data_for_tde.pt',
+                 data_file: str = None,
                  set_size: int = 10,
                  esm_name: str = 'facebook/esm2_t6_8M_UR50D',
                  progen_name: str = 'hugohrban/progen2-medium',
@@ -51,10 +51,10 @@ class ViralDataset(Dataset):
         self.progen_tokenizer.bos_token = '<|bos|>'
         self.progen_tokenizer.eos_token = '<|eos|>'
 
-        self.tokenized_data_file = "/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430/iclr6_filtered_aggregated_data_country_state_efficient_filtered_min16_max16.pt" #f'{self.data_dir}/{self.data_file}' #virus_tokenized_data_for_tde.pt'
+        self.tokenized_data_file = f'{self.data_dir}/{self.data_file}' #virus_tokenized_data_for_tde.pt'
 
         # NOTE: Important, hold out last time point for forecasting benchmarks.
-        self.data = torch.load(self.tokenized_data_file)[4:-5]
+        self.data = torch.load(self.tokenized_data_file)#[4:-5]
         #with open("auxillary_log.log", "a") as f:
         #    f.write(f"len(self.data): {len(self.data)}\n")
         # Build index pairs after data is loaded
@@ -112,23 +112,14 @@ class ViralDataset(Dataset):
         # TODO: it is probably better in the long run to sample random pairs rather than doing all pairs, 
         ### but for that we need to change the sampler setup to correctly weigh pairs.
         n = len(self.data)
-        return n * (n - 1)
+        return n
     
     def __getitem__(self, idx):
-        # TODO: need to change this if you ever want to sample pairs from identical time-points.
-        # TODO: make sure this is correct.
-        #n = len(self.data)
-        #i = idx // (n - 1)
-        #j = idx % (n - 1)
-        #if j >= i:
-        #    j += 1
-        #source_idx, target_idx = i, j
         # NOTE: this will absolutely break if we ever sample non-consecutive time-points.
-        source_idx, target_idx = self.index_pairs[idx]
                 
-        location_idx = np.random.choice(len(self.data[source_idx]))
+        location_idx = np.random.choice(len(self.data[idx]))
         
-        item_source, item_target = self.data[source_idx][location_idx]
+        item_source, item_target = self.data[idx][location_idx]
         
         time_loc_source = item_source['time-loc']
         time_loc_target = item_target['time-loc']
@@ -153,7 +144,7 @@ class ViralDataset(Dataset):
         esm_attention_mask_source = esm_attention_mask_source[subset_indices_source]
         progen_input_ids_source = progen_input_ids_source[subset_indices_source]
         progen_attention_mask_source = progen_attention_mask_source[subset_indices_source]
-        seqs_source = [item_source['raw_texts'][i] for i in subset_indices_source]
+        #seqs_source = [item_source['raw_texts'][i] for i in subset_indices_source]
 
         subset_indices_target = np.random.choice(esm_input_ids_target.shape[0], size=self.set_size, replace=True)
 
@@ -161,7 +152,7 @@ class ViralDataset(Dataset):
         esm_attention_mask_target = esm_attention_mask_target[subset_indices_target]
         progen_input_ids_target = progen_input_ids_target[subset_indices_target]
         progen_attention_mask_target = progen_attention_mask_target[subset_indices_target]
-        seqs_target = [item_target['raw_texts'][i] for i in subset_indices_target]
+        #seqs_target = [item_target['raw_texts'][i] for i in subset_indices_target]
 
         # Calculate month difference between source and target times
         month_difference = self.d_fun(
@@ -175,18 +166,14 @@ class ViralDataset(Dataset):
             'esm_attention_mask': esm_attention_mask_source,
             'progen_input_ids': progen_input_ids_source,
             'progen_attention_mask': progen_attention_mask_source,
-            'raw_texts': seqs_source,
-            'time-loc': item_source['time-loc'],
             },
             'target_samples' : {
                 'esm_input_ids': esm_input_ids_target,
                 'esm_attention_mask': esm_attention_mask_target,
                 'progen_input_ids': progen_input_ids_target,
                 'progen_attention_mask': progen_attention_mask_target,
-                'raw_texts': seqs_target,
-                'time-loc': item_target['time-loc'],
             },
-            'source_idx': source_idx,
-            'target_idx': target_idx,
+            'source_idx': idx,
+            'target_idx': idx + 1,
             'd': month_difference, 
             }

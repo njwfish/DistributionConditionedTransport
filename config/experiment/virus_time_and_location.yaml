@@ -10,26 +10,24 @@ defaults:
   - /encoder: esm
   - /generator: esm_dfm
   - /scheduler: cosine
-  - /loss: predictor_microb
-  - /predictor: default  
+  - /loss: default
   - /sampling: default
-  - /training: default
+  - /predictor: default
+  - /training: default_virus
 
-data_file: /orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430/iclr5_filtered_aggregated_data_country_efficient.pt
+data_file: iclr_final_dataset_consecutive_pairs_no_tails_location_holdout.pt
 
 train_predictor_posthoc: false
 
 # Experiment-specific parameters
 use_predicted_latent: false
-predictor_loss_weight: 0.1
+predictor_loss_weight: 0.01
 
-predictor_model_type: "mlp"
+predictor_model_type: "ridge"
 predictor_conditioning_mode: "concat"
 predictor_condition_type: null
 predictor_model_args:
-  hidden_dim: 128
-  num_layers: 2
-
+  ridge_alpha: 1e-3
 
 num_samples: 50
 exponential_weight_scale: 1.0

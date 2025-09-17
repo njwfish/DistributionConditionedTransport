@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class ViralDataset(Dataset):
     def __init__(self,
                  data_dir: str = 'data/spikeprot0430',
-                 data_file: str = 'virus_tokenized_data_for_tde.pt',
+                 data_file: str = None,
                  set_size: int = 10,
                  esm_name: str = 'facebook/esm2_t6_8M_UR50D',
                  progen_name: str = 'hugohrban/progen2-medium',
@@ -50,10 +50,10 @@ class ViralDataset(Dataset):
         self.progen_tokenizer.bos_token = '<|bos|>'
         self.progen_tokenizer.eos_token = '<|eos|>'
 
-        self.tokenized_data_file = "/orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbeddings/data/spikeprot0430/iclr7_debug_subsampled.pt" #f'{self.data_dir}/{self.data_file}' #virus_tokenized_data_for_tde.pt'
+        self.tokenized_data_file = f'{self.data_dir}/{self.data_file}' #virus_tokenized_data_for_tde.pt'
 
         # NOTE: Important, hold out last time point for forecasting benchmarks.
-        self.data = torch.load(self.tokenized_data_file)[:-1]
+        self.data = torch.load(self.tokenized_data_file)#[:-1]
         #with open("auxillary_log.log", "a") as f:
         #    f.write(f"len(self.data): {len(self.data)}\n")
         # Build index pairs after data is loaded
@@ -113,14 +113,7 @@ class ViralDataset(Dataset):
         return n * (n - 1)
     
     def __getitem__(self, idx):
-        # TODO: need to change this if you ever want to sample pairs from identical time-points.
-        # TODO: make sure this is correct.
-        #n = len(self.data)
-        #i = idx // (n - 1)
-        #j = idx % (n - 1)
-        #if j >= i:
-        #    j += 1
-        #source_idx, target_idx = i, j
+
         source_idx, target_idx = self.index_pairs[idx]
                         
         location_idx_source = np.random.choice(len(self.data[source_idx]))
@@ -128,7 +121,6 @@ class ViralDataset(Dataset):
         
         item_source = self.data[source_idx][location_idx_source]
         item_target = self.data[target_idx][location_idx_target]
-        
         
         time_loc_source = item_source['time-loc']
         time_loc_target = item_target['time-loc']
@@ -169,7 +161,6 @@ class ViralDataset(Dataset):
             date_target
         )
         
-        # TODO: in it's current version sometimes the source and target samples seem to have different batch sizes... not sure right now why, just had a weird bug.
         return { 'source_samples' : {
             'esm_input_ids': esm_input_ids_source,
             'esm_attention_mask': esm_attention_mask_source,

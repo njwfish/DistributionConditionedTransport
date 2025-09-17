@@ -153,6 +153,7 @@ class ViralDataset(Dataset):
         esm_attention_mask_source = esm_attention_mask_source[subset_indices_source]
         progen_input_ids_source = progen_input_ids_source[subset_indices_source]
         progen_attention_mask_source = progen_attention_mask_source[subset_indices_source]
+        seqs_source = [item_source['raw_texts'][i] for i in subset_indices_source]
 
         subset_indices_target = np.random.choice(esm_input_ids_target.shape[0], size=self.set_size, replace=True)
 
@@ -160,6 +161,7 @@ class ViralDataset(Dataset):
         esm_attention_mask_target = esm_attention_mask_target[subset_indices_target]
         progen_input_ids_target = progen_input_ids_target[subset_indices_target]
         progen_attention_mask_target = progen_attention_mask_target[subset_indices_target]
+        seqs_target = [item_target['raw_texts'][i] for i in subset_indices_target]
 
         # Calculate month difference between source and target times
         month_difference = self.d_fun(
@@ -173,7 +175,7 @@ class ViralDataset(Dataset):
             'esm_attention_mask': esm_attention_mask_source,
             'progen_input_ids': progen_input_ids_source,
             'progen_attention_mask': progen_attention_mask_source,
-            'raw_texts': item_source['raw_texts'],
+            'raw_texts': seqs_source,
             'time-loc': item_source['time-loc'],
             },
             'target_samples' : {
@@ -181,7 +183,7 @@ class ViralDataset(Dataset):
                 'esm_attention_mask': esm_attention_mask_target,
                 'progen_input_ids': progen_input_ids_target,
                 'progen_attention_mask': progen_attention_mask_target,
-                'raw_texts': item_target['raw_texts'],
+                'raw_texts': seqs_target,
                 'time-loc': item_target['time-loc'],
             },
             'source_idx': source_idx,

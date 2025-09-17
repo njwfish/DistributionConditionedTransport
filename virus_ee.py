@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 
 from encoder.esm_baseline2 import ProteinSetEncoder
 from Bio import pairwise2
+from transformers import EsmTokenizer
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(device)
@@ -39,13 +40,18 @@ def load_all(ckpt_dir):
     return cfg, ckpt_path, encoder, generator, dataset
 
 
-ckpt_dir = "outputs/virus_time_and_location_5b834ff383274001ef4622150e1d9f12"
+#ckpt_dir = "outputs/virus_time_and_location_5b834ff383274001ef4622150e1d9f12"
+ckpt_dir = "outputs_virus_first_run/virus_time_and_location_74949f8e6ff8497f6610f31cef547b87"
+
 cfg, ckpt_path, encoder, generator, dataset = load_all(ckpt_dir)
 idx = 0
 print(dataset[idx]["source_samples"]["esm_input_ids"].shape)
 
 
 ESM_baseline_model = ProteinSetEncoder().to(device).eval()
+
+# Initialize ESM tokenizer for decoding
+esm_tokenizer = EsmTokenizer.from_pretrained('facebook/esm2_t6_8M_UR50D')
 
 loader = DataLoader(dataset, batch_size=1, shuffle=True)
 
@@ -63,8 +69,10 @@ def edit_distance(seq1, seq2):
     return 1 - identity
 
 for j, batch in enumerate(loader):
-    if j > 10:
+    if j > 12:
         break
+    if j < 10:
+        continue
     # For dictionary samples (like PubMed dataset), move tensors to device
     source_samples = {}
     target_samples = {}
@@ -80,7 +88,7 @@ for j, batch in enumerate(loader):
         else:
             target_samples[key] = value
     
-    print(source_samples.keys())
+    #print(source_samples.keys())
             
     #x_source = x_samples["source_samples"]
     #x_target = x_samples["target_samples"]
@@ -98,21 +106,43 @@ for j, batch in enumerate(loader):
     scs_seqs = source_samples['raw_texts']
     tgt_seqs = target_samples['raw_texts']
 
+    # Decode ESM input IDs back to protein sequences
+    decoded_seqs = []
+    for batch_idx in range(source_samples['esm_input_ids'][0].shape[0]):
+        #print("UNDerstanding", source_samples['esm_input_ids'].shape, source_samples['esm_input_ids'][0][batch_idx].shape)
+        ids = source_samples['esm_input_ids'][0][batch_idx].cpu().tolist()
+        decoded_seq = esm_tokenizer.decode(ids, skip_special_tokens=True).replace(" ", "")
+        decoded_seqs.append(decoded_seq)
+    
+    # Calculate edit distance between decoded sequences and original raw texts
+    print("EDIT DISTANCES BETWEEN DECODED ESM IDs AND ORIGINAL SEQUENCES:")
+    for i, (decoded_seq, original_seq) in enumerate(zip(decoded_seqs, scs_seqs)):
+        print(decoded_seq[:10], original_seq[0][:10])
+        original_seq = original_seq[0][:-2]  # Extract from list if needed
+        decoded_seq = decoded_seq
+        edit_dist = edit_distance(decoded_seq, original_seq)
+        print(f"  Sample {i}: {edit_dist:.4f} with {len(decoded_seq)} and {len(original_seq)}")
+        print([idx for idx in range(len(decoded_seq)) if decoded_seq[idx] != original_seq[idx]])
+
     print("TRUE SOURCE-TARGET EDIT DISTANCES:")
+    #print("time-loc: ", source_samples['time-loc'], target_samples['time-loc'])
+
     #print(scs_seqs)
     #print(tgt_seqs)
     print([edit_distance(scs_seq[0], tgt_seq[0]) for scs_seq, tgt_seq in zip(scs_seqs, tgt_seqs)])
     #print("TEST SEQ:", len(scs_seqs[0]), len(tgt_seqs[0]), scs_seqs[0], tgt_seqs[0])
-    print("time-loc: ", source_samples['time-loc'], target_samples['time-loc'])
     latent_source_baseline = ESM_baseline_model(source_samples)
     latent_target_baseline = ESM_baseline_model(target_samples)
     
-    print("!",latent_source_baseline.shape)
-    print(latent_target_baseline.shape)
+    #print("!",latent_source_baseline.shape)
+    #print(latent_target_baseline.shape)
 
     
-    _, texts = generator.sample(source_samples, latent_source, latent_target, num_samples=16, return_texts = True)
-    print(len(texts),len(texts[0]), len(texts[0][0]))
-    print("PREDICTED SOURCE-TARGET EDIT DISTANCES:")
-    print([edit_distance(scs_seq[0][1:-1], tgt_seq) for scs_seq, tgt_seq in zip(scs_seqs, texts[0])])
-    
+    #_, texts = generator.sample(source_samples, latent_source, latent_target, num_samples=16, return_texts = True)
+    ##print(len(texts),len(texts[0]), len(texts[0][0]))
+    #print("PREDICTED SOURCE-TARGET EDIT DISTANCES:")
+    ##print([edit_distance(scs_seq[0][1:-1], tgt_seq) for scs_seq, tgt_seq in zip(scs_seqs, texts[0])])
+
+    #for text in texts[0]:
+    #    print(np.amin([edit_distance(scs_seq[0][1:-1], text) for scs_seq in scs_seqs]))
+    #print("--------------------------------")

@@ -12,7 +12,7 @@ defaults:
   - training: default  # Default training config
   - wandb: default  # Default W&B config
   - loss: default  # Default loss config
-  - sampling: default  # Default sampling config
+  - sampling: none  # Default sampling config
   - experiment: mvn  # Experiment-specific configurations (MUST come after components it overrides)
   - override hydra/launcher: slurm
   - _self_

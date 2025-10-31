@@ -1,0 +1,8 @@
+# @package _global_.generator
+_target_: generator.causal_transformer.CausalTransformerGenerator
+model: ${model}
+temperature: ${experiment.temperature}
+top_k: ${experiment.top_k}
+max_new_tokens: ${experiment.seq_len}
+
+

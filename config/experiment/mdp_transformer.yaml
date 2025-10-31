@@ -1,0 +1,35 @@
+# @package _global_.experiment
+
+# Experiment name and description
+name: mdp_transformer_exp
+description: "MDP trajectories with transformer encoder and causal transformer generator"
+
+# Override defaults from config.yaml
+defaults:
+  - /dataset: mdp_trajectories
+  - /encoder: transformer
+  - /model: causal_transformer
+  - /generator: causal_transformer
+  - /scheduler: cosine
+  - /loss: default
+  - /training: default
+
+# MDP-specific parameters
+n_states: 8
+n_actions: 6
+trajectory_length: 12
+seq_len: 24  # trajectory_length * 2 for encoded sequences
+vocab_size: 8  # max(n_states, n_actions)
+
+# Model parameters
+latent_dim: 64
+hidden_dim: 256
+set_size: 32
+batch_size: 16
+lr: 1e-4
+
+# Generation parameters
+temperature: 1.0
+top_k: null  # No top-k filtering by default
+
+

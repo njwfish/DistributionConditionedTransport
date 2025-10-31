@@ -26,7 +26,7 @@ class OTCollate(nn.Module):
         ot_type: str = 'sinkhorn',
         ot_params: Optional[dict] = None,
         pairwise_dist_fn: Optional[Callable] = None, 
-        replace: bool = True
+        replace: bool = False
     ):
         super(OTCollate, self).__init__()
         if ot_params is None:

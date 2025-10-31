@@ -278,7 +278,8 @@ class Trainer:
         
         # Configure AMP (prefer BF16 on CUDA if enabled)
         use_amp = bool(self.use_amp) and (device.type == "cuda")
-        autocast_context = torch.autocast(device_type='cuda', dtype=torch.bfloat16) if use_amp else contextlib.nullcontext()
+        # autocast_context = torch.autocast(device_type='cuda', dtype=torch.bfloat16) if use_amp else contextlib.nullcontext()
+        autocast_context = contextlib.nullcontext()
 
         # Main training loop
         for epoch in range(start_epoch, self.num_epochs):
@@ -296,7 +297,6 @@ class Trainer:
                 pbar = tqdm(dataloader, desc=f"Epoch {epoch+1}/{self.num_epochs}")
             else:
                 pbar = dataloader
-            
             
             for batch_idx, batch in enumerate(pbar):
                 # Handle samples which can be either a tensor or a dictionary

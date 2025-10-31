@@ -1,0 +1,11 @@
+# @package _global_.model
+_target_: model.causal_transformer.CausalTransformer
+vocab_size: ${experiment.vocab_size}
+seq_len: ${experiment.seq_len}
+latent_dim: ${experiment.latent_dim}
+d_model: ${experiment.hidden_dim}
+num_heads: 8
+num_layers: 6
+dropout: 0.1
+
+

@@ -1,0 +1,13 @@
+# @package _global_.encoder
+_target_: encoder.transformer_encoder.DistributionEncoderTransformer
+vocab_size: ${experiment.vocab_size}
+latent_dim: ${experiment.latent_dim}
+hidden_dim: ${experiment.hidden_dim}
+set_size: ${experiment.set_size}
+seq_len: ${experiment.seq_len}
+num_layers: 4
+num_heads: 8
+dropout: 0.1
+normalize_latent_flag: false
+
+

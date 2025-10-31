@@ -1,0 +1,10 @@
+# @package _global_.dataset
+_target_: datasets.mnist_colors.MNISTColorsDataset
+n_sets: 10000
+set_size: ${experiment.set_size}
+data_shape: [3, 28, 28]  # RGB channels, 28x28 MNIST images
+digit_class: null  # Use all digits (0-9)
+seed: ${seed}
+data_root: './data'
+train: true
+

@@ -32,7 +32,7 @@ class FlowMatchingGenerator(nn.Module):
     def __init__(
         self, 
         model, 
-        sigma_min=0
+        sigma_min=0.3
     ):
         """
         Flow Matching Generator for coupled distribution embeddings.
@@ -129,7 +129,7 @@ class FlowMatchingGenerator(nn.Module):
             target_latent: target distribution embedding
         """
         
-        batch_size, set_size = source_samples.shape
+        batch_size, set_size = source_samples.shape[:2]
 
         source_latent = expand_latent_to_batch(source_latent, source_samples)
         target_latent = expand_latent_to_batch(target_latent, target_samples)

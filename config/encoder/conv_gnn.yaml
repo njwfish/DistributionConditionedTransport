@@ -1,0 +1,14 @@
+# @package _global_.encoder
+_target_: encoder.conv_gnn.ConvDistributionEncoder
+in_channels: ${dataset.data_shape[0]}  # 3 for RGB
+hidden_channels: 64
+out_channels: 32
+hidden_dim: ${experiment.hidden_dim}
+latent_dim: ${experiment.latent_dim}
+num_layers: 2
+kernel_size: 3
+height: ${dataset.data_shape[1]}  # 28
+width: ${dataset.data_shape[2]}   # 28
+pool_type: mean
+agg_type: mean
+

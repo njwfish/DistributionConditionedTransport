@@ -97,8 +97,10 @@ def main(cfg: DictConfig):
 
         # Load optional lists for the sampler if specified in cfg.experiment
         sampler_kwargs = {}
+        print(sampling_config._target_)
 
-        sampler = hydra.utils.instantiate(sampling_config, dataset=dataset, **sampler_kwargs)
+        sampler = hydra.utils.instantiate(sampling_config, dataset=dataset, **sampler_kwargs) if sampling_config._target_ != "types.NoneType" else None
+        print(sampler)
 
         dataloader = DataLoader(
             dataset,

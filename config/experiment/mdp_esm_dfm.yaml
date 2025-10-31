@@ -1,0 +1,55 @@
+# @package _global_.experiment
+
+# Experiment name and description
+name: mdp_esm_dfm_exp
+description: "MDP trajectories with ESM DFM generator for discrete sequence modeling"
+
+# Override defaults from config.yaml
+defaults:
+  - /dataset: mdp_trajectories
+  - /encoder: esm
+  - /generator: esm_dfm_discrete
+  - /scheduler: cosine
+  - /loss: default
+  - /predictor: default  
+  - /sampling: default
+  - /training: default
+
+# Experiment-specific parameters
+use_predicted_latent: false
+predictor_loss_weight: 0.1
+train_predictor_posthoc: true
+
+predictor_model_type: "mlp"
+predictor_conditioning_mode: "concat"
+predictor_condition_type: null
+predictor_model_args:
+  hidden_dim: 128
+  num_layers: 2
+
+# Sampling parameters
+num_samples: 50
+exponential_weight_scale: 1.0
+selective_pairing_mode: null
+
+# MDP-specific parameters
+n_states: 10
+n_actions: 10
+trajectory_length: 20
+
+# Model parameters
+latent_dim: 64
+hidden_dim: 128
+set_size: 50
+batch_size: 8  # Smaller batch size for transformer
+lr: 1e-4
+
+# ESM model settings (using smaller model for discrete sequences)
+esm_model_name: 'facebook/esm2_t6_8M_UR50D'
+freeze_esm2: false
+seq_length: 40  # trajectory_length * 2 for encoded sequences
+tokenize: false 
+condition_dim: 32
+set_microbatch_size: 2
+condition_method: "additive"
+temperature: 1.0

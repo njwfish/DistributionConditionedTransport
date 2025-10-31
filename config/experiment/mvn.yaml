@@ -10,16 +10,7 @@ defaults:
   - /encoder: gnn
   - /model: diffusion_mlp
   - /generator: flow_matching
-  - /training: default500
-  - /sampling: default
-  - /coupling: sinkhorn
-
-# sampling parameters
-weight_mode: "uniform"
-num_samples: 50000   # number of pairs drawn from dataset each epoch
-unidirectional: false
-exponential_weight_scale: 1.0
-selective_pairing_mode: null
+  - /training: default5000
 
 # Experiment-specific parameters
 latent_dim: 16

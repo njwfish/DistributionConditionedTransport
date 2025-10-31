@@ -1,20 +1,21 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: mvn_coupled_exp
-description: "Multivariate normal distribution experiment with coupled distribution embeddings"
+name: gmm_coupled_exp
+description: "Gaussian mixture model distribution experiment with coupled distribution embeddings"
 
 # Override defaults from config.yaml
 defaults:
-  - /dataset: mvn_shifted
+  - /dataset: gmm
   - /encoder: gnn
   - /model: diffusion_mlp
   - /generator: flow_matching
   - /training: default5000
 
 # Experiment-specific parameters
-latent_dim: 16
-hidden_dim: 64
-set_size: 100
+latent_dim: 128
+hidden_dim: 256
+
+set_size: 1_000
 batch_size: 256
 lr: 2e-4 

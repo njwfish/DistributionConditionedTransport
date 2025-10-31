@@ -1,0 +1,11 @@
+# @package _global_.dataset
+_target_: datasets.mdp_trajectories.MDPTrajectoriesDataset
+n_sets: 50000
+set_size: ${experiment.set_size}
+# Data shape: [trajectory_length * 2] for flattened sequences s_1, a_1, s_2, a_2, ...
+data_shape: 
+  - ${experiment.seq_len}  # trajectory_length * 2
+n_states: ${experiment.n_states}
+n_actions: ${experiment.n_actions}
+trajectory_length: ${experiment.trajectory_length}
+seed: ${seed}

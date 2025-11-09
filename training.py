@@ -503,7 +503,7 @@ class Trainer:
                     batch_size, set_size, *data_shape = source_samples.shape
                     
                     # Encode samples to latent space
-                    with (torch.autocast(device_type='cuda', dtype=torch.bfloat16) if (bool(self.use_amp) and device.type == 'cuda') else contextlib.nullcontext()):
+                    with contextlib.nullcontext():
                         source_latent = encoder(source_samples)
                         target_latent = encoder(target_samples)
 

@@ -1,0 +1,5 @@
+# @package _global_.dataset
+_target_: datasets.handwriting.HandwritingDataset
+set_size: ${experiment.set_size}
+data_shape: [1, 32, 32] 
+seed: ${seed}

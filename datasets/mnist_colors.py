@@ -9,8 +9,8 @@ from torchvision.datasets import MNIST, FashionMNIST
 class MNISTColorsDataset(Dataset):
     """Dataset for MNIST digits with continuous RGB color transformations.
     
-    Each set contains MNIST digits of the same class with random RGB colors.
-    Source and target samples use the same reservoir with random target sampling.
+    Each sample randomly selects a digit class and color for source and target,
+    then samples images and applies the color transformation on-the-fly.
     """
     
     def __init__(
@@ -25,8 +25,8 @@ class MNISTColorsDataset(Dataset):
             ):
         """
         Args:
-            n_sets: Number of parameter sets to generate
-            set_size: Number of samples per parameter set
+            n_sets: Number of random colors to pre-generate
+            set_size: Number of samples per set
             digit_class: Specific digit class to use (0-9), or None for all digits
             seed: Random seed for reproducibility
             data_root: Root directory for MNIST data
@@ -50,7 +50,7 @@ class MNISTColorsDataset(Dataset):
             transform=transform
         )
         
-        # Pre-organize MNIST data by digit class for faster access
+        # Organize MNIST data by digit class
         self.digit_indices = {}
         for i in range(len(self.mnist_dataset)):
             _, label = self.mnist_dataset[i]
@@ -61,130 +61,98 @@ class MNISTColorsDataset(Dataset):
         # Convert to numpy arrays for faster sampling
         for digit in self.digit_indices:
             self.digit_indices[digit] = np.array(self.digit_indices[digit])
-            
-        if digit_class is not None:
-            self.mnist_indices = self.digit_indices[digit_class]
-        else:
-            self.mnist_indices = list(range(len(self.mnist_dataset)))
-            
-        # Pre-generate data for all sets (single reservoir)
-        self.data = self._generate_all_sets()
         
-    def _apply_color_transform_batch(self, mnist_images):
-        """Apply continuous RGB color transformation to a batch of grayscale MNIST images.
+        # Pre-generate n_sets random RGB colors
+        self.colors = torch.rand(n_sets, 3)  # (n_sets, 3)
+        
+    def _apply_color_transform(self, mnist_images, color):
+        """Apply a single RGB color to a batch of grayscale MNIST images.
         
         Args:
             mnist_images: Batch of grayscale MNIST image tensors (batch_size, 1, 28, 28)
+            color: RGB color tensor (3,)
             
         Returns:
             Colored image tensors (batch_size, 3, 28, 28)
         """
-        batch_size = mnist_images.shape[0]
-        
         # Remove channel dimension: (batch_size, 28, 28)
         gray_imgs = mnist_images.squeeze(1)
         
-        # Sample RGB colors for each image: (batch_size, 3)
-        rgb_colors = torch.rand(batch_size, 3)
-        
-        # Expand dimensions for broadcasting: (batch_size, 3, 1, 1)
-        rgb_colors = rgb_colors.unsqueeze(-1).unsqueeze(-1)
+        # Expand color for broadcasting: (1, 3, 1, 1)
+        color_expanded = color.view(1, 3, 1, 1)
         
         # Expand grayscale to 3 channels: (batch_size, 3, 28, 28)
         gray_expanded = gray_imgs.unsqueeze(1).expand(-1, 3, -1, -1)
         
         # Apply color transformation via broadcasting
-        colored_imgs = gray_expanded * rgb_colors
+        colored_imgs = gray_expanded * color_expanded
         
         return colored_imgs
+    
+    def _sample_class_images(self, digit_class):
+        """Sample set_size images from a specific digit class.
         
-    def _generate_set(self, set_idx):
-        """Generate a single set of colored MNIST digits."""
-        # Choose a random digit class for this set (if not fixed)
-        if self.digit_class is not None:
-            target_digit = self.digit_class
-        else:
-            target_digit = np.random.randint(0, 10)
+        Args:
+            digit_class: The digit class to sample from (0-9)
             
-        # Get pre-organized indices for this digit
-        digit_indices = self.digit_indices[target_digit]
+        Returns:
+            Batch of grayscale images (set_size, 1, 28, 28)
+        """
+        digit_indices = self.digit_indices[digit_class]
         
         if len(digit_indices) < self.set_size:
-            # If not enough samples, sample with replacement
+            # Sample with replacement if not enough samples
             selected_indices = np.random.choice(digit_indices, size=self.set_size, replace=True)
         else:
             # Sample without replacement
             selected_indices = np.random.choice(digit_indices, size=self.set_size, replace=False)
-            
-        # Load all images at once
+        
+        # Load images
         mnist_images = []
         for mnist_idx in selected_indices:
             mnist_img, _ = self.mnist_dataset[mnist_idx]
             mnist_images.append(mnist_img)
-            
+        
         # Stack into batch tensor: (set_size, 1, 28, 28)
-        mnist_batch = torch.stack(mnist_images)
-        
-        # Apply color transformation to entire batch
-        colored_tensor = self._apply_color_transform_batch(mnist_batch)
-        
-        return colored_tensor
-        
-    def _generate_all_sets(self):
-        """Pre-generate all sets of data as a single reservoir using batch processing."""
-        print(f"Generating {self.n_sets} sets of colored MNIST data...")
-        
-        # Process in batches for better memory efficiency
-        batch_size = 100  # Process 100 sets at a time
-        all_data = []
-        
-        for batch_start in range(0, self.n_sets, batch_size):
-            batch_end = min(batch_start + batch_size, self.n_sets)
-            current_batch_size = batch_end - batch_start
-            
-            if batch_start % 1000 == 0:
-                print(f"Generated {batch_start}/{self.n_sets} sets")
-            
-            # Generate batch of sets
-            batch_data = []
-            for set_idx in range(batch_start, batch_end):
-                data_set = self._generate_set(set_idx)
-                batch_data.append(data_set)
-            
-            # Stack batch and add to all_data
-            if batch_data:
-                batch_tensor = torch.stack(batch_data)
-                all_data.append(batch_tensor)
-            
-        # Stack all batches - single reservoir
-        data = torch.cat(all_data, dim=0)  # (n_sets, set_size, 3, 28, 28)
-        
-        print(f"Generated data shape: {data.shape}")
-        
-        return data
+        return torch.stack(mnist_images)
         
     def __len__(self):
         return self.n_sets
     
     def __getitem__(self, idx):
-        """Get a pair of source and target samples."""
-        source_idx = idx
-        # Sample a random target index from the same reservoir
-        target_idx = np.random.choice(self.n_sets)
+        """Get a pair of source and target samples with random classes and colors."""
+        # Select random classes
+        if self.digit_class is not None:
+            source_class = target_class = self.digit_class
+        else:
+            source_class = np.random.randint(0, 10)
+            target_class = np.random.randint(0, 10)
+        
+        # Select random colors (use idx for source, random for target)
+        source_color_idx = idx
+        target_color_idx = np.random.randint(0, self.n_sets)
+        
+        # Sample images from classes
+        source_images = self._sample_class_images(source_class)
+        target_images = self._sample_class_images(target_class)
+        
+        # Apply colors
+        source_samples = self._apply_color_transform(source_images, self.colors[source_color_idx])
+        target_samples = self._apply_color_transform(target_images, self.colors[target_color_idx])
         
         return {
-            'source_samples': self.data[source_idx],
-            'target_samples': self.data[target_idx],
-            'source_idx': source_idx,
-            'target_idx': target_idx
+            'source_samples': source_samples,
+            'target_samples': target_samples,
+            'source_idx': source_color_idx,
+            'target_idx': target_color_idx
         }
 
 
 class FashionMNISTColorsDataset(Dataset):
     """Dataset for Fashion-MNIST items with continuous RGB color transformations.
     
-    Each set contains Fashion-MNIST items of the same class with random RGB colors.
-    Source and target samples use the same reservoir with random target sampling.
+    Each sample randomly selects an item class and color for source and target,
+    then samples images and applies the color transformation on-the-fly.
     
     Fashion-MNIST classes:
     0: T-shirt/top, 1: Trouser, 2: Pullover, 3: Dress, 4: Coat,
@@ -202,8 +170,8 @@ class FashionMNISTColorsDataset(Dataset):
             ):
         """
         Args:
-            n_sets: Number of parameter sets to generate
-            set_size: Number of samples per parameter set
+            n_sets: Number of random colors to pre-generate
+            set_size: Number of samples per set
             item_class: Specific item class to use (0-9), or None for all classes
             seed: Random seed for reproducibility
             data_root: Root directory for Fashion-MNIST data
@@ -233,7 +201,7 @@ class FashionMNISTColorsDataset(Dataset):
             transform=transform
         )
         
-        # Pre-organize Fashion-MNIST data by item class for faster access
+        # Organize Fashion-MNIST data by item class
         self.item_indices = {}
         for i in range(len(self.fashion_dataset)):
             _, label = self.fashion_dataset[i]
@@ -244,107 +212,60 @@ class FashionMNISTColorsDataset(Dataset):
         # Convert to numpy arrays for faster sampling
         for item in self.item_indices:
             self.item_indices[item] = np.array(self.item_indices[item])
-            
-        if item_class is not None:
-            self.fashion_indices = self.item_indices[item_class]
-        else:
-            self.fashion_indices = list(range(len(self.fashion_dataset)))
-            
-        # Pre-generate data for all sets (single reservoir)
-        self.data = self._generate_all_sets()
         
-    def _apply_color_transform_batch(self, fashion_images):
-        """Apply continuous RGB color transformation to a batch of grayscale Fashion-MNIST images.
+        # Pre-generate n_sets random RGB colors
+        self.colors = torch.rand(n_sets, 3)  # (n_sets, 3)
+        
+    def _apply_color_transform(self, fashion_images, color):
+        """Apply a single RGB color to a batch of grayscale Fashion-MNIST images.
         
         Args:
             fashion_images: Batch of grayscale Fashion-MNIST image tensors (batch_size, 1, 28, 28)
+            color: RGB color tensor (3,)
             
         Returns:
             Colored image tensors (batch_size, 3, 28, 28)
         """
-        batch_size = fashion_images.shape[0]
-        
         # Remove channel dimension: (batch_size, 28, 28)
         gray_imgs = fashion_images.squeeze(1)
         
-        # Sample RGB colors for each image: (batch_size, 3)
-        rgb_colors = torch.rand(batch_size, 3)
-        
-        # Expand dimensions for broadcasting: (batch_size, 3, 1, 1)
-        rgb_colors = rgb_colors.unsqueeze(-1).unsqueeze(-1)
+        # Expand color for broadcasting: (1, 3, 1, 1)
+        color_expanded = color.view(1, 3, 1, 1)
         
         # Expand grayscale to 3 channels: (batch_size, 3, 28, 28)
         gray_expanded = gray_imgs.unsqueeze(1).expand(-1, 3, -1, -1)
         
         # Apply color transformation via broadcasting
-        colored_imgs = gray_expanded * rgb_colors
+        colored_imgs = gray_expanded * color_expanded
         
         return colored_imgs
+    
+    def _sample_class_images(self, item_class):
+        """Sample set_size images from a specific item class.
         
-    def _generate_set(self, set_idx):
-        """Generate a single set of colored Fashion-MNIST items."""
-        # Choose a random item class for this set (if not fixed)
-        if self.item_class is not None:
-            target_class = self.item_class
-        else:
-            target_class = np.random.randint(0, 10)
+        Args:
+            item_class: The item class to sample from (0-9)
             
-        # Get pre-organized indices for this class
-        class_indices = self.item_indices[target_class]
+        Returns:
+            Batch of grayscale images (set_size, 1, 28, 28)
+        """
+        class_indices = self.item_indices[item_class]
         
         if len(class_indices) < self.set_size:
-            # If not enough samples, sample with replacement
+            # Sample with replacement if not enough samples
             selected_indices = np.random.choice(class_indices, size=self.set_size, replace=True)
         else:
             # Sample without replacement
             selected_indices = np.random.choice(class_indices, size=self.set_size, replace=False)
-            
-        # Load all images at once
+        
+        # Load images
         fashion_images = []
         for fashion_idx in selected_indices:
             fashion_img, _ = self.fashion_dataset[fashion_idx]
             fashion_images.append(fashion_img)
-            
+        
         # Stack into batch tensor: (set_size, 1, 28, 28)
-        fashion_batch = torch.stack(fashion_images)
-        
-        # Apply color transformation to entire batch
-        colored_tensor = self._apply_color_transform_batch(fashion_batch)
-        
-        return colored_tensor
-        
-    def _generate_all_sets(self):
-        """Pre-generate all sets of data as a single reservoir using batch processing."""
-        print(f"Generating {self.n_sets} sets of colored Fashion-MNIST data...")
-        
-        # Process in batches for better memory efficiency
-        batch_size = 100  # Process 100 sets at a time
-        all_data = []
-        
-        for batch_start in range(0, self.n_sets, batch_size):
-            batch_end = min(batch_start + batch_size, self.n_sets)
-            current_batch_size = batch_end - batch_start
-            
-            if batch_start % 1000 == 0:
-                print(f"Generated {batch_start}/{self.n_sets} sets")
-            
-            # Generate batch of sets
-            batch_data = []
-            for set_idx in range(batch_start, batch_end):
-                data_set = self._generate_set(set_idx)
-                batch_data.append(data_set)
-            
-            # Stack batch and add to all_data
-            if batch_data:
-                batch_tensor = torch.stack(batch_data)
-                all_data.append(batch_tensor)
-            
-        # Stack all batches - single reservoir
-        data = torch.cat(all_data, dim=0)  # (n_sets, set_size, 3, 28, 28)
-        
-        print(f"Generated data shape: {data.shape}")
-        
-        return data
+        return torch.stack(fashion_images)
         
     def get_class_name(self, class_idx):
         """Get the name of a Fashion-MNIST class."""
@@ -354,16 +275,31 @@ class FashionMNISTColorsDataset(Dataset):
         return self.n_sets
     
     def __getitem__(self, idx):
-        """Get a pair of source and target samples."""
-        source_idx = idx
-        # Sample a random target index from the same reservoir
-        target_idx = np.random.choice(self.n_sets)
+        """Get a pair of source and target samples with random classes and colors."""
+        # Select random classes
+        if self.item_class is not None:
+            source_class = target_class = self.item_class
+        else:
+            source_class = np.random.randint(0, 10)
+            target_class = np.random.randint(0, 10)
+        
+        # Select random colors (use idx for source, random for target)
+        source_color_idx = idx
+        target_color_idx = np.random.randint(0, self.n_sets)
+        
+        # Sample images from classes
+        source_images = self._sample_class_images(source_class)
+        target_images = self._sample_class_images(target_class)
+        
+        # Apply colors
+        source_samples = self._apply_color_transform(source_images, self.colors[source_color_idx])
+        target_samples = self._apply_color_transform(target_images, self.colors[target_color_idx])
         
         return {
-            'source_samples': self.data[source_idx],
-            'target_samples': self.data[target_idx],
-            'source_idx': source_idx,
-            'target_idx': target_idx
+            'source_samples': source_samples,
+            'target_samples': target_samples,
+            'source_idx': source_color_idx,
+            'target_idx': target_color_idx
         }
 
 

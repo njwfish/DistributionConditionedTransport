@@ -5,7 +5,7 @@ hidden_channels: 64
 out_channels: 32
 hidden_dim: ${experiment.hidden_dim}
 latent_dim: ${experiment.latent_dim}
-num_layers: 2
+num_layers: 3
 kernel_size: 3
 height: ${dataset.data_shape[1]}  # 28
 width: ${dataset.data_shape[2]}   # 28

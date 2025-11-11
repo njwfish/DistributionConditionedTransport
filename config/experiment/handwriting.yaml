@@ -1,12 +1,12 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: mnist_colors_exp
-description: "MNIST colors experiment with convolutional GNN encoder, UNet model, and flow matching generator"
+name: handwriting_exp
+description: "Handwriting experiment with convolutional GNN encoder, UNet model, and flow matching generator"
 
 # Override defaults from config.yaml
 defaults:
-  - /dataset: mnist_colors
+  - /dataset: handwriting
   - /encoder: conv_gnn
   - /model: unet
   - /generator: flow_matching_unet
@@ -14,9 +14,9 @@ defaults:
   - /sampling: none
 
 # Experiment-specific parameters
-latent_dim: 64
-hidden_dim: 128
+latent_dim: 128
+hidden_dim: 512
 set_size: 64
-batch_size: 32  # Smaller batch size for image data
+batch_size: 24  # Smaller batch size for image data
 lr: 1e-4
 

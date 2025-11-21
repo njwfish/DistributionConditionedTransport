@@ -12,7 +12,6 @@ class Sampler(WeightedRandomSampler):
         selective_pairing_mode: Optional[str] = None,
     ):
 
-
         self.dataset = dataset
         self.selective_pairing_mode = selective_pairing_mode
         

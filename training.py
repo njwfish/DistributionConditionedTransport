@@ -27,7 +27,7 @@ class Trainer:
         mask_context_prob=0.0,
         sub_epoch=None,
         gradient_accumulation_steps=1,
-        use_amp=True,
+        use_amp=False,
     ):
         """
         Initialize the trainer.

@@ -1,0 +1,4 @@
+# @package _global_.loss
+_target_: loss.predictor_pu.PredictorLossManager
+use_predicted_latent: ${experiment.use_predicted_latent}
+predictor_loss_weight: ${experiment.predictor_loss_weight}

@@ -18,6 +18,7 @@ class MultivariateNormalDistributionDataset(Dataset):
             prior_cov_df: int = 10,
             prior_cov_scale: float = 1.,
             seed: Optional[int] = None,
+            n_unique_sets: Optional[int] = None,
             ):
         """
         Args:
@@ -29,7 +30,8 @@ class MultivariateNormalDistributionDataset(Dataset):
         prior_cov_df = prior_cov_df * (data_shape[0] - 1)
         self.n_sets = n_sets
         self.set_size = set_size
-        
+        self.n_unique_sets = n_unique_sets
+
         if seed is not None:
             np.random.seed(seed)
 
@@ -40,6 +42,14 @@ class MultivariateNormalDistributionDataset(Dataset):
         self.cov = np.linalg.inv(sp.stats.wishart.rvs(
             df=prior_cov_df, scale=prior_cov_scale*np.eye(data_shape[0]), size=n_sets
         ))
+
+        self.set_idx = np.arange(n_sets)
+
+        if n_unique_sets is not None:
+            self.mu = np.repeat(self.mu[:n_unique_sets], n_sets // n_unique_sets, axis=0)
+            self.cov = np.repeat(self.cov[:n_unique_sets], n_sets // n_unique_sets, axis=0)
+            self.set_idx = np.repeat(self.set_idx[:n_unique_sets], n_sets // n_unique_sets, axis=0)
+            
         
         self.data = self.sample(self.mu, self.cov, n_sets, set_size, data_shape)
 
@@ -91,8 +101,8 @@ class MultivariateNormalDistributionDataset(Dataset):
         return {
             'source_samples': source_samples,
             'target_samples': target_samples,
-            'source_idx': source_idx,
-            'target_idx': target_idx,
+            'source_idx': self.set_idx[source_idx],
+            'target_idx': self.set_idx[target_idx],
         }
 
 class ShiftedMultivariateNormalDistributionDataset(MultivariateNormalDistributionDataset):

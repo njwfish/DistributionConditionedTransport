@@ -137,16 +137,16 @@ class ContextUnet(nn.Module):
             nn.Conv2d(2 * n_feat, n_feat, 3, 1, 1),
             nn.GroupNorm(8, n_feat),
             nn.ReLU(),
-            nn.Conv2d(n_feat, self.in_channels, 3, 1, 1),
+            nn.Conv2d(n_feat, self.in_channels, 3, 1, 1)
         )
 
-    def forward(self, x, t, source_latent, target_latent): #, context_mask):
+    def forward(self, x_t, t, source_latent, target_latent): #, context_mask):
         # x is (noisy) image, c is context label, t is timestep, 
         # context_mask says which samples to block the context on
 
         c = torch.cat([source_latent, target_latent], dim=-1)
 
-        x = self.init_conv(x)
+        x = self.init_conv(x_t)
         down1 = self.down1(x)
         down2 = self.down2(down1)
         hiddenvec = self.to_vec(down2)

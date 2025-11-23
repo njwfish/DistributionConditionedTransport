@@ -11,12 +11,11 @@ defaults:
   - /model: unet
   - /generator: flow_matching_unet
   - /training: default
-  - /sampling: none
 
 # Experiment-specific parameters
 latent_dim: 64
 hidden_dim: 128
 set_size: 64
 batch_size: 32  # Smaller batch size for image data
-lr: 1e-4
+lr: 2e-4
 

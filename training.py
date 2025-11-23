@@ -50,7 +50,7 @@ class Trainer:
             self.sub_epoch = save_interval == 1
         else:
             self.sub_epoch = sub_epoch
-        self.early_stopping = early_stopping
+        self.early_stopping = False # early_stopping
         self.patience = patience
         self.use_tqdm = use_tqdm
         self.mask_context_prob = mask_context_prob

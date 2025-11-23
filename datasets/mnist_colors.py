@@ -22,7 +22,8 @@ class MNISTColorsDataset(Dataset):
             data_root: str = './data',
             train: bool = True,
             data_shape: Tuple[int, int, int] = (3, 28, 28),
-            ):
+            n_unique_sets: Optional[int] = None,
+        ):
         """
         Args:
             n_sets: Number of random colors to pre-generate
@@ -63,7 +64,12 @@ class MNISTColorsDataset(Dataset):
             self.digit_indices[digit] = np.array(self.digit_indices[digit])
         
         # Pre-generate n_sets random RGB colors
+        self.set_idx = np.arange(n_sets)
         self.colors = torch.rand(n_sets, 3)  # (n_sets, 3)
+
+        if n_unique_sets is not None:
+            self.colors = np.repeat(self.colors[:n_unique_sets], n_sets // n_unique_sets, axis=0)
+            self.set_idx = np.repeat(self.set_idx[:n_unique_sets], n_sets // n_unique_sets, axis=0)
         
     def _apply_color_transform(self, mnist_images, color):
         """Apply a single RGB color to a batch of grayscale MNIST images.
@@ -143,8 +149,8 @@ class MNISTColorsDataset(Dataset):
         return {
             'source_samples': source_samples,
             'target_samples': target_samples,
-            'source_idx': source_color_idx,
-            'target_idx': target_color_idx
+            'source_idx': self.set_idx[source_color_idx],
+            'target_idx': self.set_idx[target_color_idx]
         }
 
 
@@ -167,7 +173,8 @@ class FashionMNISTColorsDataset(Dataset):
             seed: Optional[int] = None,
             data_root: str = './data',
             train: bool = True,
-            ):
+            n_unique_sets: Optional[int] = None,
+        ):
         """
         Args:
             n_sets: Number of random colors to pre-generate
@@ -214,7 +221,12 @@ class FashionMNISTColorsDataset(Dataset):
             self.item_indices[item] = np.array(self.item_indices[item])
         
         # Pre-generate n_sets random RGB colors
+        self.set_idx = np.arange(n_sets)
         self.colors = torch.rand(n_sets, 3)  # (n_sets, 3)
+
+        if n_unique_sets is not None:
+            self.colors = np.repeat(self.colors[:n_unique_sets], n_sets // n_unique_sets, axis=0)
+            self.set_idx = np.repeat(self.set_idx[:n_unique_sets], n_sets // n_unique_sets, axis=0)
         
     def _apply_color_transform(self, fashion_images, color):
         """Apply a single RGB color to a batch of grayscale Fashion-MNIST images.
@@ -298,8 +310,8 @@ class FashionMNISTColorsDataset(Dataset):
         return {
             'source_samples': source_samples,
             'target_samples': target_samples,
-            'source_idx': source_color_idx,
-            'target_idx': target_color_idx
+            'source_idx': self.set_idx[source_color_idx],
+            'target_idx': self.set_idx[target_color_idx]
         }
 
 

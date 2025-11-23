@@ -4,6 +4,25 @@ from utils.latents import normalize_latent
 
 from layers import MLP, MeanPooledFC, MedianPooledFC, SelfAttention
 
+class OneHotEncoder(nn.Module):
+    def __init__(self, in_dim, latent_dim):
+        super().__init__()
+        self.latent_dim = latent_dim
+
+    def forward(self, idx):
+        return torch.nn.functional.one_hot(idx.long(), num_classes=self.latent_dim)
+
+class EmbeddingEncoder(nn.Module):
+    def __init__(self, in_dim, latent_dim, n_unique_sets):
+        super().__init__()
+        self.latent_dim = latent_dim
+        self.n_unique_sets = n_unique_sets
+        self.embedding = nn.Embedding(n_unique_sets, latent_dim)
+
+    def forward(self, idx):
+        return self.embedding(idx.long())
+
+
 class DistributionEncoder(nn.Module):
     def __init__(self, in_dim, latent_dim, hidden_dim, set_size, normalize_latent=True):
         super().__init__()

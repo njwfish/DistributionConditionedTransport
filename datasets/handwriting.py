@@ -163,5 +163,7 @@ class HandwritingDataset(Dataset):
 
         return {
             'source_samples': resize_batch(source_samples, self.data_shape[1:]),
-            'target_samples': resize_batch(target_samples, self.data_shape[1:])
+            'target_samples': resize_batch(target_samples, self.data_shape[1:]),
+            'source_idx': source_writer,
+            'target_idx': target_writer,
         }

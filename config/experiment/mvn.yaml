@@ -10,7 +10,7 @@ defaults:
   - /encoder: gnn
   - /model: diffusion_mlp
   - /generator: flow_matching
-  - /training: default5000
+  - /training: default1000
 
 # Experiment-specific parameters
 latent_dim: 16

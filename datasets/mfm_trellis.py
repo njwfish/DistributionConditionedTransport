@@ -29,28 +29,57 @@ from collections import defaultdict
 class trellis_dataset(Dataset):
     def __init__(
         self,
-        split,
-        data,
         control=set(["DMSO", "AH", "H2O"]),
         treatment=["O", "S", "VS", "L", "V", "F", "C", "SF", "CS", "CF", "CSF"],
         culture=["PDO", "PDOF", "F"],
         cell_type=["PDOs", "Fibs"],
-        prefix="train",
         split_name='pdo21',
-        pca=None,
         seed=0,
     ):
 
-        self.rng = np.random.default_rng(seed)
+        assert split_name in ["replicas-1", "replicas-2", "pdo21", "pdo27", "pdo75"], "split not recognized"
+        if split_name == "replicas-1":
+            self.split_source = (
+                "organoid_data_preprocessed/replica_holdout/replica_1_holdout/data_splits_replicas_1.pickle"
+            )
+            data_path = "organoid_data_preprocessed/replica_holdout/replica_1_holdout/trellis_replicas_1_normalized.npy"
+        elif split_name == "replicas-2":
+            self.split_source = (
+                "organoid_data_preprocessed/replica_holdout/replica_2_holdout/data_splits_replicas_2.pickle"
+            )
+            data_path = "organoid_data_preprocessed/replica_holdout/replica_2_holdout/trellis_replicas_2_normalized.npy"
+        elif split_name == "pdo21":
+            self.split_source = (
+                "data//split_patient_test_pdo21.pickle"
+            )
+            data_path = "/orcd/data/omarabu/001/paolo/CoupledDistributionEmbeddings/organoid_data_preprocessed/patient_holdout/trellis_patients_pdo21_normalized.npy"
+        elif split_name == "pdo27":
+            self.split_source = (
+                "data//split_patient_test_pdo27.pickle"
+            )
+            data_path = "/orcd/data/omarabu/001/paolo/CoupledDistributionEmbeddings/organoid_data_preprocessed/patient_holdout/trellis_patients_pdo27_normalized.npy"
+        elif split_name == "pdo75":
+            self.split_source = (
+                "data/split_patient_test_pdo75.pickle"
+            )
+            data_path = "/orcd/data/omarabu/001/paolo/CoupledDistributionEmbeddings/organoid_data_preprocessed/patient_holdout/trellis_patients_pdo75_normalized.npy"
+        else:
+            raise ValueError("split not recognized")
 
-        self.data = data
 
+        with open(self.split_source, "rb") as handle:
+            self.data_splits = pickle.load(handle)
+            # from these split we will get the background cells
+        self.data = np.load(data_path)[:, :-1]
+
+        # TODO: for the replica splits (I don't think for the patient splits) there is also a val part of the split that we can use.
+        split=self.data_splits["train"]
+        
         self.control = control  # identify x0
         self.treatment = treatment
         self.culture = culture
         self.cell_type = cell_type
 
-        self.prefix = prefix
         self.split_name = split_name
 
         self.split = self.__filter_control__(split)
@@ -61,17 +90,6 @@ class trellis_dataset(Dataset):
         end = time.time()
         print("done. Time (s):", print(end - start))
 
-        # select train envs/replicas for train-evaluation
-        if prefix == "train":
-            self.eval_mode = False
-
-        elif prefix == "val" or prefix == "test":
-            self.eval_mode = True
-
-        else:
-            raise ValueError("prefix not recognized")
-
-        print("... Data loaded!")
 
     def construct_data(self):
         self.samples_tmp, self.culture, self.x0, self.x1, self.cell_cond, self.treat_cond, self.patients = self.select_experiments()
@@ -157,7 +175,6 @@ class trellis_dataset(Dataset):
             sources.append(x0)
 
         self.num_samples = len(samples_tmp)
-        print("{} {} data samples".format(self.num_samples, self.prefix))
         return samples_tmp, cultures, sources, targets, cell_conds, treat_conds, patients
 
     def __filter_control__(self, split):
@@ -197,79 +214,7 @@ class trellis_dataset(Dataset):
             treat_cond,
             patient,
         )
-            
-            
-class TrellisDatamodule(pl.LightningDataModule):
-    def __init__(
-        self,
-        split="replicas-2",
-        control=set(["DMSO", "AH", "H2O"]),
-        treatment=["O", "S", "VS", "L", "V", "F", "C", "SF", "CS", "CF", "CSF"],
-        culture=["PDO", "PDOF", "F"],
-        cell_type=["PDOs", "Fibs"],
-        name="trellis",
-        seed=0,
-    ):
-        super().__init__()
 
-
-        self.split = split
-
-        assert split in ["replicas-1", "replicas-2", "pdo21", "pdo27", "pdo75"], "split not recognized"
-        if split == "replicas-1":
-            self.split_source = (
-                "data/data_splits_replicas_1.pickle"
-            )
-            data_path = "data/trellis_replicas_1_normalized.npy"
-        elif split == "replicas-2":
-            self.split_source = (
-                "data/data_splits_replicas_2.pickle"
-            )
-            data_path = "data/trellis_replicas_2_normalized.npy"
-        elif split == "pdo21":
-            self.split_source = (
-                "data//split_patient_test_pdo21.pickle"
-            )
-            data_path = "data/trellis_patients_pdo21_normalized.npy"
-        elif split == "pdo27":
-            self.split_source = (
-                "data//split_patient_test_pdo27.pickle"
-            )
-            data_path = "data/trellis_patients_pdo27_normalized.npy"
-        elif split == "pdo75":
-            self.split_source = (
-                "data/split_patient_test_pdo75.pickle"
-            )
-            data_path = "data/trellis_patients_pdo75_normalized.npy"
-        else:
-            raise ValueError("split not recognized")
-
-        self.cell_type = cell_type  # filtered cell type
-        self.name = name
-        self.seed = seed
-        with open(self.split_source, "rb") as handle:
-            self.data_splits = pickle.load(handle)
-            # from these split we will get the background cells
-
-        self.data = np.load(data_path)[:, :-1]
-
-        self.control = control
-        self.treatment = treatment
-        self.treatment_test = self.treatment
-        self.cell_type = cell_type
-        self.culture = culture
-
-        self.train_dataset = trellis_dataset(
-            split=self.data_splits["train"],
-            data=self.data,
-            control=self.control,
-            treatment=self.treatment,
-            culture=self.culture,
-            cell_type=self.cell_type,
-            prefix="train",
-            split_name=self.split,
-            seed=self.seed,
-        )
 
 
 

@@ -84,7 +84,6 @@ class trellis_dataset(Dataset):
         start = time.time()
         self.construct_data()
         end = time.time()
-        print("done. Time (s):", print(end - start))
 
 
     def construct_data(self):
@@ -226,17 +225,17 @@ class trellis_dataset(Dataset):
         cell_cond = cell_cond[source_subset_indices]
 
 
-        print("--------------------------------")
-        print(type(x0), type(x1), type(cell_cond), type(treat_cond), type(patient), type(culture), type(idx))
-        
-        print("source_samples.shape: ", source_samples.shape)
-        print("target_samples.shape: ", target_samples.shape)
-        print("x1.shape: ", x1.shape)
-        print("cell_cond.shape: ", cell_cond.shape)
-        print("treat_cond.shape: ", treat_cond.shape)
-        print("patient: ", patient)
-        print("culture: ", culture)
-        print("idx: ", idx)
+        #print("--------------------------------")
+        #print(type(x0), type(x1), type(cell_cond), type(treat_cond), type(patient), type(culture), type(idx))
+        #
+        #print("source_samples.shape: ", source_samples.shape)
+        #print("target_samples.shape: ", target_samples.shape)
+        #print("x1.shape: ", x1.shape)
+        #print("cell_cond.shape: ", cell_cond.shape)
+        #print("treat_cond.shape: ", treat_cond.shape)
+        #print("patient: ", patient)
+        #print("culture: ", culture)
+        #print("idx: ", idx)
         
         return {
             'source_samples': source_samples,

@@ -1,0 +1,43 @@
+# @package _global_.experiment
+
+# Experiment name and description
+name: trellis_a2a_${split_name}
+description: "Trellis A2A ${split_name} experiment"
+
+# Override defaults from config.yaml
+defaults:
+  - /dataset: trellis
+  - /encoder: gnn
+  - /model: noise_mlp
+  - /generator: energy  # Use flow matching for coupled embeddings
+  - /training: default
+  - /loss: predictor
+  - /predictor: default  # use unified predictor
+  - /sampling: default
+
+split_name: "replicas-2"
+
+# predictor parameters
+use_predicted_latent: false
+predictor_loss_weight: 1
+
+train_predictor_posthoc: true
+
+predictor_model_type: "ridge"
+predictor_conditioning_mode: "concat"
+# TODO: need to condition on drug perturbation (and even cell type maybe)
+predictor_condition_type: null
+predictor_model_args:
+  ridge_alpha: 1e-3
+
+# sampling parameters
+num_samples: null
+exponential_weight_scale: 1.44  # approx ln(2)
+selective_pairing_mode: null
+
+# Experiment-specific parameters
+latent_dim: 32
+hidden_dim: 128
+set_size: 16
+batch_size: 4
+lr: 2e-4

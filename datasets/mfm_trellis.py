@@ -66,7 +66,6 @@ class trellis_dataset(Dataset):
         self.set_size = set_size
         self.control = control  # identify x0
         self.treatment = treatment
-        self.culture = culture
         self.cell_type = cell_type
 
         self.split_name = split_name
@@ -205,12 +204,15 @@ class trellis_dataset(Dataset):
         
         source_samples = torch.tensor(x0, dtype=torch.float)
         target_samples = torch.tensor(x1, dtype=torch.float)
-            
+        treat_cond = torch.tensor(treat_cond, dtype=torch.float)
+        cell_cond = torch.tensor(cell_cond, dtype=torch.float)
+        
         source_subset_indices = np.random.choice(source_samples.shape[0], size=self.set_size, replace=False)
         target_subset_indices = np.random.choice(target_samples.shape[0], size=self.set_size, replace=False)
             
         source_samples = source_samples[source_subset_indices]
         target_samples = target_samples[target_subset_indices]
+        
         
         treat_cond = treat_cond[target_subset_indices]
         cell_cond = cell_cond[target_subset_indices]

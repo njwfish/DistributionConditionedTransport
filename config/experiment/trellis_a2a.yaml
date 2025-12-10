@@ -1,8 +1,7 @@
 # @package _global_.experiment
 
-# Experiment name and description
-name: trellis_a2a_${split_name}
-description: "Trellis A2A ${split_name} experiment"
+# Split name (define before use)
+split_name: "replicas-2"
 
 # Override defaults from config.yaml
 defaults:
@@ -15,11 +14,9 @@ defaults:
   - /predictor: default  # use unified predictor
   - /sampling: default
 
-split_name: "replicas-2"
-
 # predictor parameters
 use_predicted_latent: false
-predictor_loss_weight: 1
+predictor_loss_weight: 0
 
 train_predictor_posthoc: true
 

@@ -27,7 +27,6 @@ class Trainer:
         mask_context_prob=0.0,
         sub_epoch=None,
         gradient_accumulation_steps=1,
-        use_amp=True,
     ):
         """
         Initialize the trainer.
@@ -55,7 +54,6 @@ class Trainer:
         self.use_tqdm = use_tqdm
         self.mask_context_prob = mask_context_prob
         self.gradient_accumulation_steps = gradient_accumulation_steps
-        self.use_amp = use_amp
         
         self.logger = logging.getLogger(__name__)
         self.best_loss = float('inf')
@@ -276,11 +274,6 @@ class Trainer:
         start_time = time.time()
         self.logger.info(f"Starting training on {device}...")
         
-        # Configure AMP (prefer BF16 on CUDA if enabled)
-        use_amp = bool(self.use_amp) and (device.type == "cuda")
-        # autocast_context = torch.autocast(device_type='cuda', dtype=torch.bfloat16) if use_amp else contextlib.nullcontext()
-        autocast_context = contextlib.nullcontext()
-
         # Main training loop
         for epoch in range(start_epoch, self.num_epochs):
             epoch_start = time.time()
@@ -476,7 +469,7 @@ class Trainer:
             for batch in dataloader:
                 # TODO: legacy code was not using loss manager here, is there any specific reason for this?
                 # Use loss manager for consistent loss computation
-                with (torch.autocast(device_type='cuda', dtype=torch.bfloat16) if (bool(self.use_amp) and device.type == 'cuda') else contextlib.nullcontext()):
+                with contextlib.nullcontext():
                     loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 total_loss += loss.item()
                 num_batches += 1
@@ -544,7 +537,7 @@ class Trainer:
                         target_raw_texts = [[target_raw_texts[j][i] for j in range(set_size)] for i in range(num_sets)]
 
                     # Encode samples to latent space
-                    with (torch.autocast(device_type='cuda', dtype=torch.bfloat16) if (bool(self.use_amp) and device.type == 'cuda') else contextlib.nullcontext()):
+                    with contextlib.nullcontext():
                         source_latent = encoder(source_samples)
                         target_latent = encoder(target_samples)
                     
@@ -558,7 +551,7 @@ class Trainer:
                             source_sample[key] = value
                     
                     # Generate new samples
-                    with (torch.autocast(device_type='cuda', dtype=torch.bfloat16) if (bool(self.use_amp) and device.type == 'cuda') else contextlib.nullcontext()):
+                    with contextlib.nullcontext():
                         generated = generator.sample(source_sample, source_latent, target_latent, num_samples=set_size, return_texts=True)
                     
                     if isinstance(generated, tuple):

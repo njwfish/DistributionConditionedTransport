@@ -6,6 +6,7 @@ Script to instantiate trellis_dataset and inspect the first element
 import sys
 import os
 import numpy as np
+import torch
 
 # Add the project root to path
 sys.path.insert(0, '/orcd/data/omarabu/001/paolo/CoupledDistributionEmbeddings')
@@ -43,10 +44,10 @@ def main():
     
     print_separator("FIRST ELEMENT - DETAILED INFORMATION")
     
-    # Get the first element (now returns a dictionary)
+    # Get the first element (now returns a dictionary with torch tensors)
     first_element = dataset[0]
     
-    # Extract from dictionary
+    # Extract from dictionary (converting torch tensors to numpy for inspection)
     x0 = first_element['source_samples']
     x1 = first_element['target_samples']
     cell_cond = first_element['cell_cond']
@@ -56,51 +57,65 @@ def main():
     source_idx = first_element['source_idx']
     target_idx = first_element['target_idx']
     
+    # Check if tensors are torch tensors and convert to numpy for display
+    is_torch = isinstance(x0, torch.Tensor)
+    if is_torch:
+        x0_np = x0.numpy()
+        x1_np = x1.numpy()
+        cell_cond_np = cell_cond.numpy()
+        treat_cond_np = treat_cond.numpy()
+    else:
+        x0_np = x0
+        x1_np = x1
+        cell_cond_np = cell_cond
+        treat_cond_np = treat_cond
+    
     print_separator("Element Components")
     print(f"Linear Index: 0")
     print(f"Source Index: {source_idx}")
     print(f"Target Index: {target_idx}")
     print(f"Patient: {patient}")
     print(f"Culture: {culture}")
+    print(f"Data type: {'torch.Tensor' if is_torch else 'numpy.ndarray'}")
     
     print_separator("Source Distribution (x0)")
-    print(f"Shape: {x0.shape}")
-    print(f"Data type: {x0.dtype}")
-    print(f"Min value: {x0.min():.6f}")
-    print(f"Max value: {x0.max():.6f}")
-    print(f"Mean: {x0.mean():.6f}")
-    print(f"Std: {x0.std():.6f}")
+    print(f"Shape: {x0_np.shape}")
+    print(f"Data type: {x0_np.dtype}")
+    print(f"Min value: {x0_np.min():.6f}")
+    print(f"Max value: {x0_np.max():.6f}")
+    print(f"Mean: {x0_np.mean():.6f}")
+    print(f"Std: {x0_np.std():.6f}")
     print(f"\nFirst 3 samples (first 10 features):")
-    print(x0[:3, :10])
+    print(x0_np[:3, :10])
     
     print_separator("Target Distribution (x1)")
-    print(f"Shape: {x1.shape}")
-    print(f"Data type: {x1.dtype}")
-    print(f"Min value: {x1.min():.6f}")
-    print(f"Max value: {x1.max():.6f}")
-    print(f"Mean: {x1.mean():.6f}")
-    print(f"Std: {x1.std():.6f}")
+    print(f"Shape: {x1_np.shape}")
+    print(f"Data type: {x1_np.dtype}")
+    print(f"Min value: {x1_np.min():.6f}")
+    print(f"Max value: {x1_np.max():.6f}")
+    print(f"Mean: {x1_np.mean():.6f}")
+    print(f"Std: {x1_np.std():.6f}")
     print(f"\nFirst 3 samples (first 10 features):")
-    print(x1[:3, :10])
+    print(x1_np[:3, :10])
     
     print_separator("Cell Condition (one-hot encoding)")
-    print(f"Shape: {cell_cond.shape}")
-    print(f"Data type: {cell_cond.dtype}")
+    print(f"Shape: {cell_cond_np.shape}")
+    print(f"Data type: {cell_cond_np.dtype}")
     print(f"Cell types: {dataset.cell_type}")
     print(f"\nFirst 5 samples:")
-    print(cell_cond[:5])
+    print(cell_cond_np[:5])
     print(f"\nCell type distribution:")
     for i, cell_type in enumerate(dataset.cell_type):
-        count = np.sum(cell_cond[:, i])
-        print(f"  {cell_type}: {count} cells")
+        count = np.sum(cell_cond_np[:, i])
+        print(f"  {cell_type}: {int(count)} cells")
     
     print_separator("Treatment Condition (one-hot encoding)")
-    print(f"Shape: {treat_cond.shape}")
-    print(f"Data type: {treat_cond.dtype}")
+    print(f"Shape: {treat_cond_np.shape}")
+    print(f"Data type: {treat_cond_np.dtype}")
     print(f"Treatments: {dataset.treatment}")
     print(f"\nFirst 3 samples:")
-    print(treat_cond[:3])
-    treatment_idx = np.argmax(treat_cond[0])
+    print(treat_cond_np[:3])
+    treatment_idx = np.argmax(treat_cond_np[0])
     print(f"\nTreatment applied: {dataset.treatment[treatment_idx]}")
     
     print_separator("INDEXING SCHEME EXAMPLES")
@@ -116,15 +131,17 @@ def main():
     print_separator("SUMMARY")
     print(f"Total base samples: {len(dataset.samples)}")
     print(f"Total dataset size (pairs): {len(dataset)} = {len(dataset.samples)}^2")
+    print(f"Set size (subsampled): {dataset.set_size}")
     print(f"\nThis element (index 0):")
     print(f"  Source sample index: {source_idx}")
     print(f"  Target sample index: {target_idx}")
-    print(f"  Total cells in source (x0): {x0.shape[0]}")
-    print(f"  Total cells in target (x1): {x1.shape[0]}")
-    print(f"  Feature dimension: {x0.shape[1]}")
+    print(f"  Total cells in source (x0): {x0_np.shape[0]} (subsampled from original)")
+    print(f"  Total cells in target (x1): {x1_np.shape[0]} (subsampled from original)")
+    print(f"  Feature dimension: {x0_np.shape[1]}")
     print(f"  Patient: {patient}")
     print(f"  Culture type: {culture}")
     print(f"  Treatment: {dataset.treatment[treatment_idx]}")
+    print(f"  Returned as: {'torch.Tensor' if is_torch else 'numpy.ndarray'}")
     print()
 
 if __name__ == "__main__":

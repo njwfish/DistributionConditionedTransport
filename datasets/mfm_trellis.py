@@ -23,31 +23,33 @@ class trellis_dataset(Dataset):
         split_name='pdo21',
         set_size=32,
         seed=0,
+        **kwargs
     ):
+        
         
         assert split_name in ["replicas-1", "replicas-2", "pdo21", "pdo27", "pdo75"], "split not recognized"
         if split_name == "replicas-1":
-            self.split_source = (
+            split_source = (
                 "organoid_data_preprocessed/replica_holdout/replica_1_holdout/data_splits_replicas_1.pickle"
             )
             data_path = "organoid_data_preprocessed/replica_holdout/replica_1_holdout/trellis_replicas_1_normalized.npy"
         elif split_name == "replicas-2":
-            self.split_source = (
+            split_source = (
                 "organoid_data_preprocessed/replica_holdout/replica_2_holdout/data_splits_replicas_2.pickle"
             )
             data_path = "organoid_data_preprocessed/replica_holdout/replica_2_holdout/trellis_replicas_2_normalized.npy"
         elif split_name == "pdo21":
-            self.split_source = (
+            split_source = (
                 "organoid_data_preprocessed/patient_holdout/split_patient_test_pdo21.pickle"
             )
             data_path = "organoid_data_preprocessed/patient_holdout/trellis_patients_pdo21_normalized.npy"
         elif split_name == "pdo27":
-            self.split_source = (
+            split_source = (
                 "organoid_data_preprocessed/patient_holdout/split_patient_test_pdo27.pickle"
             )
             data_path = "organoid_data_preprocessed/patient_holdout/trellis_patients_pdo27_normalized.npy"
         elif split_name == "pdo75":
-            self.split_source = (
+            split_source = (
                 "organoid_data_preprocessed/patient_holdout/split_patient_test_pdo75.pickle"
             )
             data_path = "organoid_data_preprocessed/patient_holdout/trellis_patients_pdo75_normalized.npy"
@@ -55,9 +57,15 @@ class trellis_dataset(Dataset):
             raise ValueError("split not recognized")
 
 
-        with open(self.split_source, "rb") as handle:
+        if GlobalHydra.instance().is_initialized():
+            base_dir = hydra.utils.get_original_cwd()
+        else:
+            base_dir = os.getcwd()
+        split_path = os.path.join(base_dir, split_source)
+        with open(split_path, "rb") as handle:
             self.data_splits = pickle.load(handle)
             # from these split we will get the background cells
+        data_path = os.path.join(base_dir, data_path)
         self.data = np.load(data_path)[:, :-1]
 
         # TODO: for the replica splits (I don't think for the patient splits) there is also a val part of the split that we can use.
@@ -199,8 +207,8 @@ class trellis_dataset(Dataset):
         j = idx % n
         
         source_idx, target_idx = i, j
-        _, x0, _, _, _, _ = self.samples[source_idx]
-        culture, _, x1, cell_cond, treat_cond, patient = self.samples[target_idx]
+        culture, x0, _, cell_cond, treat_cond, patient = self.samples[source_idx]
+        _, _, x1, _, _, _ = self.samples[target_idx]
         
         source_samples = torch.tensor(x0, dtype=torch.float)
         target_samples = torch.tensor(x1, dtype=torch.float)
@@ -214,8 +222,8 @@ class trellis_dataset(Dataset):
         target_samples = target_samples[target_subset_indices]
         
         
-        treat_cond = treat_cond[target_subset_indices]
-        cell_cond = cell_cond[target_subset_indices]
+        treat_cond = treat_cond[source_subset_indices]
+        cell_cond = cell_cond[source_subset_indices]
 
 
         print("--------------------------------")

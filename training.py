@@ -295,7 +295,7 @@ class Trainer:
                 # Handle samples which can be either a tensor or a dictionary
                 batch_loss_start = time.time()
                 optimizer.zero_grad(set_to_none=True)
-                with autocast_context:
+                with contextlib.nullcontext():
                     loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 
                 # Standard backward and optimizer step per batch

@@ -3,6 +3,10 @@
 # Split name (define before use)
 split_name: "replicas-2"
 
+# Experiment name and description
+name: trellis_a2a_replicas-2
+description: "Trellis A2A replicas-2 experiment"
+
 # Override defaults from config.yaml
 defaults:
   - /dataset: trellis
@@ -10,22 +14,8 @@ defaults:
   - /model: noise_mlp
   - /generator: energy  # Use flow matching for coupled embeddings
   - /training: default
-  - /loss: predictor
-  - /predictor: default  # use unified predictor
+  - /loss: default
   - /sampling: default
-
-# predictor parameters
-use_predicted_latent: false
-predictor_loss_weight: 0
-
-train_predictor_posthoc: true
-
-predictor_model_type: "ridge"
-predictor_conditioning_mode: "concat"
-# TODO: need to condition on drug perturbation (and even cell type maybe)
-predictor_condition_type: null
-predictor_model_args:
-  ridge_alpha: 1e-3
 
 # sampling parameters
 num_samples: null

@@ -1,0 +1,5 @@
+# @package _global_.encoder
+_target_: encoder.encoders.EmbeddingEncoder
+in_dim: ${dataset.data_shape[0]}
+n_unique_sets: ${dataset.n_unique_sets}
+latent_dim: ${experiment.latent_dim}

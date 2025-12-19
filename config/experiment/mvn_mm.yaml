@@ -1,0 +1,21 @@
+# @package _global_.experiment
+
+# Experiment name and description
+name: mvn_coupled_exp
+description: "Multivariate normal distribution experiment with coupled distribution embeddings"
+
+# Override defaults from config.yaml
+defaults:
+  - /dataset: mvn
+  - /encoder: one_hot
+  - /model: multimarginal
+  - /generator: flow_matching
+  - /training: default
+  - /loss: multimarginal
+
+# Experiment-specific parameters
+latent_dim: 10
+hidden_dim: 64
+set_size: 100
+batch_size: 256
+lr: 2e-4 

@@ -32,22 +32,25 @@ class FlowMatchingGenerator(nn.Module):
     def __init__(
         self, 
         model, 
-        sigma_min=0.3
+        sigma=0.3
     ):
         """
         Flow Matching Generator for coupled distribution embeddings.
         
         Args:
             model: Neural network that predicts velocity field v_t(x_t, t, source_latent, target_latent)
-            sigma_min: Minimum noise level for numerical stability
+            sigma: Noise level for numerical stability
         """
         super().__init__()
         self.model = model
-        self.sigma_min = sigma_min
+        self.sigma = sigma
 
     def sample_time(self, batch_size, device):
         """Sample random times uniformly from [0, 1]"""
         return torch.rand(batch_size, device=device)
+
+    def compute_sigma_t(self, t):
+        return self.sigma
 
     def interpolant(self, source_samples, target_samples, t):
         """
@@ -65,15 +68,13 @@ class FlowMatchingGenerator(nn.Module):
         # Linear interpolation
         x_t = (1 - t) * source_samples + t * target_samples
         
-        # Add small amount of noise for numerical stability
-        if self.sigma_min > 0:
-            epsilon = torch.randn_like(x_t)
-            sigma_t = self.sigma_min * (1 - t)
-            x_t = x_t + sigma_t * epsilon
-            
+        epsilon = torch.randn_like(x_t)
+        sigma_t = self.compute_sigma_t(t)
+        x_t = x_t + sigma_t * epsilon
+        
         return x_t
 
-    def velocity_field(self, source_samples, target_samples, t):
+    def compute_conditional_flow(self, source_samples, target_samples, t):
         """
         Compute the target velocity field v_t = d/dt x_t
         For linear interpolant: v_t = x_1 - x_0 - sigma_min * epsilon (approximately)
@@ -141,7 +142,7 @@ class FlowMatchingGenerator(nn.Module):
         x_t = self.interpolant(source_samples, target_samples, t)
         
         # True velocity field
-        v_true = self.velocity_field(source_samples, target_samples, t)
+        v_true = self.compute_conditional_flow(source_samples, target_samples, t)
         
         # Predicted velocity field
         if target_latent is None:

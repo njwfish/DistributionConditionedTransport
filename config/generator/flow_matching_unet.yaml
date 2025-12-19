@@ -1,5 +1,5 @@
 # @package _global_.generator
 _target_: generator.flow_matching.FlowMatchingGenerator
 model: ${model}
-sigma_min: 1e-4
+sigma: 0.5
 

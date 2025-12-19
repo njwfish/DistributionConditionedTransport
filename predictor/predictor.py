@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import math
 
 class SimpleMLP(nn.Module):
     """Lightweight MLP defined locally to avoid external dependencies."""
@@ -25,7 +24,7 @@ class SimpleMLP(nn.Module):
 
 
 class Predictor(nn.Module):
-    """Unified predictor supporting optional conditioning with MLP or Ridge."""
+    """Unified predictor with MLP or Ridge."""
 
     def __init__(
         self,
@@ -66,19 +65,30 @@ class Predictor(nn.Module):
         return self.model(x)
 
     def loss(self, source_latent, target_latent, train_predictor_bool):
-        if train_predictor_bool:
-            pred_target_latent = self.forward(source_latent)
-            
-            if self.loss_type == "MSE":
-                loss = (pred_target_latent - target_latent).pow(2).mean()
-            elif self.loss_type == "cosine":
-                loss = (1 - self.similarity(pred_target_latent, target_latent)).mean()
-            else:
-                raise ValueError(f"Unknown loss_type: {self.loss_type}")
-            if self.model_type == "ridge":
-                loss += self.model_args.ridge_alpha * torch.sum(self.model.weight ** 2)
+        # Convert to tensor if needed
+        if not isinstance(train_predictor_bool, torch.Tensor):
+            train_predictor_bool = torch.tensor(train_predictor_bool, device=source_latent.device)
+        
+        # Check if any samples should train the predictor
+        if not train_predictor_bool.any():
+            return torch.tensor(0.0, device=source_latent.device)
+        
+        # Mask to only include samples where train_predictor_bool is True
+        mask = train_predictor_bool.bool()
+        source_masked = source_latent[mask]
+        target_masked = target_latent[mask]
+        
+        pred_target_latent = self.forward(source_masked)
+        
+        if self.loss_type == "MSE":
+            loss = (pred_target_latent - target_masked).pow(2).mean()
+        elif self.loss_type == "cosine":
+            loss = (1 - self.similarity(pred_target_latent, target_masked)).mean()
         else:
-            loss = 0
-            
+            raise ValueError(f"Unknown loss_type: {self.loss_type}")
+        
+        if self.model_type == "ridge":
+            loss += self.model_args.ridge_alpha * torch.sum(self.model.weight ** 2)
+        
         return loss
         

@@ -1,6 +1,5 @@
 import torch
-from utils.conditioning import get_train_predictor_bool
-    
+
 
 class PredictorLossManager:
     def __init__(self, use_predicted_latent=False, predictor_loss_weight=1.0, generator_source_only=False):
@@ -20,9 +19,10 @@ class PredictorLossManager:
             source_latent = encoder(source_samples)
             target_latent = encoder(target_samples)
 
-            # compute predictor loss and get predicted target latent
-            # Build conditioning tuple per predictor.condition_type
-            train_predictor_bools = batch.get("train_predictor_bool", False) #get_train_predictor_bool(batch, device)
+            # compute predictor loss
+            # NOTE: defaulting to false such that existing dataset classes simply won't cotrain accidentally.
+            train_predictor_bools = batch.get("train_predictor_bool", False)
+            
             predictor_loss = predictor.loss(
                 source_latent,
                 target_latent,
@@ -60,8 +60,8 @@ class PredictorLossManager:
             source_latent = encoder(source_samples)
             target_latent = encoder(target_samples)
 
-            # Build conditioning tuple per predictor.condition_type
-            train_predictor_bools = get_train_predictor_bool(batch, device)
+            # Get train_predictor_bool from batch (defaulting to False for backwards compatibility)
+            train_predictor_bools = batch.get("train_predictor_bool", False)
             predictor_loss = predictor.loss(
                 source_latent,
                 target_latent,

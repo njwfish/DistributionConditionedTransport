@@ -2,8 +2,7 @@ import torch
 
 
 class PredictorLossManager:
-    def __init__(self, use_predicted_latent=False, predictor_loss_weight=1.0, generator_source_only=False):
-        self.use_predicted_latent = use_predicted_latent
+    def __init__(self, predictor_loss_weight=1.0, generator_source_only=False):
         self.predictor_loss_weight = predictor_loss_weight
         self.generator_source_only = generator_source_only
         

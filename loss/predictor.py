@@ -1,5 +1,5 @@
 import torch
-from utils.conditioning import build_condition_tuple
+from utils.conditioning import get_train_predictor_bool
     
 
 class PredictorLossManager:
@@ -22,23 +22,21 @@ class PredictorLossManager:
 
             # compute predictor loss and get predicted target latent
             # Build conditioning tuple per predictor.condition_type
-            condition_scalars = build_condition_tuple(batch, device, getattr(predictor, 'condition_type', 'none'))
-            predictor_loss, pred_target_latent = predictor.loss(
+            train_predictor_bools = batch.get("train_predictor_bool", False) #get_train_predictor_bool(batch, device)
+            predictor_loss = predictor.loss(
                 source_latent,
                 target_latent,
-                condition_scalars,
+                train_predictor_bools,
             )
 
-            # compute generator loss
-            target_latent_for_generator = target_latent if not self.use_predicted_latent else pred_target_latent
             if self.generator_source_only:
-                target_latent_for_generator = None
+                target_latent = None
 
             recon_loss = generator.loss(
                 source_samples.view(-1, *source_samples.shape[2:]), 
                 target_samples.view(-1, *target_samples.shape[2:]),
                 source_latent, 
-                target_latent_for_generator
+                target_latent
             )
 
         else:
@@ -63,18 +61,17 @@ class PredictorLossManager:
             target_latent = encoder(target_samples)
 
             # Build conditioning tuple per predictor.condition_type
-            condition_scalars = build_condition_tuple(batch, device, getattr(predictor, 'condition_type', 'none'))
-            predictor_loss, pred_target_latent = predictor.loss(
+            train_predictor_bools = get_train_predictor_bool(batch, device)
+            predictor_loss = predictor.loss(
                 source_latent,
                 target_latent,
-                condition_scalars,
+                train_predictor_bools,
             )
 
-            target_latent_for_generator = target_latent if not self.use_predicted_latent else pred_target_latent
             if self.generator_source_only:
-                target_latent_for_generator = None
+                target_latent = None
 
-            recon_loss = generator.loss(source_samples, target_samples, source_latent, target_latent_for_generator)
+            recon_loss = generator.loss(source_samples, target_samples, source_latent, target_latent)
 
 
         loss += recon_loss

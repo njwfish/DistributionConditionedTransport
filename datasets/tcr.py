@@ -61,11 +61,42 @@ class TCRDataset(Dataset):
             # Add to data and metadata
             self.data.append(sequences)
             self.metadata.append((subject_id, timepoint))
+        
+        # Build next timepoint map for train_predictor_bool
+        self.next_timepoint_map = {}
+        
+        # Group timepoints by patient
+        patient_timepoints = {}
+        for subject_id, timepoint in self.metadata:
+            if subject_id not in patient_timepoints:
+                patient_timepoints[subject_id] = []
+            patient_timepoints[subject_id].append(timepoint)
+        
+        # For each patient, sort timepoints and create mapping
+        for subject_id, timepoints in patient_timepoints.items():
+            sorted_timepoints = sorted(timepoints)
+            self.next_timepoint_map[subject_id] = {}
+            for i in range(len(sorted_timepoints) - 1):
+                current_time = sorted_timepoints[i]
+                next_time = sorted_timepoints[i + 1]
+                self.next_timepoint_map[subject_id][current_time] = next_time
     
     
     
     def get_train_predictor_bool(self, source_metadata, target_metadata):
-        pass
+        source_subject, source_time = source_metadata
+        target_subject, target_time = target_metadata
+        
+        # Must be from the same patient
+        if source_subject != target_subject:
+            return False
+        
+        # Check if target is the next consecutive timepoint for this patient
+        if source_subject in self.next_timepoint_map:
+            expected_next_time = self.next_timepoint_map[source_subject].get(source_time)
+            return expected_next_time == target_time
+        
+        return False
                 
     def __len__(self):
         n = len(self.metadata)

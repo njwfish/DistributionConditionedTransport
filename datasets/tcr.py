@@ -64,9 +64,40 @@ class TCRDataset(Dataset):
     
     
     
-    def get_train_predictor_bool(self, source_idx, target_idx):
-        pass        
+    def get_train_predictor_bool(self, source_metadata, target_metadata):
+        pass
+                
     def __len__(self):
-        pass
+        n = len(self.metadata)
+        return n * (n - 1)
+    
+    # TODO: need to implement distance function in dataset class for Nic's ot coupling I think.
     def __getitem__(self, idx):
-        pass
+        n = self.data.shape[0]
+        i = idx // (n - 1)
+        j = idx % (n - 1)
+        if j >= i:
+            j += 1
+        source_idx, target_idx = i, j
+        
+        source_samples = self.data[source_idx]
+        target_samples = self.data[target_idx]
+        
+        source_metadata = self.metadata[source_idx]
+        target_metadata = self.metadata[target_idx]
+        
+        subset_indices = np.random.choice(source_samples.shape[0], size=self.set_size, replace=False)
+        
+        # TODO: hmmm, need to check again how to incoorporate this with Nic's ot, because this is not the right way.
+        source_samples = [source_samples[subset_idx] for subset_idx in subset_indices]
+        target_samples = [target_samples[subset_idx] for subset_idx in subset_indices]
+        
+        return {
+            'source_samples': source_samples,
+            'target_samples': target_samples,
+            'source_metadata': source_metadata,
+            'target_metadata': target_metadata,
+            'source_idx': source_idx,
+            'target_idx': target_idx,                
+            'train_predictor_bool': self.get_train_predictor_bool(source_idx, target_idx),
+        }

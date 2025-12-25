@@ -213,7 +213,7 @@ class TCRDataset(Dataset):
         return 1 - identity
           
     def __len__(self):
-        # NOTE: in practice this should be n = 69.
+        # in practice this should be n = 69.
         n = len(self.metadata)
         return n * (n - 1)
     

@@ -1,14 +1,10 @@
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-from typing import Optional, Tuple, List, Any
-from torchvision import datasets, transforms
-from torchvision.datasets import MNIST
-import scipy as sp
+from typing import Optional
 import os
 import hydra
 from hydra.core.global_hydra import GlobalHydra
-import ot
 import pandas as pd
 
 class TCRDataset(Dataset):

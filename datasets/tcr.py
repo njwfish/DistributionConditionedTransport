@@ -1,11 +1,11 @@
 import numpy as np
-import torch
 from torch.utils.data import Dataset
 from typing import Optional
 import os
 import hydra
 from hydra.core.global_hydra import GlobalHydra
 import pandas as pd
+from Bio import pairwise2
 
 class TCRDataset(Dataset):
     def __init__(
@@ -93,12 +93,29 @@ class TCRDataset(Dataset):
             return expected_next_time == target_time
         
         return False
-                
+    
+    # TODO: make sure this is still the correct way to do this if you return tokenized tensors instead of raw sequences.
+    def pairwise_distance(self, seq1, seq2):
+        """
+        Compute distance between two DNA sequences based on global alignment.
+        Uses Bio.pairwise2 for global alignment and returns 1 - identity.
+        
+        Args:
+            seq1: First DNA sequence (string of ACTG letters)
+            seq2: Second DNA sequence (string of ACTG letters)
+            
+        Returns:
+            Distance value between 0 and 1 (0 = identical, 1 = completely different)
+        """
+        score = pairwise2.align.globalxx(seq1, seq2, score_only=True)
+        length = max(len(seq1), len(seq2))
+        identity = score / length
+        return 1 - identity
+          
     def __len__(self):
         n = len(self.metadata)
         return n * (n - 1)
     
-    # TODO: need to implement distance function in dataset class for Nic's ot coupling I think.
     def __getitem__(self, idx):
         n = len(self.metadata)
         i = idx // (n - 1)
@@ -113,9 +130,8 @@ class TCRDataset(Dataset):
         source_metadata = self.metadata[source_idx]
         target_metadata = self.metadata[target_idx]
         
-        subset_indices = np.random.choice(source_samples.shape[0], size=self.set_size, replace=False)
+        subset_indices = np.random.choice(len(source_samples), size=self.set_size, replace=False)
         
-        # TODO: hmmm, need to check again how to incoorporate this with Nic's ot, because this is not the right way.
         source_samples = [source_samples[subset_idx] for subset_idx in subset_indices]
         target_samples = [target_samples[subset_idx] for subset_idx in subset_indices]
         

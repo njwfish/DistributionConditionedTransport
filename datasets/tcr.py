@@ -194,7 +194,7 @@ class TCRDataset(Dataset):
         
         return False
     
-    # NOTE: current getitem method returns dictionary, not tensor, so (if I'm not mistaken) incompatible with the OTCollate class.
+    # NOTE: current getitem method returns dictionary, not tensor, so this is (if I'm not mistaken) incompatible with the OTCollate class.
     def pairwise_distance(self, seq1, seq2):
         """
         Compute distance between two DNA sequences based on global alignment.

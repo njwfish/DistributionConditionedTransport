@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -t 01:00:00
-#SBATCH --gres=gpu:1
-#SBATCH --partition ou_bcs_normal
+#SBATCH --gres=gpu:h100:1
+#SBATCH --partition ou_bcs_high
 #SBATCH --mem 20GB
 #SBATCH -o logs/o
 #SBATCH -e logs/e

@@ -132,8 +132,7 @@ class TCRDataset(Dataset):
             Tokenized tensor and attention mask
         """
         # Truncate if necessary, but ensure we keep enough space for special tokens
-        # NOTE: removed the -2, such that the encoder inputs and hyena input ids will both never be truncated and padded more than necessary.
-        effective_max_length = self.max_seq_length #- 2  # -2 for [CLS] and [SEP]
+        effective_max_length = self.max_seq_length - 2  # -2 for [CLS] and [SEP]
         sequence = sequence[:effective_max_length].upper()
         
         # Tokenize with special tokens
@@ -179,8 +178,7 @@ class TCRDataset(Dataset):
             'hyena_attention_mask': hyena_attention_masks
         }
     
-    
-    
+    # NOTE: relevant for co-training updated that I (Paolo) need to push, ignore for now.
     def get_train_predictor_bool(self, source_metadata, target_metadata):
         source_subject, source_time = source_metadata
         target_subject, target_time = target_metadata
@@ -196,6 +194,7 @@ class TCRDataset(Dataset):
         
         return False
     
+    # NOTE: current getitem method returns dictionary, not tensor, so (if I'm not mistaken) incompatible with the OTCollate class.
     def pairwise_distance(self, seq1, seq2):
         """
         Compute distance between two DNA sequences based on global alignment.
@@ -232,10 +231,11 @@ class TCRDataset(Dataset):
         source_metadata = self.metadata[source_idx]
         target_metadata = self.metadata[target_idx]
         
-        subset_indices = np.random.choice(len(source_samples), size=self.set_size, replace=False)
+        source_subset_indices = np.random.choice(len(source_samples), size=self.set_size, replace=False)
+        target_subset_indices = np.random.choice(len(target_samples), size=self.set_size, replace=False)
         
-        source_sequences = [source_samples[subset_idx] for subset_idx in subset_indices]
-        target_sequences = [target_samples[subset_idx] for subset_idx in subset_indices]
+        source_sequences = [source_samples[subset_idx] for subset_idx in source_subset_indices]
+        target_sequences = [target_samples[subset_idx] for subset_idx in target_subset_indices]
         
         # Process sequences into encoder inputs and HyenaDNA tokens
         source_processed = self._process_sequences(source_sequences)
@@ -256,5 +256,5 @@ class TCRDataset(Dataset):
                 'raw_texts': target_sequences,
                 'target_metadata': target_metadata
             },              
-            'train_predictor_bool': self.get_train_predictor_bool(source_idx, target_idx),
+            'train_predictor_bool': self.get_train_predictor_bool(source_metadata, target_metadata),
         }

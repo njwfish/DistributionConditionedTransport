@@ -24,15 +24,11 @@ def main(cfg: DictConfig):
     # Create file handler for debug logging in base directory
     original_cwd = hydra.utils.get_original_cwd()
     
-    
-    start_time = time.time()
-
     # Compute config hash for reproducibility
     config_hash = hash_utils.hash_config(cfg)
     logger.info(f"Configuration hash: {config_hash}")
     
     # Check if we have already run this experiment
-    check_start = time.time()
     base_output_dir = os.path.join(original_cwd, "outputs")
     existing_dir = hash_utils.find_matching_output_dir(cfg, base_dir=base_output_dir)
     
@@ -61,7 +57,6 @@ def main(cfg: DictConfig):
 
 
         # Improved DataLoader with parallel workers and pinned memory
-        dataloader_start = time.time()
         num_workers = min(8, os.cpu_count())  # Reduced from 4 to 2 to avoid DataLoader warnings and reduce memory contention
 
         if hasattr(dataset, 'pairwise_distance'):
@@ -149,12 +144,10 @@ def main(cfg: DictConfig):
         
         # GPU Transfer Check
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        gpu_start = time.time()
         encoder = encoder.to(device)
         generator = generator.to(device)
         
         # Run training with the hash-based output directory
-        train_start = time.time()
         output_dir, stats = trainer.train(
             encoder=encoder,
             generator=generator,

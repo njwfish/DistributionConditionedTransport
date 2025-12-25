@@ -100,7 +100,7 @@ class TCRDataset(Dataset):
     
     # TODO: need to implement distance function in dataset class for Nic's ot coupling I think.
     def __getitem__(self, idx):
-        n = self.data.shape[0]
+        n = len(self.metadata)
         i = idx // (n - 1)
         j = idx % (n - 1)
         if j >= i:

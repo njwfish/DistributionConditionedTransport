@@ -94,7 +94,7 @@ class SnapMMDUnified(Dataset):
             
     
     def get_train_predictor_bool(self, source_idx, target_idx):
-        return np.isclose((target_idx - source_idx), 1)
+        return (target_idx - source_idx) == 1
         
     # TODO: make really really sure that you are not training on the test data.
     def __len__(self):

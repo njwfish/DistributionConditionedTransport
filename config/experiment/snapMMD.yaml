@@ -18,7 +18,6 @@ defaults:
 ot_coupling: false
 
 # predictor parameters
-use_predicted_latent: false
 predictor_loss_weight: 1
 
 train_predictor_posthoc: false

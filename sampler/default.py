@@ -34,11 +34,12 @@ class Sampler(WeightedRandomSampler):
         weights = torch.ones(len(self.dataset), dtype=torch.float)
                                       
         if self.selective_pairing_mode == "unidirectional":
-            # set all weights with d < 0 to 0
+            # only pair t and t+N with N > 0
             for idx in range(len(self.dataset)):
                 item = self.dataset[idx]
-                d = item['d']
-                if d < 0:
+                source_idx = item['source_idx']
+                target_idx = item['target_idx']
+                if target_idx < source_idx:
                     weights[idx] = 0.0
                     
         if self.selective_pairing_mode == "single_step":

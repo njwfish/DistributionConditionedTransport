@@ -7,6 +7,10 @@ This script:
 3. For each sample, encodes x0 and x1 from the same sample
 4. Generates x1_pred using the generator with x0 as source and the latent of x1
 5. Computes and prints W1, W2, MMD, and r2 metrics
+
+Optionally, with --use_predictor:
+- Trains a ridge regression predictor P on training data to map E(x0) -> E(x1)
+- Uses G(x0, E(x0), P(E(x0))) instead of G(x0, E(x0), E(x1))
 """
 
 import os
@@ -17,11 +21,12 @@ import numpy as np
 import torch
 import hydra
 from omegaconf import OmegaConf
-from typing import Optional
+from typing import Optional, List
 import ot as pot
 from functools import partial
 import pandas as pd
 from sklearn.metrics.pairwise import rbf_kernel
+from sklearn.linear_model import Ridge
 
 # ============================================================================
 # Metric Functions (from the provided script)
@@ -124,19 +129,123 @@ def compute_all_metrics(pred: torch.Tensor, target: torch.Tensor):
 
 
 # ============================================================================
+# Latent Caching and Predictor Training
+# ============================================================================
+
+def get_latent_cache_path(experiment_dir: str, split: str) -> str:
+    """Get the path for caching latents for a given split."""
+    return os.path.join(experiment_dir, f"{split}_latents_cache.pt")
+
+
+def compute_and_cache_latents(
+    encoder: torch.nn.Module,
+    dataset,
+    device: torch.device,
+    cache_path: str,
+    split_name: str = "dataset",
+) -> tuple:
+    """
+    Compute E(x0) and E(x1) for all samples in the dataset.
+    Caches results to disk for efficiency.
+    
+    Args:
+        encoder: Trained encoder
+        dataset: Dataset with samples
+        device: Device to run on
+        cache_path: Path to save/load cached latents
+        split_name: Name of split for logging
+        
+    Returns:
+        Tuple of (source_latents, target_latents) as numpy arrays [num_samples, latent_dim]
+    """
+    # Check if cache exists
+    if os.path.exists(cache_path):
+        print(f"Loading cached {split_name} latents from {cache_path}")
+        cache = torch.load(cache_path, map_location='cpu', weights_only=False)
+        return cache['source_latents'], cache['target_latents']
+    
+    print(f"Computing {split_name} latents for {len(dataset.samples)} samples...")
+    
+    source_latents = []
+    target_latents = []
+    
+    encoder.eval()
+    with torch.no_grad():
+        for i, sample in enumerate(dataset.samples):
+            culture, x0, x1, cell_cond, treat_cond, patient = sample
+            
+            # Convert to tensors and add batch dimension
+            x0_tensor = torch.tensor(x0, dtype=torch.float32, device=device).unsqueeze(0)
+            x1_tensor = torch.tensor(x1, dtype=torch.float32, device=device).unsqueeze(0)
+            
+            # Encode
+            source_latent = encoder(x0_tensor).cpu().numpy()  # [1, latent_dim]
+            target_latent = encoder(x1_tensor).cpu().numpy()  # [1, latent_dim]
+            
+            source_latents.append(source_latent)
+            target_latents.append(target_latent)
+            
+            if (i + 1) % 50 == 0:
+                print(f"  Processed {i + 1}/{len(dataset.samples)} samples")
+    
+    # Stack into arrays: [num_samples, latent_dim]
+    source_latents = np.vstack(source_latents)
+    target_latents = np.vstack(target_latents)
+    
+    # Cache to disk
+    print(f"Saving {split_name} latents to {cache_path}")
+    torch.save({
+        'source_latents': source_latents,
+        'target_latents': target_latents,
+    }, cache_path)
+    
+    return source_latents, target_latents
+
+
+def train_predictor(
+    source_latents: np.ndarray,
+    target_latents: np.ndarray,
+    alpha: float = 1.0,
+) -> Ridge:
+    """
+    Train a ridge regression predictor to map source latents to target latents.
+    
+    Args:
+        source_latents: [num_samples, latent_dim] source latent encodings E(x0)
+        target_latents: [num_samples, latent_dim] target latent encodings E(x1)
+        alpha: Ridge regularization strength
+        
+    Returns:
+        Trained Ridge regression model
+    """
+    print(f"Training ridge regression predictor (alpha={alpha})...")
+    print(f"  Training data shape: {source_latents.shape} -> {target_latents.shape}")
+    
+    predictor = Ridge(alpha=alpha)
+    predictor.fit(source_latents, target_latents)
+    
+    # Compute training R^2
+    train_r2 = predictor.score(source_latents, target_latents)
+    print(f"  Training R^2: {train_r2:.4f}")
+    
+    return predictor
+
+
+# ============================================================================
 # Main Evaluation Logic
 # ============================================================================
 
-def load_experiment(experiment_dir: str, device: torch.device):
+def load_experiment(experiment_dir: str, device: torch.device, load_train_dataset: bool = False):
     """
     Load the trained model, config, and instantiate the components.
     
     Args:
         experiment_dir: Path to the experiment directory containing best_model.pt and config.yaml
         device: Device to load the model onto
+        load_train_dataset: If True, also instantiate training dataset for predictor training
         
     Returns:
-        encoder, generator, dataset, config
+        encoder, generator, test_dataset, config, train_dataset (or None if not requested)
     """
     # Load config
     config_path = os.path.join(experiment_dir, "config.yaml")
@@ -158,12 +267,20 @@ def load_experiment(experiment_dir: str, device: torch.device):
     resolved_cfg = OmegaConf.to_container(cfg, resolve=True)
     resolved_cfg = OmegaConf.create(resolved_cfg)
     
+    # Instantiate training dataset if needed (keep split_mode="train")
+    train_dataset = None
+    if load_train_dataset:
+        train_cfg = OmegaConf.create(OmegaConf.to_container(resolved_cfg, resolve=True))
+        train_cfg.dataset.split_mode = "train"
+        train_dataset = hydra.utils.instantiate(train_cfg.dataset)
+        print(f"Instantiated training dataset with split_mode='train', {len(train_dataset.samples)} samples")
+    
     # Modify dataset config to use test split
     resolved_cfg.dataset.split_mode = "test"
     
-    # Instantiate dataset
-    dataset = hydra.utils.instantiate(resolved_cfg.dataset)
-    print(f"Instantiated dataset with split_mode='test', {len(dataset.samples)} samples")
+    # Instantiate test dataset
+    test_dataset = hydra.utils.instantiate(resolved_cfg.dataset)
+    print(f"Instantiated test dataset with split_mode='test', {len(test_dataset.samples)} samples")
     
     # Instantiate encoder
     encoder = hydra.utils.instantiate(resolved_cfg.encoder)
@@ -179,25 +296,30 @@ def load_experiment(experiment_dir: str, device: torch.device):
     generator.eval()
     print("Loaded generator")
     
-    return encoder, generator, dataset, cfg
+    return encoder, generator, test_dataset, cfg, train_dataset
 
 
 def evaluate_sample(
-    encoder: torch.nn.Module,
     generator: torch.nn.Module,
     x0: np.ndarray,
     x1: np.ndarray,
+    source_latent: np.ndarray,
+    target_latent: np.ndarray,
     device: torch.device,
+    predictor: Optional[Ridge] = None,
 ):
     """
-    Evaluate the model on a single sample.
+    Evaluate the model on a single sample using precomputed latents.
     
     Args:
-        encoder: Trained encoder
         generator: Trained generator
         x0: Source samples (numpy array of shape [N, dim])
         x1: Target samples (numpy array of shape [M, dim])
+        source_latent: Precomputed E(x0) [1, latent_dim]
+        target_latent: Precomputed E(x1) [1, latent_dim]
         device: Device to run on
+        predictor: Optional ridge regression predictor. If provided, uses P(E(x0)) 
+                   as target latent instead of E(x1)
         
     Returns:
         Dictionary with generated samples, model metrics, and baseline metrics
@@ -209,22 +331,25 @@ def evaluate_sample(
     # Compute baseline metrics: x0 vs x1_true (before any transport)
     baseline_metrics = compute_all_metrics(x0_tensor, x1_tensor)
     
+    # Convert latents to tensors
+    source_latent_tensor = torch.tensor(source_latent, dtype=torch.float32, device=device)
+    
+    # Get target latent: either from predictor or use precomputed
+    if predictor is not None:
+        # Use predictor: P(E(x0))
+        predicted_target_latent = predictor.predict(source_latent)
+        target_latent_tensor = torch.tensor(predicted_target_latent, dtype=torch.float32, device=device)
+    else:
+        # Use precomputed E(x1)
+        target_latent_tensor = torch.tensor(target_latent, dtype=torch.float32, device=device)
+    
     with torch.no_grad():
-        # Add batch dimension for encoding: [N, dim] -> [1, N, dim]
-        x0_batched = x0_tensor.unsqueeze(0)
-        x1_batched = x1_tensor.unsqueeze(0)
-        
-        # Encode x0 and x1 (full distributions)
-        source_latent = encoder(x0_batched)  # [1, latent_dim]
-        target_latent = encoder(x1_batched)  # [1, latent_dim]
-        
         # Generate x1_pred from x0 using target latent
-        # The generator expects source_samples of shape [batch_size, ...]
-        # and latents of shape [num_sets, latent_dim]
+        # G(x0, E(x0), target_latent) where target_latent is either E(x1) or P(E(x0))
         x1_pred = generator.sample(
-            x0_tensor,           # [N, dim] - source samples
-            source_latent,       # [1, latent_dim]
-            target_latent,       # [1, latent_dim]
+            x0_tensor,              # [N, dim] - source samples
+            source_latent_tensor,   # [1, latent_dim]
+            target_latent_tensor,   # [1, latent_dim]
         )
         
         # Reshape: generator returns [num_sets, num_samples, dim], we want [num_samples, dim]
@@ -254,32 +379,86 @@ def main():
         default="cuda" if torch.cuda.is_available() else "cpu",
         help="Device to run evaluation on"
     )
+    parser.add_argument(
+        "--use_predictor",
+        action="store_true",
+        help="Use ridge regression predictor P to predict target latent from source latent. "
+             "Uses G(x0, E(x0), P(E(x0))) instead of G(x0, E(x0), E(x1))"
+    )
+    parser.add_argument(
+        "--ridge_alpha",
+        type=float,
+        default=1.0,
+        help="Ridge regression regularization strength (default: 1.0)"
+    )
     args = parser.parse_args()
     
     device = torch.device(args.device)
     print(f"Using device: {device}")
     
-    # Load experiment
-    encoder, generator, dataset, cfg = load_experiment(args.experiment_dir, device)
+    # Load experiment (also load training dataset if using predictor)
+    encoder, generator, test_dataset, cfg, train_dataset = load_experiment(
+        args.experiment_dir, device, load_train_dataset=args.use_predictor
+    )
+    
+    # Compute and cache test latents
+    print("\n" + "=" * 80)
+    print("COMPUTING/LOADING LATENTS")
+    print("=" * 80)
+    
+    test_cache_path = get_latent_cache_path(args.experiment_dir, "test")
+    test_source_latents, test_target_latents = compute_and_cache_latents(
+        encoder, test_dataset, device, test_cache_path, split_name="test"
+    )
+    
+    # Train predictor if requested
+    predictor = None
+    if args.use_predictor:
+        print("\n" + "=" * 80)
+        print("TRAINING PREDICTOR")
+        print("=" * 80)
+        
+        # Compute and cache training latents
+        train_cache_path = get_latent_cache_path(args.experiment_dir, "train")
+        train_source_latents, train_target_latents = compute_and_cache_latents(
+            encoder, train_dataset, device, train_cache_path, split_name="train"
+        )
+        
+        # Train ridge regression predictor
+        predictor = train_predictor(train_source_latents, train_target_latents, alpha=args.ridge_alpha)
+        
+        print(f"\nUsing predictor: G(x0, E(x0), P(E(x0)))")
+    else:
+        print(f"\nUsing oracle target: G(x0, E(x0), E(x1))")
     
     # Evaluate each sample
     print("\n" + "=" * 80)
     print("EVALUATION RESULTS")
+    if args.use_predictor:
+        print("Mode: Using predictor P(E(x0)) as target latent")
+    else:
+        print("Mode: Using oracle E(x1) as target latent")
     print("=" * 80)
     
     # Track both model and baseline metrics
     all_model_metrics = {'W1': [], 'W2': [], 'MMD': [], 'r2': []}
     all_baseline_metrics = {'W1': [], 'W2': [], 'MMD': [], 'r2': []}
     
-    for i, sample in enumerate(dataset.samples):
+    for i, sample in enumerate(test_dataset.samples):
         culture, x0, x1, cell_cond, treat_cond, patient = sample
         
-        print(f"\nSample {i + 1}/{len(dataset.samples)}:")
+        # Get precomputed latents for this sample
+        source_latent = test_source_latents[i:i+1]  # [1, latent_dim]
+        target_latent = test_target_latents[i:i+1]  # [1, latent_dim]
+        
+        print(f"\nSample {i + 1}/{len(test_dataset.samples)}:")
         print(f"  Culture: {culture}, Patient: {patient}")
         print(f"  x0 shape: {x0.shape}, x1 shape: {x1.shape}")
         
         # Evaluate
-        results = evaluate_sample(encoder, generator, x0, x1, device)
+        results = evaluate_sample(
+            generator, x0, x1, source_latent, target_latent, device, predictor=predictor
+        )
         
         model = results['model']
         baseline = results['baseline']

@@ -21,11 +21,11 @@ class trellis_dataset(Dataset):
         culture=["PDO", "PDOF", "F"],
         cell_type=["PDOs", "Fibs"],
         split_name='pdo21',
+        split_mode="train",
         set_size=32,
         seed=0,
-        **kwargs
+        **kwargs,
     ):
-        
         
         assert split_name in ["replicas-1", "replicas-2", "pdo21", "pdo27", "pdo75"], "split not recognized"
         if split_name == "replicas-1":
@@ -69,7 +69,7 @@ class trellis_dataset(Dataset):
         self.data = np.load(data_path)[:, :-1]
 
         # TODO: for the replica splits (I don't think for the patient splits) there is also a val part of the split that we can use.
-        split=self.data_splits["train"]
+        split=self.data_splits[split_mode]
         
         self.set_size = set_size
         self.control = control  # identify x0

@@ -294,70 +294,62 @@ def plot_forecast(cfg, data, forecast):
 
     
 
+plws = []
+matching_dirs = []
+pairing_modes = []
 
-predictor_loss_weights = [1, 0.1, 0.01, 0.001, 0.0]
-selective_pairing_modes = [None, "single_step", "unidirectional"]
-
-for predictor_loss_weight in predictor_loss_weights:
-    for selective_pairing_mode in selective_pairing_modes:
-        try:
-            for ckpt_dir in os.listdir("outputs"):
-                if ckpt_dir.startswith("snapMMD_PB"):
-                    cfg_ref,_ = load_cfg_and_ckpt(ckpt_dir)
-                    #print(cfg_ref)
-                    if cfg_ref['experiment']['predictor_loss_weight'] == predictor_loss_weight and cfg_ref['experiment']['selective_pairing_mode'] == selective_pairing_mode:
-                        #print(ckpt_dir)
-                        ckpt_dir_ref = ckpt_dir
-                        break
-
-        except Exception as e:
-            print(f"Error loading config: {e}")
-            continue
-            
-        
-        #print(cfg_ref['experiment']['predictor_loss_weight'])
-        #print(cfg_ref['experiment']['selective_pairing_mode'])
-
-        matching_dirs = find_matching_ckpt_dirs(ckpt_dir_ref)
-
+for ckpt_dir in os.listdir("outputs"):
+    if ckpt_dir.startswith("snapMMD_PBMC_"):
+        cfg_ref,_ = load_cfg_and_ckpt(ckpt_dir)
         #print(cfg_ref)
-
-        plot_seed = 0
-        all_mmd = []
-        all_emd = []
-        use_predictor = True
-        predictor_source = "posthoc"
-        two_step = True
-        print(f"Predictor loss weight: {predictor_loss_weight}, Selective pairing mode: {selective_pairing_mode}")
-
-        for j, ckpt_dir in enumerate(matching_dirs):
-            cfg, ckpt_path = load_cfg_and_ckpt(ckpt_dir)
-            encoder, generator = load_models(cfg, ckpt_path)
-            data = np.load(DATASET_CONFIGS[cfg.dataset_name]['data_path'])
-
-            if use_predictor and predictor_source == "posthoc":
-                #predictor = get_ridge(encoder, data, num_sets=20, set_size=32, alpha = 1, device=device)
-                predictor = get_ridge(encoder, data, num_sets=5, set_size=32, device=device, alpha = 0.001, seed=42, two_step=two_step)
+        if True:#cfg_ref['experiment']['predictor_loss_weight']:
+            #print(ckpt_dir)
+            matching_dirs.append(ckpt_dir)
+            plws.append(cfg_ref['experiment']['predictor_loss_weight'])
+            pairing_modes.append(cfg_ref['experiment']['selective_pairing_mode'])
             
-            elif use_predictor and predictor_source == "cotrained":
-                pass
-                
-            else:
-                predictor = None
+#print(cfg_ref['experiment']['predictor_loss_weight'])
+#print(cfg_ref['experiment']['selective_pairing_mode'])
 
-            forecast = generate_cde_forecast(cfg, data, encoder, generator, predictor = predictor, two_step=two_step)
-            mmd, emd = compute_scores(cfg, data, forecast)
-            print(mmd, emd)
-            all_mmd.append(mmd)
-            all_emd.append(emd)
-            if j == plot_seed:
-                print(forecast.shape, type(forecast), forecast.device)
-                plot_forecast(cfg, data, forecast)
+#matching_dirs = find_matching_ckpt_dirs(ckpt_dir_ref)
 
-        all_mmd = np.array(all_mmd)
-        all_emd = np.array(all_emd)
+#print(cfg_ref)
 
-        print("MMD: ", np.mean(all_mmd), np.std(all_mmd))
-        print("EMD: ", np.mean(all_emd), np.std(all_emd))
-                
+plot_seed = 0
+all_mmd = []
+all_emd = []
+use_predictor = True
+predictor_source = "posthoc"
+two_step = True
+
+for j, ckpt_dir in enumerate(matching_dirs):
+    cfg, ckpt_path = load_cfg_and_ckpt(ckpt_dir)
+    encoder, generator = load_models(cfg, ckpt_path)
+    data = np.load(DATASET_CONFIGS[cfg.dataset_name]['data_path'])
+
+    if use_predictor and predictor_source == "posthoc":
+        #predictor = get_ridge(encoder, data, num_sets=20, set_size=32, alpha = 1, device=device)
+        predictor = get_ridge(encoder, data, num_sets=5, set_size=32, device=device, alpha = 0.001, seed=42, two_step=two_step)
+    
+    elif use_predictor and predictor_source == "cotrained":
+        pass
+        
+    else:
+        predictor = None
+
+    forecast = generate_cde_forecast(cfg, data, encoder, generator, predictor = predictor, two_step=two_step)
+    mmd, emd = compute_scores(cfg, data, forecast)
+    print(mmd, emd, plws[j], pairing_modes[j])
+    all_mmd.append(mmd)
+    all_emd.append(emd)
+    #if j == plot_seed:
+    #    print(forecast.shape, type(forecast), forecast.device)
+    #    plot_forecast(cfg, data, forecast)
+
+all_mmd = np.array(all_mmd)
+all_emd = np.array(all_emd)
+
+print("MMD: ", np.mean(all_mmd), np.std(all_mmd))
+print("EMD: ", np.mean(all_emd), np.std(all_emd))
+        
 

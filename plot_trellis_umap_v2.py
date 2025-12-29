@@ -29,7 +29,7 @@ SPLIT_NAME = 'pdo21'  # Options: "replicas-1", "replicas-2", "pdo21", "pdo27", "
 NUM_SAMPLES = 5  # Number of samples (sets) to use for UMAP
 PATIENT_MODE = "any"  # Options: "same" (all from one patient), "different" (all from different patients), "any" (random)
 PATIENT_ID = None  # If PATIENT_MODE="same", optionally specify which patient (e.g., "21"), or None for random
-MAX_CELLS_PLOT = 1000  # Maximum cells to plot per source/target (for visualization only, UMAP uses all data)
+MAX_CELLS_PLOT = 1000000  # Maximum cells to plot per source/target (for visualization only, UMAP uses all data)
 CONTROL = set(["DMSO", "AH", "H2O"])
 TREATMENT = ["O", "S", "VS", "L", "V", "F", "C", "SF", "CS", "CF", "CSF"]
 CELL_TYPE = ["PDOs", "Fibs"]
@@ -55,7 +55,7 @@ all_patients = list(set(s[5] for s in samples))
 print(f"Unique patients: {all_patients}")
 
 # Select samples based on PATIENT_MODE
-np.random.seed(42)
+np.random.seed(40)
 
 if PATIENT_MODE == "same":
     # All samples from the same patient

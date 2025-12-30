@@ -85,6 +85,9 @@ class trellis_dataset(Dataset):
         self.construct_data()
         end = time.time()
 
+    # TODO: make sure that there is no weird behavior here.
+    def get_train_predictor_bool(self, source_idx, target_idx):
+        return (target_idx == source_idx)
 
     def construct_data(self):
         self.samples_tmp, self.culture, self.x0, self.x1, self.cell_cond, self.treat_cond, self.patients = self.select_experiments()
@@ -224,7 +227,6 @@ class trellis_dataset(Dataset):
         treat_cond = treat_cond[source_subset_indices]
         cell_cond = cell_cond[source_subset_indices]
 
-
         #print("--------------------------------")
         #print(type(x0), type(x1), type(cell_cond), type(treat_cond), type(patient), type(culture), type(idx))
         #
@@ -245,5 +247,6 @@ class trellis_dataset(Dataset):
             'patient': patient,
             'culture': culture,
             'source_idx': source_idx,
-            'target_idx': target_idx  
+            'target_idx': target_idx,
+            'train_predictor_bool': self.get_train_predictor_bool(source_idx, target_idx)  
             }

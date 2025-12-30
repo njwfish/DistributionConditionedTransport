@@ -9,7 +9,8 @@ This script:
 5. Computes and prints W1, W2, MMD, and r2 metrics
 
 Optionally, with --use_predictor:
-- Trains a ridge regression predictor P on training data to map E(x0) -> E(x1)
+- Trains a predictor P on training data to map E(x0) -> E(x1)
+- Predictor type can be "ridge" (default) or "mlp"
 - Uses G(x0, E(x0), P(E(x0))) instead of G(x0, E(x0), E(x1))
 """
 
@@ -19,14 +20,49 @@ import argparse
 import math
 import numpy as np
 import torch
+import torch.nn as nn
 import hydra
 from omegaconf import OmegaConf
-from typing import Optional, List
+from typing import Optional, List, Union
 import ot as pot
 from functools import partial
 import pandas as pd
 from sklearn.metrics.pairwise import rbf_kernel
 from sklearn.linear_model import Ridge
+
+
+# ============================================================================
+# MLP Predictor
+# ============================================================================
+
+class MLPPredictor(nn.Module):
+    """MLP predictor to map source latents to target latents."""
+    
+    def __init__(self, latent_dim: int, hidden_dim: int = 128, num_layers: int = 2):
+        super().__init__()
+        
+        layers = []
+        in_dim = latent_dim
+        
+        for i in range(num_layers):
+            layers.append(nn.Linear(in_dim, hidden_dim))
+            layers.append(nn.ReLU())
+            in_dim = hidden_dim
+        
+        layers.append(nn.Linear(hidden_dim, latent_dim))
+        
+        self.network = nn.Sequential(*layers)
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.network(x)
+    
+    def predict(self, x: np.ndarray) -> np.ndarray:
+        """Sklearn-compatible predict method for numpy arrays."""
+        self.eval()
+        with torch.no_grad():
+            x_tensor = torch.tensor(x, dtype=torch.float32, device=next(self.parameters()).device)
+            output = self.forward(x_tensor)
+            return output.cpu().numpy()
 
 # ============================================================================
 # Metric Functions (from the provided script)
@@ -202,7 +238,7 @@ def compute_and_cache_latents(
     return source_latents, target_latents
 
 
-def train_predictor(
+def train_ridge_predictor(
     source_latents: np.ndarray,
     target_latents: np.ndarray,
     alpha: float = 1.0,
@@ -227,6 +263,101 @@ def train_predictor(
     # Compute training R^2
     train_r2 = predictor.score(source_latents, target_latents)
     print(f"  Training R^2: {train_r2:.4f}")
+    
+    return predictor
+
+
+def train_mlp_predictor(
+    source_latents: np.ndarray,
+    target_latents: np.ndarray,
+    device: torch.device,
+    hidden_dim: int = 128,
+    num_layers: int = 2,
+    lr: float = 1e-3,
+    num_epochs: int = 1000,
+    batch_size: int = 32,
+) -> MLPPredictor:
+    """
+    Train an MLP predictor to map source latents to target latents.
+    
+    Args:
+        source_latents: [num_samples, latent_dim] source latent encodings E(x0)
+        target_latents: [num_samples, latent_dim] target latent encodings E(x1)
+        device: Device to train on
+        hidden_dim: Hidden dimension of MLP
+        num_layers: Number of hidden layers
+        lr: Learning rate
+        num_epochs: Number of training epochs
+        batch_size: Batch size for training
+        
+    Returns:
+        Trained MLPPredictor model
+    """
+    latent_dim = source_latents.shape[1]
+    num_samples = source_latents.shape[0]
+    
+    print(f"Training MLP predictor...")
+    print(f"  Training data shape: {source_latents.shape} -> {target_latents.shape}")
+    print(f"  Architecture: {latent_dim} -> {num_layers}x{hidden_dim} -> {latent_dim}")
+    print(f"  lr={lr}, epochs={num_epochs}, batch_size={batch_size}")
+    
+    # Create model
+    predictor = MLPPredictor(latent_dim, hidden_dim, num_layers).to(device)
+    
+    # Convert data to tensors
+    source_tensor = torch.tensor(source_latents, dtype=torch.float32, device=device)
+    target_tensor = torch.tensor(target_latents, dtype=torch.float32, device=device)
+    
+    # Create optimizer and loss
+    optimizer = torch.optim.Adam(predictor.parameters(), lr=lr)
+    criterion = nn.MSELoss()
+    
+    # Training loop
+    predictor.train()
+    best_loss = float('inf')
+    
+    for epoch in range(num_epochs):
+        # Shuffle data
+        perm = torch.randperm(num_samples)
+        source_shuffled = source_tensor[perm]
+        target_shuffled = target_tensor[perm]
+        
+        epoch_loss = 0.0
+        num_batches = 0
+        
+        for i in range(0, num_samples, batch_size):
+            batch_source = source_shuffled[i:i+batch_size]
+            batch_target = target_shuffled[i:i+batch_size]
+            
+            optimizer.zero_grad()
+            pred = predictor(batch_source)
+            loss = criterion(pred, batch_target)
+            loss.backward()
+            optimizer.step()
+            
+            epoch_loss += loss.item()
+            num_batches += 1
+        
+        avg_loss = epoch_loss / num_batches
+        
+        if avg_loss < best_loss:
+            best_loss = avg_loss
+        
+        if (epoch + 1) % 100 == 0 or epoch == 0:
+            print(f"  Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.6f}")
+    
+    # Compute final training metrics
+    predictor.eval()
+    with torch.no_grad():
+        pred = predictor(source_tensor)
+        final_loss = criterion(pred, target_tensor).item()
+        
+        # Compute R^2-like metric
+        ss_res = ((pred - target_tensor) ** 2).sum().item()
+        ss_tot = ((target_tensor - target_tensor.mean(dim=0)) ** 2).sum().item()
+        r2 = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+    
+    print(f"  Final MSE: {final_loss:.6f}, R^2: {r2:.4f}")
     
     return predictor
 
@@ -306,7 +437,7 @@ def evaluate_sample(
     source_latent: np.ndarray,
     target_latent: np.ndarray,
     device: torch.device,
-    predictor: Optional[Ridge] = None,
+    predictor: Optional[Union[Ridge, MLPPredictor]] = None,
 ):
     """
     Evaluate the model on a single sample using precomputed latents.
@@ -318,7 +449,7 @@ def evaluate_sample(
         source_latent: Precomputed E(x0) [1, latent_dim]
         target_latent: Precomputed E(x1) [1, latent_dim]
         device: Device to run on
-        predictor: Optional ridge regression predictor. If provided, uses P(E(x0)) 
+        predictor: Optional predictor (Ridge or MLPPredictor). If provided, uses P(E(x0)) 
                    as target latent instead of E(x1)
         
     Returns:
@@ -336,7 +467,7 @@ def evaluate_sample(
     
     # Get target latent: either from predictor or use precomputed
     if predictor is not None:
-        # Use predictor: P(E(x0))
+        # Use predictor: P(E(x0)) - both Ridge and MLPPredictor have .predict() method
         predicted_target_latent = predictor.predict(source_latent)
         target_latent_tensor = torch.tensor(predicted_target_latent, dtype=torch.float32, device=device)
     else:
@@ -382,14 +513,53 @@ def main():
     parser.add_argument(
         "--use_predictor",
         action="store_true",
-        help="Use ridge regression predictor P to predict target latent from source latent. "
+        help="Use a predictor P to predict target latent from source latent. "
              "Uses G(x0, E(x0), P(E(x0))) instead of G(x0, E(x0), E(x1))"
     )
+    parser.add_argument(
+        "--predictor_type",
+        type=str,
+        choices=["ridge", "mlp"],
+        default="ridge",
+        help="Type of predictor to use: 'ridge' for ridge regression, 'mlp' for neural network (default: ridge)"
+    )
+    # Ridge-specific arguments
     parser.add_argument(
         "--ridge_alpha",
         type=float,
         default=1.0,
         help="Ridge regression regularization strength (default: 1.0)"
+    )
+    # MLP-specific arguments
+    parser.add_argument(
+        "--mlp_hidden_dim",
+        type=int,
+        default=128,
+        help="Hidden dimension for MLP predictor (default: 128)"
+    )
+    parser.add_argument(
+        "--mlp_num_layers",
+        type=int,
+        default=2,
+        help="Number of hidden layers for MLP predictor (default: 2)"
+    )
+    parser.add_argument(
+        "--mlp_lr",
+        type=float,
+        default=1e-3,
+        help="Learning rate for MLP predictor (default: 1e-3)"
+    )
+    parser.add_argument(
+        "--mlp_epochs",
+        type=int,
+        default=1000,
+        help="Number of training epochs for MLP predictor (default: 1000)"
+    )
+    parser.add_argument(
+        "--mlp_batch_size",
+        type=int,
+        default=32,
+        help="Batch size for MLP predictor training (default: 32)"
     )
     args = parser.parse_args()
     
@@ -415,7 +585,7 @@ def main():
     predictor = None
     if args.use_predictor:
         print("\n" + "=" * 80)
-        print("TRAINING PREDICTOR")
+        print(f"TRAINING PREDICTOR ({args.predictor_type.upper()})")
         print("=" * 80)
         
         # Compute and cache training latents
@@ -424,10 +594,26 @@ def main():
             encoder, train_dataset, device, train_cache_path, split_name="train"
         )
         
-        # Train ridge regression predictor
-        predictor = train_predictor(train_source_latents, train_target_latents, alpha=args.ridge_alpha)
+        # Train predictor based on type
+        if args.predictor_type == "ridge":
+            predictor = train_ridge_predictor(
+                train_source_latents, 
+                train_target_latents, 
+                alpha=args.ridge_alpha
+            )
+        elif args.predictor_type == "mlp":
+            predictor = train_mlp_predictor(
+                train_source_latents,
+                train_target_latents,
+                device=device,
+                hidden_dim=args.mlp_hidden_dim,
+                num_layers=args.mlp_num_layers,
+                lr=args.mlp_lr,
+                num_epochs=args.mlp_epochs,
+                batch_size=args.mlp_batch_size,
+            )
         
-        print(f"\nUsing predictor: G(x0, E(x0), P(E(x0)))")
+        print(f"\nUsing {args.predictor_type} predictor: G(x0, E(x0), P(E(x0)))")
     else:
         print(f"\nUsing oracle target: G(x0, E(x0), E(x1))")
     
@@ -435,7 +621,7 @@ def main():
     print("\n" + "=" * 80)
     print("EVALUATION RESULTS")
     if args.use_predictor:
-        print("Mode: Using predictor P(E(x0)) as target latent")
+        print(f"Mode: Using {args.predictor_type.upper()} predictor P(E(x0)) as target latent")
     else:
         print("Mode: Using oracle E(x1) as target latent")
     print("=" * 80)

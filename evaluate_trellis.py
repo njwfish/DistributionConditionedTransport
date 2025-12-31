@@ -496,13 +496,102 @@ def evaluate_sample(
     }
 
 
+def find_experiment_dir(split_name: str, predictor_loss_weight: float, outputs_dir: str = "outputs") -> str:
+    """
+    Search through directories in outputs_dir to find the experiment matching
+    the given split_name and predictor_loss_weight.
+    
+    Args:
+        split_name: The split name (e.g., 'replicas-1', 'pdo21')
+        predictor_loss_weight: The predictor loss weight (e.g., 1, 0.1, 0.01, 0.0)
+        outputs_dir: Directory containing experiment outputs
+        
+    Returns:
+        Path to the matching experiment directory
+        
+    Raises:
+        ValueError: If no matching directory is found or multiple matches exist
+    """
+    if not os.path.exists(outputs_dir):
+        raise ValueError(f"Outputs directory not found: {outputs_dir}")
+    
+    print(f"Searching for experiment with split_name={split_name}, predictor_loss_weight={predictor_loss_weight}")
+    print(f"Looking in: {outputs_dir}")
+    
+    matching_dirs = []
+    
+    # Iterate through all subdirectories
+    for dirname in os.listdir(outputs_dir):
+        dir_path = os.path.join(outputs_dir, dirname)
+        
+        # Skip if not a directory
+        if not os.path.isdir(dir_path):
+            continue
+        
+        # Check if config.yaml exists
+        config_path = os.path.join(dir_path, "config.yaml")
+        if not os.path.exists(config_path):
+            continue
+        
+        # Load and check config
+        try:
+            cfg = OmegaConf.load(config_path)
+            
+            # Check if split_name matches
+            cfg_split_name = cfg.get("experiment", {}).get("split_name")
+            cfg_weight = cfg.get("experiment", {}).get("predictor_loss_weight")
+            
+            # Match split_name and predictor_loss_weight
+            if cfg_split_name == split_name and cfg_weight is not None:
+                # Compare weights with tolerance for floating point
+                if abs(float(cfg_weight) - float(predictor_loss_weight)) < 1e-6:
+                    matching_dirs.append(dir_path)
+                    print(f"  Found match: {dirname}")
+        except Exception as e:
+            # Skip directories with invalid configs
+            continue
+    
+    if len(matching_dirs) == 0:
+        raise ValueError(
+            f"No experiment found with split_name={split_name}, predictor_loss_weight={predictor_loss_weight}"
+        )
+    
+    if len(matching_dirs) > 1:
+        print(f"Warning: Multiple matching directories found, using the first one:")
+        for d in matching_dirs:
+            print(f"  - {d}")
+    
+    return matching_dirs[0]
+
+
 def main():
     parser = argparse.ArgumentParser(description="Evaluate trained Trellis model")
     parser.add_argument(
         "--experiment_dir",
         type=str,
-        required=True,
-        help="Path to the experiment directory (e.g., outputs/trellis_a2a_replicas-2_xxx)"
+        default=None,
+        help="Path to the experiment directory (e.g., outputs/trellis_a2a_replicas-2_xxx). "
+             "If not provided, will search based on --split_name and --predictor_loss_weight"
+    )
+    parser.add_argument(
+        "--split_name",
+        type=str,
+        default=None,
+        help="Split name to search for (e.g., 'replicas-1', 'pdo21'). "
+             "Required if --experiment_dir is not provided."
+    )
+    parser.add_argument(
+        "--predictor_loss_weight",
+        type=float,
+        default=None,
+        help="Predictor loss weight to search for (e.g., 1, 0.1, 0.01, 0.0). "
+             "Required if --experiment_dir is not provided."
+    )
+    parser.add_argument(
+        "--outputs_dir",
+        type=str,
+        default="outputs",
+        help="Directory containing experiment outputs (default: outputs)"
     )
     parser.add_argument(
         "--device",
@@ -562,6 +651,19 @@ def main():
         help="Batch size for MLP predictor training (default: 32)"
     )
     args = parser.parse_args()
+    
+    # Determine experiment directory
+    if args.experiment_dir is None:
+        if args.split_name is None or args.predictor_loss_weight is None:
+            parser.error("Must provide either --experiment_dir or both --split_name and --predictor_loss_weight")
+        
+        args.experiment_dir = find_experiment_dir(
+            args.split_name, 
+            args.predictor_loss_weight,
+            args.outputs_dir
+        )
+    
+    print(f"\nUsing experiment directory: {args.experiment_dir}")
     
     device = torch.device(args.device)
     print(f"Using device: {device}")

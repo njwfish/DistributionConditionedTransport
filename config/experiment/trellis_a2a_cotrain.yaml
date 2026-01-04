@@ -1,0 +1,41 @@
+# @package _global_.experiment
+
+# Split name (define before use)
+split_name: "replicas-2"
+
+# Experiment name and description
+name: trellis_a2a
+description: "Trellis A2A experiment"
+
+defaults:
+  - /dataset: trellis
+  - /encoder: gnn
+  - /model: diffusion_mlp
+  - /generator: flow_matching
+  - /training: default5000
+  - /loss: predictor
+  - /predictor: default
+  - /sampling: default
+
+ot_coupling: false
+
+# predictor parameters
+predictor_loss_weight: 0.1
+train_predictor_posthoc: false
+
+predictor_model_type: "mlp"
+predictor_model_args:
+  hidden_dim: 128
+  num_layers: 2
+
+# sampling parameters
+num_samples: 100
+exponential_weight_scale: 1.44  # approx ln(2)
+selective_pairing_mode: null
+
+# Experiment-specific parameters
+latent_dim: 32
+hidden_dim: 128
+set_size: 16
+batch_size: 4
+lr: 2e-4

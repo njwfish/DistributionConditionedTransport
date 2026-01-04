@@ -26,7 +26,6 @@ class Trainer:
         use_tqdm=True,
         mask_context_prob=0.0,
         sub_epoch=None,
-        gradient_accumulation_steps=1,
     ):
         """
         Initialize the trainer.
@@ -53,7 +52,6 @@ class Trainer:
         self.patience = patience
         self.use_tqdm = use_tqdm
         self.mask_context_prob = mask_context_prob
-        self.gradient_accumulation_steps = gradient_accumulation_steps
         
         self.logger = logging.getLogger(__name__)
         self.best_loss = float('inf')

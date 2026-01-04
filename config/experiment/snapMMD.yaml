@@ -29,7 +29,6 @@ predictor_model_args:
 
 # sampling parameters
 num_samples: null
-exponential_weight_scale: 1.44  # approx ln(2)
 selective_pairing_mode: null
 
 # Experiment-specific parameters

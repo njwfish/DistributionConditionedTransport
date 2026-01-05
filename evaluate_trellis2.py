@@ -6,7 +6,7 @@ This script:
 2. Loads the config and instantiates the dataset with split_mode="test"
 3. For each sample, encodes x0 and x1 from the same sample
 4. Generates x1_pred using the generator with x0 as source and the latent of x1
-5. Computes and prints W1, W2, MMD, and r2 metrics
+5. Computes and prints W1, W2, MMD, and r2 metrics (or W1 only with --w1_only)
 
 Optionally, with --use_predictor:
 - Trains a predictor P on training data to map E(x0) -> E(x1)
@@ -16,6 +16,7 @@ Optionally, with --use_predictor:
 Optimization flags:
 - --num_ode_steps: Number of ODE integration steps for flow matching (default: 50)
 - --compile: Use torch.compile() for PyTorch 2.0+ (experimental)
+- --w1_only: Only compute W1 metric (skip W2, MMD, r2 for faster evaluation)
 """
 
 import os
@@ -290,21 +291,26 @@ def cellot_corr(pred, ground_truth):
     return r2_pairwise_feat_corrs
 
 
-def compute_all_metrics(pred: torch.Tensor, target: torch.Tensor):
+def compute_all_metrics(pred: torch.Tensor, target: torch.Tensor, w1_only: bool = False):
     """
-    Compute all metrics between two distributions.
+    Compute metrics between two distributions.
     
     Args:
         pred: Predicted/source samples [N, dim] (torch tensor)
         target: Target samples [M, dim] (torch tensor)
+        w1_only: If True, only compute W1 (much faster)
         
     Returns:
-        Dictionary with W1, W2, MMD, and r2
+        Dictionary with metrics (W1 only, or W1, W2, MMD, and r2)
     """
     # Apply subsampling if configured
     pred_sub, target_sub = subsample_if_needed(pred, target)
     
     w1 = wasserstein(pred_sub, target_sub, power=1)
+    
+    if w1_only:
+        return {'W1': w1}
+    
     w2 = wasserstein(pred_sub, target_sub, power=2)
     mmd = compute_scalar_mmd(target_sub.cpu().numpy(), pred_sub.cpu().numpy())
     r2 = cellot_corr(pred.cpu().numpy(), target.cpu().numpy())  # Use full data for correlation
@@ -617,6 +623,7 @@ def evaluate_sample(
     verbose: bool = False,
     num_ode_steps: int = 100,
     compute_baseline: bool = True,
+    w1_only: bool = False,
 ):
     """
     Evaluate the model on a single sample using precomputed latents.
@@ -633,6 +640,7 @@ def evaluate_sample(
         verbose: If True, print timing information
         num_ode_steps: Number of ODE integration steps (default: 100, try 50 for faster inference)
         compute_baseline: If True, compute baseline metrics (x0 vs x1_true)
+        w1_only: If True, only compute W1 metric (much faster)
         
     Returns:
         Dictionary with generated samples, model metrics, baseline metrics (or None), and timings
@@ -646,7 +654,7 @@ def evaluate_sample(
     # Compute baseline metrics: x0 vs x1_true (before any transport)
     if compute_baseline:
         baseline_start = time.time()
-        baseline_metrics = compute_all_metrics(x0_tensor, x1_tensor)
+        baseline_metrics = compute_all_metrics(x0_tensor, x1_tensor, w1_only=w1_only)
         timings['baseline_metrics'] = time.time() - baseline_start
     else:
         baseline_metrics = None
@@ -685,7 +693,7 @@ def evaluate_sample(
     
     # Compute model metrics: x1_pred vs x1_true
     metrics_start = time.time()
-    model_metrics = compute_all_metrics(x1_pred, x1_tensor)
+    model_metrics = compute_all_metrics(x1_pred, x1_tensor, w1_only=w1_only)
     timings['model_metrics'] = time.time() - metrics_start
     
     if verbose:
@@ -950,6 +958,11 @@ def main():
         action="store_true",
         help="Skip computing baseline metrics (x0 vs x1_true). Saves time if only model metrics are needed."
     )
+    parser.add_argument(
+        "--w1_only",
+        action="store_true",
+        help="Only compute W1 metric (skip W2, MMD, r2). Much faster for quick evaluations."
+    )
     
     # === FAST METRIC COMPUTATION ARGUMENTS ===
     parser.add_argument(
@@ -1096,13 +1109,22 @@ def main():
         print("Mode: Using oracle E(x1) as target latent")
     if args.skip_baseline:
         print("Baseline comparison: SKIPPED")
+    if args.w1_only:
+        print("Metrics: W1 ONLY (fast mode)")
     print("=" * 80)
     
     compute_baseline = not args.skip_baseline
+    w1_only = args.w1_only
     
     # Track both model and baseline metrics
-    all_model_metrics = {'W1': [], 'W2': [], 'MMD': [], 'r2': []}
-    all_baseline_metrics = {'W1': [], 'W2': [], 'MMD': [], 'r2': []} if compute_baseline else None
+    if w1_only:
+        all_model_metrics = {'W1': []}
+        all_baseline_metrics = {'W1': []} if compute_baseline else None
+        metric_names = ['W1']
+    else:
+        all_model_metrics = {'W1': [], 'W2': [], 'MMD': [], 'r2': []}
+        all_baseline_metrics = {'W1': [], 'W2': [], 'MMD': [], 'r2': []} if compute_baseline else None
+        metric_names = ['W1', 'W2', 'MMD', 'r2']
     
     # Track timings across samples
     all_timings = {'baseline_metrics': [], 'predictor': [], 'generation': [], 'model_metrics': []}
@@ -1128,7 +1150,8 @@ def main():
             generator, x0, x1, source_latent, target_latent, device, 
             predictor=predictor, verbose=True,
             num_ode_steps=args.num_ode_steps,
-            compute_baseline=compute_baseline
+            compute_baseline=compute_baseline,
+            w1_only=w1_only
         )
         
         model = results['model']
@@ -1138,17 +1161,13 @@ def main():
         if compute_baseline:
             print(f"  {'Metric':<6} {'Model (pred vs true)':>20} {'Baseline (x0 vs true)':>22}")
             print(f"  {'-'*6} {'-'*20} {'-'*22}")
-            print(f"  {'W1':<6} {model['W1']:>20.6f} {baseline['W1']:>22.6f}")
-            print(f"  {'W2':<6} {model['W2']:>20.6f} {baseline['W2']:>22.6f}")
-            print(f"  {'MMD':<6} {model['MMD']:>20.6f} {baseline['MMD']:>22.6f}")
-            print(f"  {'r2':<6} {model['r2']:>20.6f} {baseline['r2']:>22.6f}")
+            for metric_name in metric_names:
+                print(f"  {metric_name:<6} {model[metric_name]:>20.6f} {baseline[metric_name]:>22.6f}")
         else:
             print(f"  {'Metric':<6} {'Model (pred vs true)':>20}")
             print(f"  {'-'*6} {'-'*20}")
-            print(f"  {'W1':<6} {model['W1']:>20.6f}")
-            print(f"  {'W2':<6} {model['W2']:>20.6f}")
-            print(f"  {'MMD':<6} {model['MMD']:>20.6f}")
-            print(f"  {'r2':<6} {model['r2']:>20.6f}")
+            for metric_name in metric_names:
+                print(f"  {metric_name:<6} {model[metric_name]:>20.6f}")
         
         sample_elapsed = time.time() - sample_start
         print(f"  [TIME] Total sample time: {sample_elapsed:.3f}s")
@@ -1186,7 +1205,7 @@ def main():
     print("METRIC SUMMARY STATISTICS")
     print("=" * 80)
     
-    for metric_name in ['W1', 'W2', 'MMD', 'r2']:
+    for metric_name in metric_names:
         model_values = np.array(all_model_metrics[metric_name])
         
         print(f"\n{metric_name}:")
@@ -1215,7 +1234,7 @@ def main():
         print(f"{'Metric':<6} {'Model (pred vs true)':>25} {'Baseline (x0 vs true)':>25}")
         print(f"{'-'*6} {'-'*25} {'-'*25}")
         
-        for metric_name in ['W1', 'W2', 'MMD', 'r2']:
+        for metric_name in metric_names:
             model_mean = np.mean(all_model_metrics[metric_name])
             model_std = np.std(all_model_metrics[metric_name])
             baseline_mean = np.mean(all_baseline_metrics[metric_name])
@@ -1228,7 +1247,7 @@ def main():
         print(f"{'Metric':<6} {'Model (pred vs true)':>25}")
         print(f"{'-'*6} {'-'*25}")
         
-        for metric_name in ['W1', 'W2', 'MMD', 'r2']:
+        for metric_name in metric_names:
             model_mean = np.mean(all_model_metrics[metric_name])
             model_std = np.std(all_model_metrics[metric_name])
             

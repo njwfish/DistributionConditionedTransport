@@ -140,28 +140,33 @@ def cellot_corr(pred, ground_truth):
     return r2_pairwise_feat_corrs
 
 
-def compute_all_metrics(pred: torch.Tensor, target: torch.Tensor):
+def compute_all_metrics(pred: torch.Tensor, target: torch.Tensor, wasserstein_only: bool = False):
     """
     Compute all metrics between two distributions.
     
     Args:
         pred: Predicted/source samples [N, dim] (torch tensor)
         target: Target samples [M, dim] (torch tensor)
+        wasserstein_only: If True, only compute W1 and W2 (skip MMD and r2)
         
     Returns:
-        Dictionary with W1, W2, MMD, and r2
+        Dictionary with W1, W2, and optionally MMD and r2
     """
     w1 = wasserstein(pred, target, power=1)
-    w2 = wasserstein(pred, target, power=2)
-    mmd = compute_scalar_mmd(target.cpu().numpy(), pred.cpu().numpy())
-    r2 = cellot_corr(pred.cpu().numpy(), target.cpu().numpy())
+    w2 = 0.0 #wasserstein(pred, target, power=2)
     
-    return {
+    result = {
         'W1': w1,
         'W2': w2,
-        'MMD': mmd,
-        'r2': r2,
     }
+    
+    if not wasserstein_only:
+        mmd = compute_scalar_mmd(target.cpu().numpy(), pred.cpu().numpy())
+        r2 = cellot_corr(pred.cpu().numpy(), target.cpu().numpy())
+        result['MMD'] = mmd
+        result['r2'] = r2
+    
+    return result
 
 
 # ============================================================================
@@ -194,11 +199,11 @@ def compute_and_cache_latents(
     Returns:
         Tuple of (source_latents, target_latents) as numpy arrays [num_samples, latent_dim]
     """
-    # Check if cache exists
-    if os.path.exists(cache_path):
-        print(f"Loading cached {split_name} latents from {cache_path}")
-        cache = torch.load(cache_path, map_location='cpu', weights_only=False)
-        return cache['source_latents'], cache['target_latents']
+    ## Check if cache exists
+    #if os.path.exists(cache_path):
+    #    print(f"Loading cached {split_name} latents from {cache_path}")
+    #    cache = torch.load(cache_path, map_location='cpu', weights_only=False)
+    #    return cache['source_latents'], cache['target_latents']
     
     print(f"Computing {split_name} latents for {len(dataset.samples)} samples...")
     
@@ -438,6 +443,8 @@ def evaluate_sample(
     target_latent: np.ndarray,
     device: torch.device,
     predictor: Optional[Union[Ridge, MLPPredictor]] = None,
+    compute_baseline: bool = False,
+    wasserstein_only: bool = False,
 ):
     """
     Evaluate the model on a single sample using precomputed latents.
@@ -451,16 +458,20 @@ def evaluate_sample(
         device: Device to run on
         predictor: Optional predictor (Ridge or MLPPredictor). If provided, uses P(E(x0)) 
                    as target latent instead of E(x1)
+        compute_baseline: If True, compute baseline metrics (x0 vs x1)
+        wasserstein_only: If True, only compute W1 and W2 (skip MMD and r2)
         
     Returns:
-        Dictionary with generated samples, model metrics, and baseline metrics
+        Dictionary with generated samples, model metrics, and optionally baseline metrics
     """
     # Convert to tensors
     x0_tensor = torch.tensor(x0, dtype=torch.float32, device=device)
     x1_tensor = torch.tensor(x1, dtype=torch.float32, device=device)
     
-    # Compute baseline metrics: x0 vs x1_true (before any transport)
-    baseline_metrics = compute_all_metrics(x0_tensor, x1_tensor)
+    # Compute baseline metrics: x0 vs x1_true (before any transport), if requested
+    baseline_metrics = None
+    if compute_baseline:
+        baseline_metrics = compute_all_metrics(x0_tensor, x1_tensor, wasserstein_only=wasserstein_only)
     
     # Convert latents to tensors
     source_latent_tensor = torch.tensor(source_latent, dtype=torch.float32, device=device)
@@ -487,24 +498,39 @@ def evaluate_sample(
         x1_pred = x1_pred.squeeze(0)  # [N, dim]
     
     # Compute model metrics: x1_pred vs x1_true
-    model_metrics = compute_all_metrics(x1_pred, x1_tensor)
+    model_metrics = compute_all_metrics(x1_pred, x1_tensor, wasserstein_only=wasserstein_only)
     
-    return {
+    result = {
         'x1_pred': x1_pred.cpu().numpy(),
         'model': model_metrics,
-        'baseline': baseline_metrics,
     }
+    
+    if compute_baseline:
+        result['baseline'] = baseline_metrics
+    
+    return result
 
 
-def find_experiment_dir(split_name: str, predictor_loss_weight: float, outputs_dir: str = "outputs") -> str:
+def find_experiment_dir(
+    outputs_dir: str = "outputs",
+    split_name: Optional[str] = None,
+    predictor_loss_weight: Optional[float] = None,
+    seed: Optional[int] = None,
+    selective_pairing_mode: Optional[str] = None,
+    experiment_name: Optional[str] = None,
+) -> str:
     """
     Search through directories in outputs_dir to find the experiment matching
-    the given split_name and predictor_loss_weight.
+    the given filter criteria. Only filters that are explicitly provided (not None)
+    are used for matching.
     
     Args:
+        outputs_dir: Directory containing experiment outputs
         split_name: The split name (e.g., 'replicas-1', 'pdo21')
         predictor_loss_weight: The predictor loss weight (e.g., 1, 0.1, 0.01, 0.0)
-        outputs_dir: Directory containing experiment outputs
+        seed: The random seed used for training
+        selective_pairing_mode: The selective pairing mode (experiment.selective_pairing_mode)
+        experiment_name: The experiment name (experiment.name)
         
     Returns:
         Path to the matching experiment directory
@@ -515,7 +541,23 @@ def find_experiment_dir(split_name: str, predictor_loss_weight: float, outputs_d
     if not os.path.exists(outputs_dir):
         raise ValueError(f"Outputs directory not found: {outputs_dir}")
     
-    print(f"Searching for experiment with split_name={split_name}, predictor_loss_weight={predictor_loss_weight}")
+    # Build filter description for logging
+    filters = []
+    if split_name is not None:
+        filters.append(f"split_name={split_name}")
+    if predictor_loss_weight is not None:
+        filters.append(f"predictor_loss_weight={predictor_loss_weight}")
+    if seed is not None:
+        filters.append(f"seed={seed}")
+    if selective_pairing_mode is not None:
+        filters.append(f"selective_pairing_mode={selective_pairing_mode}")
+    if experiment_name is not None:
+        filters.append(f"experiment_name={experiment_name}")
+    
+    if not filters:
+        raise ValueError("At least one filter criterion must be provided when --experiment_dir is not specified")
+    
+    print(f"Searching for experiment with: {', '.join(filters)}")
     print(f"Looking in: {outputs_dir}")
     
     matching_dirs = []
@@ -537,23 +579,49 @@ def find_experiment_dir(split_name: str, predictor_loss_weight: float, outputs_d
         try:
             cfg = OmegaConf.load(config_path)
             
-            # Check if split_name matches
-            cfg_split_name = cfg.get("experiment", {}).get("split_name")
-            cfg_weight = cfg.get("experiment", {}).get("predictor_loss_weight")
+            match = True
             
-            # Match split_name and predictor_loss_weight
-            if cfg_split_name == split_name and cfg_weight is not None:
-                # Compare weights with tolerance for floating point
-                if abs(float(cfg_weight) - float(predictor_loss_weight)) < 1e-6:
-                    matching_dirs.append(dir_path)
-                    print(f"  Found match: {dirname}")
+            # Check split_name if provided
+            if split_name is not None:
+                cfg_split_name = cfg.get("experiment", {}).get("split_name")
+                if cfg_split_name != split_name:
+                    match = False
+            
+            # Check predictor_loss_weight if provided
+            if predictor_loss_weight is not None and match:
+                cfg_weight = cfg.get("experiment", {}).get("predictor_loss_weight")
+                if cfg_weight is None or abs(float(cfg_weight) - float(predictor_loss_weight)) >= 1e-6:
+                    match = False
+            
+            # Check seed if provided
+            if seed is not None and match:
+                cfg_seed = cfg.get("seed")
+                if cfg_seed is None or int(cfg_seed) != int(seed):
+                    match = False
+            
+            # Check selective_pairing_mode if provided
+            if selective_pairing_mode is not None and match:
+                cfg_pairing_mode = cfg.get("experiment", {}).get("selective_pairing_mode")
+                if cfg_pairing_mode != selective_pairing_mode:
+                    match = False
+            
+            # Check experiment_name if provided
+            if experiment_name is not None and match:
+                cfg_exp_name = cfg.get("experiment", {}).get("name")
+                if cfg_exp_name != experiment_name:
+                    match = False
+            
+            if match:
+                matching_dirs.append(dir_path)
+                print(f"  Found match: {dirname}")
+                    
         except Exception as e:
             # Skip directories with invalid configs
             continue
     
     if len(matching_dirs) == 0:
         raise ValueError(
-            f"No experiment found with split_name={split_name}, predictor_loss_weight={predictor_loss_weight}"
+            f"No experiment found matching: {', '.join(filters)}"
         )
     
     if len(matching_dirs) > 1:
@@ -578,20 +646,52 @@ def main():
         type=str,
         default=None,
         help="Split name to search for (e.g., 'replicas-1', 'pdo21'). "
-             "Required if --experiment_dir is not provided."
+             "Only used if provided."
     )
     parser.add_argument(
         "--predictor_loss_weight",
         type=float,
         default=None,
         help="Predictor loss weight to search for (e.g., 1, 0.1, 0.01, 0.0). "
-             "Required if --experiment_dir is not provided."
+             "Only used if provided."
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed to search for. Only used if provided."
+    )
+    parser.add_argument(
+        "--selective_pairing_mode",
+        type=str,
+        default=None,
+        help="Selective pairing mode to search for (experiment.selective_pairing_mode). "
+             "Only used if provided."
+    )
+    parser.add_argument(
+        "--experiment_name",
+        type=str,
+        default=None,
+        help="Experiment name to search for (experiment.name). "
+             "Only used if provided."
     )
     parser.add_argument(
         "--outputs_dir",
         type=str,
         default="outputs",
         help="Directory containing experiment outputs (default: outputs)"
+    )
+    parser.add_argument(
+        "--compute_baseline",
+        action="store_true",
+        help="If set, compute and print baseline metrics (x0 vs x1). "
+             "By default, baseline is not computed."
+    )
+    parser.add_argument(
+        "--wasserstein_only",
+        action="store_true",
+        help="If set, only compute W1 and W2 scores (skip R2 and MMD). "
+             "Useful for faster evaluation."
     )
     parser.add_argument(
         "--device",
@@ -654,13 +754,25 @@ def main():
     
     # Determine experiment directory
     if args.experiment_dir is None:
-        if args.split_name is None or args.predictor_loss_weight is None:
-            parser.error("Must provide either --experiment_dir or both --split_name and --predictor_loss_weight")
+        # Check that at least one filter is provided
+        has_filter = any([
+            args.split_name is not None,
+            args.predictor_loss_weight is not None,
+            args.seed is not None,
+            args.selective_pairing_mode is not None,
+            args.experiment_name is not None,
+        ])
+        if not has_filter:
+            parser.error("Must provide either --experiment_dir or at least one filter criterion "
+                        "(--split_name, --predictor_loss_weight, --seed, --selective_pairing_mode, --experiment_name)")
         
         args.experiment_dir = find_experiment_dir(
-            args.split_name, 
-            args.predictor_loss_weight,
-            args.outputs_dir
+            outputs_dir=args.outputs_dir,
+            split_name=args.split_name, 
+            predictor_loss_weight=args.predictor_loss_weight,
+            seed=args.seed,
+            selective_pairing_mode=args.selective_pairing_mode,
+            experiment_name=args.experiment_name,
         )
     
     print(f"\nUsing experiment directory: {args.experiment_dir}")
@@ -726,11 +838,21 @@ def main():
         print(f"Mode: Using {args.predictor_type.upper()} predictor P(E(x0)) as target latent")
     else:
         print("Mode: Using oracle E(x1) as target latent")
+    if args.wasserstein_only:
+        print("Computing: W1, W2 only (skipping MMD and r2)")
+    if args.compute_baseline:
+        print("Computing baseline: x0 vs x1")
     print("=" * 80)
     
-    # Track both model and baseline metrics
-    all_model_metrics = {'W1': [], 'W2': [], 'MMD': [], 'r2': []}
-    all_baseline_metrics = {'W1': [], 'W2': [], 'MMD': [], 'r2': []}
+    # Determine which metrics to track
+    if args.wasserstein_only:
+        metric_names = ['W1', 'W2']
+    else:
+        metric_names = ['W1', 'W2', 'MMD', 'r2']
+    
+    # Track model and optionally baseline metrics
+    all_model_metrics = {name: [] for name in metric_names}
+    all_baseline_metrics = {name: [] for name in metric_names} if args.compute_baseline else None
     
     for i, sample in enumerate(test_dataset.samples):
         culture, x0, x1, cell_cond, treat_cond, patient = sample
@@ -745,57 +867,86 @@ def main():
         
         # Evaluate
         results = evaluate_sample(
-            generator, x0, x1, source_latent, target_latent, device, predictor=predictor
+            generator, x0, x1, source_latent, target_latent, device, 
+            predictor=predictor,
+            compute_baseline=args.compute_baseline,
+            wasserstein_only=args.wasserstein_only,
         )
         
         model = results['model']
-        baseline = results['baseline']
         
-        print(f"  {'Metric':<6} {'Model (pred vs true)':>20} {'Baseline (x0 vs true)':>22}")
-        print(f"  {'-'*6} {'-'*20} {'-'*22}")
-        print(f"  {'W1':<6} {model['W1']:>20.6f} {baseline['W1']:>22.6f}")
-        print(f"  {'W2':<6} {model['W2']:>20.6f} {baseline['W2']:>22.6f}")
-        print(f"  {'MMD':<6} {model['MMD']:>20.6f} {baseline['MMD']:>22.6f}")
-        print(f"  {'r2':<6} {model['r2']:>20.6f} {baseline['r2']:>22.6f}")
+        # Print results based on flags
+        if args.compute_baseline:
+            baseline = results['baseline']
+            print(f"  {'Metric':<6} {'Model (pred vs true)':>20} {'Baseline (x0 vs true)':>22}")
+            print(f"  {'-'*6} {'-'*20} {'-'*22}")
+            for metric_name in metric_names:
+                print(f"  {metric_name:<6} {model[metric_name]:>20.6f} {baseline[metric_name]:>22.6f}")
+        else:
+            print(f"  {'Metric':<6} {'Model (pred vs true)':>20}")
+            print(f"  {'-'*6} {'-'*20}")
+            for metric_name in metric_names:
+                print(f"  {metric_name:<6} {model[metric_name]:>20.6f}")
         
         # Collect metrics
-        for key in all_model_metrics:
+        for key in metric_names:
             all_model_metrics[key].append(model[key])
-            all_baseline_metrics[key].append(baseline[key])
+            if args.compute_baseline:
+                all_baseline_metrics[key].append(results['baseline'][key])
     
     # Print summary
     print("\n" + "=" * 80)
     print("SUMMARY STATISTICS")
     print("=" * 80)
     
-    for metric_name in ['W1', 'W2', 'MMD', 'r2']:
+    for metric_name in metric_names:
         model_values = np.array(all_model_metrics[metric_name])
-        baseline_values = np.array(all_baseline_metrics[metric_name])
         
         print(f"\n{metric_name}:")
-        print(f"  {'':15} {'Model':>15} {'Baseline':>15}")
-        print(f"  {'Mean':15} {np.mean(model_values):>15.6f} {np.mean(baseline_values):>15.6f}")
-        print(f"  {'Std':15} {np.std(model_values):>15.6f} {np.std(baseline_values):>15.6f}")
-        print(f"  {'Median':15} {np.median(model_values):>15.6f} {np.median(baseline_values):>15.6f}")
-        print(f"  {'Min':15} {np.min(model_values):>15.6f} {np.min(baseline_values):>15.6f}")
-        print(f"  {'Max':15} {np.max(model_values):>15.6f} {np.max(baseline_values):>15.6f}")
+        if args.compute_baseline:
+            baseline_values = np.array(all_baseline_metrics[metric_name])
+            print(f"  {'':15} {'Model':>15} {'Baseline':>15}")
+            print(f"  {'Mean':15} {np.mean(model_values):>15.6f} {np.mean(baseline_values):>15.6f}")
+            print(f"  {'Std':15} {np.std(model_values):>15.6f} {np.std(baseline_values):>15.6f}")
+            print(f"  {'Median':15} {np.median(model_values):>15.6f} {np.median(baseline_values):>15.6f}")
+            print(f"  {'Min':15} {np.min(model_values):>15.6f} {np.min(baseline_values):>15.6f}")
+            print(f"  {'Max':15} {np.max(model_values):>15.6f} {np.max(baseline_values):>15.6f}")
+        else:
+            print(f"  {'':15} {'Model':>15}")
+            print(f"  {'Mean':15} {np.mean(model_values):>15.6f}")
+            print(f"  {'Std':15} {np.std(model_values):>15.6f}")
+            print(f"  {'Median':15} {np.median(model_values):>15.6f}")
+            print(f"  {'Min':15} {np.min(model_values):>15.6f}")
+            print(f"  {'Max':15} {np.max(model_values):>15.6f}")
     
     # Print final summary table
     print("\n" + "=" * 80)
     print("FINAL RESULTS (mean ± std)")
     print("=" * 80)
-    print(f"{'Metric':<6} {'Model (pred vs true)':>25} {'Baseline (x0 vs true)':>25}")
-    print(f"{'-'*6} {'-'*25} {'-'*25}")
     
-    for metric_name in ['W1', 'W2', 'MMD', 'r2']:
-        model_mean = np.mean(all_model_metrics[metric_name])
-        model_std = np.std(all_model_metrics[metric_name])
-        baseline_mean = np.mean(all_baseline_metrics[metric_name])
-        baseline_std = np.std(all_baseline_metrics[metric_name])
+    if args.compute_baseline:
+        print(f"{'Metric':<6} {'Model (pred vs true)':>25} {'Baseline (x0 vs true)':>25}")
+        print(f"{'-'*6} {'-'*25} {'-'*25}")
         
-        model_str = f"{model_mean:.4f} ± {model_std:.4f}"
-        baseline_str = f"{baseline_mean:.4f} ± {baseline_std:.4f}"
-        print(f"{metric_name:<6} {model_str:>25} {baseline_str:>25}")
+        for metric_name in metric_names:
+            model_mean = np.mean(all_model_metrics[metric_name])
+            model_std = np.std(all_model_metrics[metric_name])
+            baseline_mean = np.mean(all_baseline_metrics[metric_name])
+            baseline_std = np.std(all_baseline_metrics[metric_name])
+            
+            model_str = f"{model_mean:.4f} ± {model_std:.4f}"
+            baseline_str = f"{baseline_mean:.4f} ± {baseline_std:.4f}"
+            print(f"{metric_name:<6} {model_str:>25} {baseline_str:>25}")
+    else:
+        print(f"{'Metric':<6} {'Model (pred vs true)':>25}")
+        print(f"{'-'*6} {'-'*25}")
+        
+        for metric_name in metric_names:
+            model_mean = np.mean(all_model_metrics[metric_name])
+            model_std = np.std(all_model_metrics[metric_name])
+            
+            model_str = f"{model_mean:.4f} ± {model_std:.4f}"
+            print(f"{metric_name:<6} {model_str:>25}")
 
 
 if __name__ == "__main__":

@@ -196,10 +196,10 @@ def compute_and_cache_latents(
     device: torch.device,
     cache_path: str,
     split_name: str = "dataset",
-    batch_size: int = 8,
 ) -> tuple:
     """
-    Compute E(x0) and E(x1) for all samples in the dataset using BATCHED encoding.
+    Compute E(x0) and E(x1) for all samples in the dataset.
+    Processes samples sequentially since they have variable sizes.
     Caches results to disk for efficiency.
     
     Args:
@@ -208,7 +208,6 @@ def compute_and_cache_latents(
         device: Device to run on
         cache_path: Path to save/load cached latents
         split_name: Name of split for logging
-        batch_size: Number of samples to encode in parallel (default: 8)
         
     Returns:
         Tuple of (source_latents, target_latents) as numpy arrays [num_samples, latent_dim]
@@ -222,48 +221,32 @@ def compute_and_cache_latents(
         print_elapsed_time(step_start, f"Loading {split_name} latents from cache")
         return cache['source_latents'], cache['target_latents']
     
-    print(f"Computing {split_name} latents for {len(dataset.samples)} samples (batch_size={batch_size})...")
+    print(f"Computing {split_name} latents for {len(dataset.samples)} samples...")
     compute_start = time.time()
-    
-    # Pre-extract all x0 and x1 arrays from samples
-    all_x0 = []
-    all_x1 = []
-    for sample in dataset.samples:
-        culture, x0, x1, cell_cond, treat_cond, patient = sample
-        all_x0.append(x0)
-        all_x1.append(x1)
     
     source_latents = []
     target_latents = []
     
     encoder.eval()
-    num_samples = len(all_x0)
+    num_samples = len(dataset.samples)
     
-    # Process in batches
     with torch.no_grad():
-        for batch_start in range(0, num_samples, batch_size):
-            batch_end = min(batch_start + batch_size, num_samples)
+        for i, sample in enumerate(dataset.samples):
+            culture, x0, x1, cell_cond, treat_cond, patient = sample
             
-            # Stack batch of x0 and x1 tensors
-            x0_batch = torch.stack([
-                torch.tensor(all_x0[i], dtype=torch.float32) 
-                for i in range(batch_start, batch_end)
-            ]).to(device)
+            # Convert to tensors and add batch dimension
+            x0_tensor = torch.tensor(x0, dtype=torch.float32, device=device).unsqueeze(0)
+            x1_tensor = torch.tensor(x1, dtype=torch.float32, device=device).unsqueeze(0)
             
-            x1_batch = torch.stack([
-                torch.tensor(all_x1[i], dtype=torch.float32)
-                for i in range(batch_start, batch_end)
-            ]).to(device)
+            # Encode
+            source_latent = encoder(x0_tensor).cpu().numpy()  # [1, latent_dim]
+            target_latent = encoder(x1_tensor).cpu().numpy()  # [1, latent_dim]
             
-            # Encode batch
-            source_batch = encoder(x0_batch)
-            target_batch = encoder(x1_batch)
+            source_latents.append(source_latent)
+            target_latents.append(target_latent)
             
-            source_latents.append(source_batch.cpu().numpy())
-            target_latents.append(target_batch.cpu().numpy())
-            
-            if (batch_end) % 50 == 0 or batch_end == num_samples:
-                print(f"  Encoded {batch_end}/{num_samples} samples")
+            if (i + 1) % 50 == 0 or (i + 1) == num_samples:
+                print(f"  Encoded {i + 1}/{num_samples} samples")
     
     print_elapsed_time(compute_start, f"Computing {split_name} encodings")
     
@@ -709,15 +692,25 @@ def evaluate_batch(
     return results
 
 
-def find_experiment_dir(split_name: str, predictor_loss_weight: float, outputs_dir: str = "outputs") -> str:
+def find_experiment_dir(
+    split_name: str, 
+    outputs_dir: str = "outputs",
+    predictor_loss_weight: Optional[float] = None,
+    seed: Optional[int] = None,
+    experiment_name: Optional[str] = None,
+    selective_pairing_mode: Optional[str] = None,
+) -> str:
     """
     Search through directories in outputs_dir to find the experiment matching
-    the given split_name and predictor_loss_weight.
+    the given criteria. Only filters by optional parameters if they are provided.
     
     Args:
-        split_name: The split name (e.g., 'replicas-1', 'pdo21')
-        predictor_loss_weight: The predictor loss weight (e.g., 1, 0.1, 0.01, 0.0)
+        split_name: The split name (e.g., 'replicas-1', 'pdo21') - required
         outputs_dir: Directory containing experiment outputs
+        predictor_loss_weight: The predictor loss weight (e.g., 1, 0.1, 0.01, 0.0) - optional
+        seed: The random seed used in the experiment - optional
+        experiment_name: The experiment name (e.g., 'trellis', 'trellis_mfm') - optional
+        selective_pairing_mode: The selective pairing mode (e.g., 'single_step', 'null') - optional
         
     Returns:
         Path to the matching experiment directory
@@ -728,7 +721,18 @@ def find_experiment_dir(split_name: str, predictor_loss_weight: float, outputs_d
     if not os.path.exists(outputs_dir):
         raise ValueError(f"Outputs directory not found: {outputs_dir}")
     
-    print(f"Searching for experiment with split_name={split_name}, predictor_loss_weight={predictor_loss_weight}")
+    # Build search criteria string for logging
+    criteria = [f"split_name={split_name}"]
+    if predictor_loss_weight is not None:
+        criteria.append(f"predictor_loss_weight={predictor_loss_weight}")
+    if seed is not None:
+        criteria.append(f"seed={seed}")
+    if experiment_name is not None:
+        criteria.append(f"experiment.name={experiment_name}")
+    if selective_pairing_mode is not None:
+        criteria.append(f"selective_pairing_mode={selective_pairing_mode}")
+    
+    print(f"Searching for experiment with {', '.join(criteria)}")
     print(f"Looking in: {outputs_dir}")
     
     matching_dirs = []
@@ -750,23 +754,51 @@ def find_experiment_dir(split_name: str, predictor_loss_weight: float, outputs_d
         try:
             cfg = OmegaConf.load(config_path)
             
-            # Check if split_name matches
+            # Check if split_name matches (required)
             cfg_split_name = cfg.get("experiment", {}).get("split_name")
-            cfg_weight = cfg.get("experiment", {}).get("predictor_loss_weight")
+            if cfg_split_name != split_name:
+                continue
             
-            # Match split_name and predictor_loss_weight
-            if cfg_split_name == split_name and cfg_weight is not None:
+            # Check predictor_loss_weight if specified
+            if predictor_loss_weight is not None:
+                cfg_weight = cfg.get("experiment", {}).get("predictor_loss_weight")
+                if cfg_weight is None:
+                    continue
                 # Compare weights with tolerance for floating point
-                if abs(float(cfg_weight) - float(predictor_loss_weight)) < 1e-6:
-                    matching_dirs.append(dir_path)
-                    print(f"  Found match: {dirname}")
+                if abs(float(cfg_weight) - float(predictor_loss_weight)) >= 1e-6:
+                    continue
+            
+            # Check seed if specified
+            if seed is not None:
+                cfg_seed = cfg.get("seed")
+                if cfg_seed is None or int(cfg_seed) != seed:
+                    continue
+            
+            # Check experiment.name if specified
+            if experiment_name is not None:
+                cfg_exp_name = cfg.get("experiment", {}).get("name")
+                if cfg_exp_name != experiment_name:
+                    continue
+            
+            # Check selective_pairing_mode if specified
+            if selective_pairing_mode is not None:
+                cfg_spm = cfg.get("experiment", {}).get("selective_pairing_mode")
+                # Handle both string and None/null values in config
+                cfg_spm_str = str(cfg_spm) if cfg_spm is not None else "null"
+                if cfg_spm_str != selective_pairing_mode and cfg_spm != selective_pairing_mode:
+                    continue
+            
+            # All criteria matched
+            matching_dirs.append(dir_path)
+            print(f"  Found match: {dirname}")
+            
         except Exception as e:
             # Skip directories with invalid configs
             continue
     
     if len(matching_dirs) == 0:
         raise ValueError(
-            f"No experiment found with split_name={split_name}, predictor_loss_weight={predictor_loss_weight}"
+            f"No experiment found with {', '.join(criteria)}"
         )
     
     if len(matching_dirs) > 1:
@@ -786,7 +818,8 @@ def main():
         type=str,
         default=None,
         help="Path to the experiment directory (e.g., outputs/trellis_a2a_replicas-2_xxx). "
-             "If not provided, will search based on --split_name and --predictor_loss_weight"
+             "If not provided, will search based on --split_name and optionally "
+             "--predictor_loss_weight, --seed, --experiment_name, --selective_pairing_mode"
     )
     parser.add_argument(
         "--split_name",
@@ -800,7 +833,28 @@ def main():
         type=float,
         default=None,
         help="Predictor loss weight to search for (e.g., 1, 0.1, 0.01, 0.0). "
-             "Required if --experiment_dir is not provided."
+             "Optional filter when searching for experiments."
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed to search for in experiment config. "
+             "Optional filter when searching for experiments."
+    )
+    parser.add_argument(
+        "--experiment_name",
+        type=str,
+        default=None,
+        help="Experiment name to search for (e.g., 'trellis', 'trellis_mfm'). "
+             "Matches experiment.name in config. Optional filter when searching."
+    )
+    parser.add_argument(
+        "--selective_pairing_mode",
+        type=str,
+        default=None,
+        help="Selective pairing mode to search for (e.g., 'single_step', 'null'). "
+             "Matches experiment.selective_pairing_mode in config. Optional filter."
     )
     parser.add_argument(
         "--outputs_dir",
@@ -896,13 +950,16 @@ def main():
     
     # Determine experiment directory
     if args.experiment_dir is None:
-        if args.split_name is None or args.predictor_loss_weight is None:
-            parser.error("Must provide either --experiment_dir or both --split_name and --predictor_loss_weight")
+        if args.split_name is None:
+            parser.error("Must provide either --experiment_dir or --split_name")
         
         args.experiment_dir = find_experiment_dir(
-            args.split_name, 
-            args.predictor_loss_weight,
-            args.outputs_dir
+            args.split_name,
+            outputs_dir=args.outputs_dir,
+            predictor_loss_weight=args.predictor_loss_weight,
+            seed=args.seed,
+            experiment_name=args.experiment_name,
+            selective_pairing_mode=args.selective_pairing_mode,
         )
     
     print(f"\nUsing experiment directory: {args.experiment_dir}")
@@ -938,8 +995,7 @@ def main():
     
     test_cache_path = get_latent_cache_path(args.experiment_dir, "test")
     test_source_latents, test_target_latents = compute_and_cache_latents(
-        encoder, test_dataset, device, test_cache_path, split_name="test",
-        batch_size=args.batch_size
+        encoder, test_dataset, device, test_cache_path, split_name="test"
     )
     
     # Train predictor if requested
@@ -952,8 +1008,7 @@ def main():
         # Compute and cache training latents
         train_cache_path = get_latent_cache_path(args.experiment_dir, "train")
         train_source_latents, train_target_latents = compute_and_cache_latents(
-            encoder, train_dataset, device, train_cache_path, split_name="train",
-            batch_size=args.batch_size
+            encoder, train_dataset, device, train_cache_path, split_name="train"
         )
         
         # Train predictor based on type

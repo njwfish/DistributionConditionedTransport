@@ -14,7 +14,6 @@ Optionally, with --use_predictor:
 - Uses G(x0, E(x0), P(E(x0))) instead of G(x0, E(x0), E(x1))
 
 Optimization flags:
-- --batch_size: Batch size for encoding/generation (default: 8)
 - --num_ode_steps: Number of ODE integration steps for flow matching (default: 50)
 - --compile: Use torch.compile() for PyTorch 2.0+ (experimental)
 """
@@ -29,9 +28,8 @@ import torch
 import torch.nn as nn
 import hydra
 from omegaconf import OmegaConf
-from typing import Optional, List, Union
+from typing import Optional, Union
 import ot as pot
-from functools import partial
 import pandas as pd
 from sklearn.metrics.pairwise import rbf_kernel
 from sklearn.linear_model import Ridge
@@ -706,143 +704,6 @@ def evaluate_sample(
     }
 
 
-def evaluate_batch(
-    generator: torch.nn.Module,
-    samples_batch: List[tuple],
-    source_latents_batch: np.ndarray,
-    target_latents_batch: np.ndarray,
-    device: torch.device,
-    predictor: Optional[Union[Ridge, MLPPredictor]] = None,
-    num_ode_steps: int = 100,
-    compute_baseline: bool = True,
-):
-    """
-    Evaluate the model on a BATCH of samples for faster generation.
-    
-    This batches the generator.sample() calls for significant speedup when
-    samples have the same shape (which they typically do in Trellis).
-    
-    Args:
-        generator: Trained generator
-        samples_batch: List of (culture, x0, x1, cell_cond, treat_cond, patient) tuples
-        source_latents_batch: [batch_size, latent_dim] precomputed E(x0)
-        target_latents_batch: [batch_size, latent_dim] precomputed E(x1)
-        device: Device to run on
-        predictor: Optional predictor
-        num_ode_steps: Number of ODE integration steps
-        compute_baseline: If True, compute baseline metrics (x0 vs x1_true)
-        
-    Returns:
-        List of result dictionaries, one per sample
-    """
-    batch_size = len(samples_batch)
-    
-    # Extract x0 and x1 from samples
-    x0_list = [s[1] for s in samples_batch]
-    x1_list = [s[2] for s in samples_batch]
-    
-    # Check if all samples have the same shape (required for true batching)
-    x0_shapes = [x0.shape for x0 in x0_list]
-    x1_shapes = [x1.shape for x1 in x1_list]
-    
-    can_batch = len(set(x0_shapes)) == 1 and len(set(x1_shapes)) == 1
-    
-    if not can_batch:
-        # Fall back to sequential processing if shapes differ
-        results = []
-        for i in range(batch_size):
-            result = evaluate_sample(
-                generator,
-                x0_list[i],
-                x1_list[i],
-                source_latents_batch[i:i+1],
-                target_latents_batch[i:i+1],
-                device,
-                predictor=predictor,
-                verbose=False,
-                num_ode_steps=num_ode_steps,
-                compute_baseline=compute_baseline,
-            )
-            results.append(result)
-        return results
-    
-    # === Batched processing ===
-    results = []
-    timings = {}
-    
-    # Stack x0 tensors: [batch_size, num_samples, dim]
-    x0_batch = torch.stack([
-        torch.tensor(x0, dtype=torch.float32) for x0 in x0_list
-    ]).to(device)
-    
-    # Stack x1 tensors for metric computation
-    x1_batch = torch.stack([
-        torch.tensor(x1, dtype=torch.float32) for x1 in x1_list
-    ]).to(device)
-    
-    # Convert latents to tensors
-    source_latents_tensor = torch.tensor(source_latents_batch, dtype=torch.float32, device=device)
-    
-    # Get target latents
-    if predictor is not None:
-        predicted_latents = predictor.predict(source_latents_batch)
-        target_latents_tensor = torch.tensor(predicted_latents, dtype=torch.float32, device=device)
-    else:
-        target_latents_tensor = torch.tensor(target_latents_batch, dtype=torch.float32, device=device)
-    
-    # Flatten for generator: [batch_size * num_samples, dim]
-    bs, num_samples, dim = x0_batch.shape
-    x0_flat = x0_batch.view(bs * num_samples, dim)
-    
-    with torch.no_grad():
-        gen_start = time.time()
-        
-        x1_pred_flat = generator.sample(
-            x0_flat,
-            source_latents_tensor,
-            target_latents_tensor,
-            num_steps=num_ode_steps,
-        )
-        
-        timings['generation'] = time.time() - gen_start
-    
-    # x1_pred_flat should be [batch_size, num_samples, dim]
-    # Handle different output shapes from generator
-    if x1_pred_flat.dim() == 3:
-        x1_pred_batch = x1_pred_flat
-    else:
-        x1_pred_batch = x1_pred_flat.view(bs, num_samples, dim)
-    
-    # Compute metrics for each sample
-    metrics_start = time.time()
-    for i in range(batch_size):
-        x0_i = x0_batch[i]
-        x1_i = x1_batch[i]
-        x1_pred_i = x1_pred_batch[i]
-        
-        if compute_baseline:
-            baseline_metrics = compute_all_metrics(x0_i, x1_i)
-        else:
-            baseline_metrics = None
-        model_metrics = compute_all_metrics(x1_pred_i, x1_i)
-        
-        results.append({
-            'x1_pred': x1_pred_i.cpu().numpy(),
-            'model': model_metrics,
-            'baseline': baseline_metrics,
-            'timings': {
-                'generation': timings['generation'] / batch_size,
-                'baseline_metrics': 0.0,  # Computed together
-                'model_metrics': 0.0,
-                'predictor': 0.0,
-            },
-        })
-    
-    timings['metrics'] = time.time() - metrics_start
-    
-    return results
-
-
 def find_experiment_dir(
     split_name: str, 
     outputs_dir: str = "outputs",
@@ -1073,13 +934,6 @@ def main():
     
     # === PERFORMANCE OPTIMIZATION ARGUMENTS ===
     parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=8,
-        help="Batch size for encoding and generation (default: 8). "
-             "Higher values use more GPU memory but are faster."
-    )
-    parser.add_argument(
         "--num_ode_steps",
         type=int,
         default=50,
@@ -1090,11 +944,6 @@ def main():
         "--compile",
         action="store_true",
         help="Use torch.compile() for encoder/generator (PyTorch 2.0+, experimental)."
-    )
-    parser.add_argument(
-        "--batch_eval",
-        action="store_true",
-        help="Use batched evaluation for generation (faster if samples have same shape)."
     )
     parser.add_argument(
         "--skip_baseline",
@@ -1158,8 +1007,7 @@ def main():
     
     device = torch.device(args.device)
     print(f"Using device: {device}")
-    print(f"Optimization settings: batch_size={args.batch_size}, num_ode_steps={args.num_ode_steps}, "
-          f"compile={args.compile}, batch_eval={args.batch_eval}")
+    print(f"Optimization settings: num_ode_steps={args.num_ode_steps}, compile={args.compile}")
     
     # Configure fast metric computation
     set_metric_settings(
@@ -1263,111 +1111,57 @@ def main():
     
     num_test_samples = len(test_dataset.samples)
     
-    if args.batch_eval:
-        # === BATCHED EVALUATION ===
-        print(f"\nUsing batched evaluation with batch_size={args.batch_size}")
+    for i, sample in enumerate(test_dataset.samples):
+        sample_start = time.time()
+        culture, x0, x1, cell_cond, treat_cond, patient = sample
         
-        for batch_start in range(0, num_test_samples, args.batch_size):
-            batch_end = min(batch_start + args.batch_size, num_test_samples)
-            batch_indices = list(range(batch_start, batch_end))
-            
-            # Get batch of samples
-            samples_batch = [test_dataset.samples[i] for i in batch_indices]
-            source_latents_batch = test_source_latents[batch_start:batch_end]
-            target_latents_batch = test_target_latents[batch_start:batch_end]
-            
-            print(f"\nProcessing samples {batch_start + 1}-{batch_end}/{num_test_samples}...")
-            batch_start_time = time.time()
-            
-            # Evaluate batch
-            batch_results = evaluate_batch(
-                generator,
-                samples_batch,
-                source_latents_batch,
-                target_latents_batch,
-                device,
-                predictor=predictor,
-                num_ode_steps=args.num_ode_steps,
-                compute_baseline=compute_baseline,
-            )
-            
-            batch_elapsed = time.time() - batch_start_time
-            print(f"  Batch completed in {batch_elapsed:.3f}s ({batch_elapsed / len(batch_results):.3f}s/sample)")
-            
-            # Collect metrics from batch
-            for i, result in enumerate(batch_results):
-                model = result['model']
-                baseline = result['baseline']
-                timings = result['timings']
-                
-                sample_idx = batch_start + i
-                culture, x0, x1, cell_cond, treat_cond, patient = test_dataset.samples[sample_idx]
-                
-                if compute_baseline:
-                    print(f"  Sample {sample_idx + 1}: W2={model['W2']:.4f} (baseline={baseline['W2']:.4f})")
-                else:
-                    print(f"  Sample {sample_idx + 1}: W2={model['W2']:.4f}")
-                
-                for key in all_model_metrics:
-                    all_model_metrics[key].append(model[key])
-                    if compute_baseline:
-                        all_baseline_metrics[key].append(baseline[key])
-                
-                for key in all_timings:
-                    all_timings[key].append(timings[key])
-    else:
-        # === SEQUENTIAL EVALUATION (original behavior with new parameters) ===
-        for i, sample in enumerate(test_dataset.samples):
-            sample_start = time.time()
-            culture, x0, x1, cell_cond, treat_cond, patient = sample
-            
-            # Get precomputed latents for this sample
-            source_latent = test_source_latents[i:i+1]  # [1, latent_dim]
-            target_latent = test_target_latents[i:i+1]  # [1, latent_dim]
-            
-            print(f"\nSample {i + 1}/{num_test_samples}:")
-            print(f"  Culture: {culture}, Patient: {patient}")
-            print(f"  x0 shape: {x0.shape}, x1 shape: {x1.shape}")
-            
-            # Evaluate
-            results = evaluate_sample(
-                generator, x0, x1, source_latent, target_latent, device, 
-                predictor=predictor, verbose=True,
-                num_ode_steps=args.num_ode_steps,
-                compute_baseline=compute_baseline
-            )
-            
-            model = results['model']
-            baseline = results['baseline']
-            timings = results['timings']
-            
+        # Get precomputed latents for this sample
+        source_latent = test_source_latents[i:i+1]  # [1, latent_dim]
+        target_latent = test_target_latents[i:i+1]  # [1, latent_dim]
+        
+        print(f"\nSample {i + 1}/{num_test_samples}:")
+        print(f"  Culture: {culture}, Patient: {patient}")
+        print(f"  x0 shape: {x0.shape}, x1 shape: {x1.shape}")
+        
+        # Evaluate
+        results = evaluate_sample(
+            generator, x0, x1, source_latent, target_latent, device, 
+            predictor=predictor, verbose=True,
+            num_ode_steps=args.num_ode_steps,
+            compute_baseline=compute_baseline
+        )
+        
+        model = results['model']
+        baseline = results['baseline']
+        timings = results['timings']
+        
+        if compute_baseline:
+            print(f"  {'Metric':<6} {'Model (pred vs true)':>20} {'Baseline (x0 vs true)':>22}")
+            print(f"  {'-'*6} {'-'*20} {'-'*22}")
+            print(f"  {'W1':<6} {model['W1']:>20.6f} {baseline['W1']:>22.6f}")
+            print(f"  {'W2':<6} {model['W2']:>20.6f} {baseline['W2']:>22.6f}")
+            print(f"  {'MMD':<6} {model['MMD']:>20.6f} {baseline['MMD']:>22.6f}")
+            print(f"  {'r2':<6} {model['r2']:>20.6f} {baseline['r2']:>22.6f}")
+        else:
+            print(f"  {'Metric':<6} {'Model (pred vs true)':>20}")
+            print(f"  {'-'*6} {'-'*20}")
+            print(f"  {'W1':<6} {model['W1']:>20.6f}")
+            print(f"  {'W2':<6} {model['W2']:>20.6f}")
+            print(f"  {'MMD':<6} {model['MMD']:>20.6f}")
+            print(f"  {'r2':<6} {model['r2']:>20.6f}")
+        
+        sample_elapsed = time.time() - sample_start
+        print(f"  [TIME] Total sample time: {sample_elapsed:.3f}s")
+        
+        # Collect metrics
+        for key in all_model_metrics:
+            all_model_metrics[key].append(model[key])
             if compute_baseline:
-                print(f"  {'Metric':<6} {'Model (pred vs true)':>20} {'Baseline (x0 vs true)':>22}")
-                print(f"  {'-'*6} {'-'*20} {'-'*22}")
-                print(f"  {'W1':<6} {model['W1']:>20.6f} {baseline['W1']:>22.6f}")
-                print(f"  {'W2':<6} {model['W2']:>20.6f} {baseline['W2']:>22.6f}")
-                print(f"  {'MMD':<6} {model['MMD']:>20.6f} {baseline['MMD']:>22.6f}")
-                print(f"  {'r2':<6} {model['r2']:>20.6f} {baseline['r2']:>22.6f}")
-            else:
-                print(f"  {'Metric':<6} {'Model (pred vs true)':>20}")
-                print(f"  {'-'*6} {'-'*20}")
-                print(f"  {'W1':<6} {model['W1']:>20.6f}")
-                print(f"  {'W2':<6} {model['W2']:>20.6f}")
-                print(f"  {'MMD':<6} {model['MMD']:>20.6f}")
-                print(f"  {'r2':<6} {model['r2']:>20.6f}")
-            
-            sample_elapsed = time.time() - sample_start
-            print(f"  [TIME] Total sample time: {sample_elapsed:.3f}s")
-            
-            # Collect metrics
-            for key in all_model_metrics:
-                all_model_metrics[key].append(model[key])
-                if compute_baseline:
-                    all_baseline_metrics[key].append(baseline[key])
-            
-            # Collect timings
-            for key in all_timings:
-                all_timings[key].append(timings[key])
+                all_baseline_metrics[key].append(baseline[key])
+        
+        # Collect timings
+        for key in all_timings:
+            all_timings[key].append(timings[key])
     
     print_elapsed_time(eval_start, "Total evaluation time (all samples)")
     

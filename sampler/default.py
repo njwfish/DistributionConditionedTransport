@@ -46,9 +46,7 @@ class Sampler(WeightedRandomSampler):
             # only pair t and t+1
             for idx in range(len(self.dataset)):
                 item = self.dataset[idx]
-                source_idx = item['source_idx']
-                target_idx = item['target_idx']
-                if source_idx != target_idx - 1:
+                if not item['train_predictor_bool']:
                     weights[idx] = 0.0  
                            
         return weights

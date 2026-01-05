@@ -1,7 +1,7 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: snapMMD_${dataset_name}
+name: snapMMD_stratified_weighted_${dataset_name}
 description: "SnapMMD ${dataset_name} experiment with unified dataset class"
 
 # Override defaults from config.yaml
@@ -13,7 +13,7 @@ defaults:
   - /training: default5000
   - /loss: predictor
   - /predictor: default
-  - /sampling: default
+  - /sampling: stratified_weighted
 
 ot_coupling: false
 

@@ -1,0 +1,10 @@
+# @package _global_.sampling
+_target_: sampler.stratified.StratifiedBatchSampler
+batch_size: ${experiment.batch_size}
+min_consecutive_per_batch: null  # If set, overrides consecutive_ratio
+consecutive_ratio: 0.25  # Target 25% consecutive pairs per batch
+drop_last: false
+shuffle: true
+seed: ${seed}
+forward_only: true  # Only include forward pairs (t→t+N, N>0) for non-consecutive
+

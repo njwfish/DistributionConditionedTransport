@@ -298,81 +298,79 @@ def plot_forecast(cfg, data, forecast):
 
 
 predictor_loss_weights = [1, 0.1, 0.01, 0.001, 0.0]
-selective_pairing_modes = [None, "single_step", "unidirectional"]
 
-outputs_dir = "outputs_12_30_2025"
+outputs_dir = "outputs"
 
 for predictor_loss_weight in predictor_loss_weights:
-    for selective_pairing_mode in selective_pairing_modes:
-        ckpt_dir_ref = None
-        for ckpt_dir in os.listdir(outputs_dir):
-            if ckpt_dir.startswith("snapMMD_G"):
-                try:
-                    cfg_ref,_ = load_cfg_and_ckpt(ckpt_dir,outputs_dir=outputs_dir)
-                    if cfg_ref['experiment']['predictor_loss_weight'] == predictor_loss_weight and cfg_ref['experiment']['selective_pairing_mode'] == selective_pairing_mode:
-                        ckpt_dir_ref = ckpt_dir
-                        break
-                except Exception as e:
-                    # Skip directories that fail to load (e.g., missing config.yaml)
-                    continue
+    ckpt_dir_ref = None
+    for ckpt_dir in os.listdir(outputs_dir):
+        if ckpt_dir.startswith("snapMMD_stratified_weighted_G"):
+            try:
+                cfg_ref,_ = load_cfg_and_ckpt(ckpt_dir,outputs_dir=outputs_dir)
+                if cfg_ref['experiment']['predictor_loss_weight'] == predictor_loss_weight:
+                    ckpt_dir_ref = ckpt_dir
+                    break
+            except Exception as e:
+                # Skip directories that fail to load (e.g., missing config.yaml)
+                continue
+    
+    if ckpt_dir_ref is None:
+        print(f"No matching directory found for predictor_loss_weight={predictor_loss_weight}")
+        continue
         
-        if ckpt_dir_ref is None:
-            print(f"No matching directory found for predictor_loss_weight={predictor_loss_weight}, selective_pairing_mode={selective_pairing_mode}")
-            continue
+    
+    #print(cfg_ref['experiment']['predictor_loss_weight'])
+    #print(cfg_ref['experiment']['selective_pairing_mode'])
+
+    matching_dirs = find_matching_ckpt_dirs(ckpt_dir_ref,outputs_dir=outputs_dir)
+
+    #print(cfg_ref)
+
+    plot_seed = 0
+    all_mmd = []
+    all_emd = []
+    use_predictor = True
+    predictor_source = "posthoc"
+    two_step = True
+    print(f"Predictor loss weight: {predictor_loss_weight}")
+
+    for j, ckpt_dir in enumerate(matching_dirs):
+        cfg, ckpt_path = load_cfg_and_ckpt(ckpt_dir,outputs_dir=outputs_dir)
+        encoder, generator = load_models(cfg, ckpt_path)
+        data = np.load(DATASET_CONFIGS[cfg.dataset_name]['data_path'])
+
+        if use_predictor and predictor_source == "posthoc":
+            #predictor = get_ridge(encoder, data, num_sets=20, set_size=32, alpha = 1, device=device)
+            predictor = get_ridge(encoder, data, num_sets=5, set_size=32, device=device, alpha = 0.001, seed=42, two_step=two_step)
+        
+        elif use_predictor and predictor_source == "cotrained":
+            pass
             
-        
-        #print(cfg_ref['experiment']['predictor_loss_weight'])
-        #print(cfg_ref['experiment']['selective_pairing_mode'])
+        else:
+            predictor = None
 
-        matching_dirs = find_matching_ckpt_dirs(ckpt_dir_ref,outputs_dir=outputs_dir)
+        forecast = generate_cde_forecast(cfg, data, encoder, generator, predictor = predictor, two_step=two_step)
+        mmd, emd = compute_scores(cfg, data, forecast)
+        print(mmd, emd)
+        all_mmd.append(mmd)
+        all_emd.append(emd)
+        if j == plot_seed:
+            print(forecast.shape, type(forecast), forecast.device)
+            plot_forecast(cfg, data, forecast)
+    
 
-        #print(cfg_ref)
+    all_mmd = np.array(all_mmd)
+    all_emd = np.array(all_emd)
 
-        plot_seed = 0
-        all_mmd = []
-        all_emd = []
-        use_predictor = True
-        predictor_source = "posthoc"
-        two_step = True
-        print(f"Predictor loss weight: {predictor_loss_weight}, Selective pairing mode: {selective_pairing_mode}")
+    print("MMD: ", np.mean(all_mmd), np.std(all_mmd))
+    print("EMD: ", np.mean(all_emd), np.std(all_emd))
 
-        for j, ckpt_dir in enumerate(matching_dirs):
-            cfg, ckpt_path = load_cfg_and_ckpt(ckpt_dir,outputs_dir=outputs_dir)
-            encoder, generator = load_models(cfg, ckpt_path)
-            data = np.load(DATASET_CONFIGS[cfg.dataset_name]['data_path'])
-
-            if use_predictor and predictor_source == "posthoc":
-                #predictor = get_ridge(encoder, data, num_sets=20, set_size=32, alpha = 1, device=device)
-                predictor = get_ridge(encoder, data, num_sets=5, set_size=32, device=device, alpha = 0.001, seed=42, two_step=two_step)
+    ckpt_dir_ref = None
+    matching_dirs = None
+    cfg = None
+    ckpt_path = None
+    encoder = None
+    generator = None
+    predictor = None
             
-            elif use_predictor and predictor_source == "cotrained":
-                pass
-                
-            else:
-                predictor = None
-
-            forecast = generate_cde_forecast(cfg, data, encoder, generator, predictor = predictor, two_step=two_step)
-            mmd, emd = compute_scores(cfg, data, forecast)
-            print(mmd, emd)
-            all_mmd.append(mmd)
-            all_emd.append(emd)
-            if j == plot_seed:
-                print(forecast.shape, type(forecast), forecast.device)
-                plot_forecast(cfg, data, forecast)
-        
-
-        all_mmd = np.array(all_mmd)
-        all_emd = np.array(all_emd)
-
-        print("MMD: ", np.mean(all_mmd), np.std(all_mmd))
-        print("EMD: ", np.mean(all_emd), np.std(all_emd))
-
-        ckpt_dir_ref = None
-        matching_dirs = None
-        cfg = None
-        ckpt_path = None
-        encoder = None
-        generator = None
-        predictor = None
-                
 

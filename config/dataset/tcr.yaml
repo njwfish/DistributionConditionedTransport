@@ -1,0 +1,8 @@
+# @package _global_.dataset
+_target_: datasets.tcr.TCRDataset
+
+seed: ${seed}
+set_size: ${experiment.set_size}
+
+data_dir: ${experiment.data_dir}
+max_seq_length: 301

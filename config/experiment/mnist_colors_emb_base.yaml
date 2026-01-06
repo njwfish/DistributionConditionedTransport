@@ -1,0 +1,23 @@
+# @package _global_.experiment
+# Base MNIST colors experiment with EmbeddingEncoder - generator must be specified separately
+
+name: mnist_colors_emb_exp
+description: "MNIST colors experiment with EmbeddingEncoder (lookup table)"
+
+# Override defaults - uses embedding encoder instead of ConvGNN
+defaults:
+  - /dataset: mnist_colors
+  - /encoder: embedding
+  - /loss: multimarginal  # Required for EmbeddingEncoder (uses indices)
+  - /training: default
+  - /scheduler: none  # ConstantLR - keeps learning rate fixed
+
+# Experiment-specific parameters
+latent_dim: 64
+hidden_dim: 128
+set_size: 64
+batch_size: 32
+lr: 2e-4
+
+
+

@@ -1,0 +1,20 @@
+# @package _global_.experiment
+# Base MVN experiment - generator must be specified separately
+
+name: mvn_exp
+description: "Multivariate normal distribution experiment"
+
+# Override defaults - NO generator or model specified here (set via command line)
+defaults:
+  - /dataset: mvn
+  - /encoder: gnn
+  - /training: default
+  - /scheduler: none  # ConstantLR - keeps learning rate fixed
+
+# Experiment-specific parameters
+latent_dim: 16
+hidden_dim: 64
+set_size: 100
+batch_size: 256
+lr: 2e-4
+

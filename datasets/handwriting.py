@@ -50,16 +50,21 @@ class HandwritingDataset(Dataset):
             train: bool = True,
             data_shape: Tuple[int, int, int] = (1, 28, 28),
             train_split: float = 0.9,
+            frac_unique_writers: Optional[float] = None,
+            n_unique_writers: Optional[int] = None,
         ):
         """
         Args:
             n_sets: Number of random colors to pre-generate
             set_size: Number of samples per set
-            digit_class: Specific digit class to use (0-9), or None for all digits
             seed: Random seed for reproducibility
             data_root: Root directory for MNIST data
             train: Whether to use training or test set
+            frac_unique_writers: Fraction of unique writers to use (0.0-1.0)
+            n_unique_writers: Absolute number of unique writers (for EmbeddingEncoder)
         """
+        self.frac_unique_writers = frac_unique_writers
+        self.n_unique_writers = n_unique_writers
         self.set_size = set_size
         self.data_shape = data_shape
         
@@ -123,13 +128,23 @@ class HandwritingDataset(Dataset):
         self.num_by_writer_by_class = num_by_writer_by_class
         self.paths_by_writer_by_class = paths_by_writer_by_class
 
-        # split writersinto train and test
+        # split writers into train and test
         writers = np.array(list(by_writer_by_class.keys()))
         perm_idx = np.random.permutation(writers.shape[0])
         partition_idx = int(writers.shape[0] * train_split)
         self.train_writers, self.test_writers = writers[perm_idx[:partition_idx]], writers[perm_idx[partition_idx:]]
 
+        # Optionally limit the number of unique writers by fraction or absolute count
+        if self.frac_unique_writers is not None:
+            n_to_use = max(1, int(len(self.train_writers) * self.frac_unique_writers))
+            self.train_writers = self.train_writers[:n_to_use]
+        elif self.n_unique_writers is not None:
+            n_to_use = min(self.n_unique_writers, len(self.train_writers))
+            self.train_writers = self.train_writers[:n_to_use]
+
         self.n_sets = len(self.train_writers)
+        # Alias for EmbeddingEncoder compatibility
+        self.n_unique_sets = self.n_sets
         
     def __len__(self):
         return self.n_sets

@@ -1,7 +1,11 @@
-# @package _global_.generator
-_target_: generator.energy.EnergyGenerator
-model: ${model}  # This will be instantiated first
-noise_dim: ${experiment.latent_dim} 
-sigma_min: 1.0
-m: 8
-lambda_energy: 1.0
+# @package _global_
+defaults:
+  - override /model: energy_mlp
+
+generator:
+  _target_: generator.energy.EnergyGenerator
+  model: ${model}
+  noise_dim: ${experiment.latent_dim}
+  sigma_min: 1.0
+  m: 8
+  lambda_energy: 1.0

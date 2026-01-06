@@ -1,0 +1,9 @@
+# @package _global_.encoder
+# EmbeddingEncoder for handwriting (uses n_unique_writers instead of n_unique_sets)
+_target_: encoder.encoders.EmbeddingEncoder
+in_dim: ${dataset.data_shape[0]}
+n_unique_sets: ${dataset.n_unique_writers}
+latent_dim: ${experiment.latent_dim}
+
+
+

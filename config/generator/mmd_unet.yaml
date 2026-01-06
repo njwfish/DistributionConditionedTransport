@@ -1,12 +1,15 @@
 # @package _global_
+# MMD generator with UNet for images
 defaults:
-  - override /model: direct_mlp
+  - override /model: unet
 
 generator:
   _target_: generator.direct.DirectGenerator
   model: ${model}
   loss_type: mmd
   noise_dim: ${experiment.latent_dim}
+  flatten_for_model: false
   loss_params:
     kernel: energy  # Use energy kernel (parameter-free, beta=1)
                     # Alternative: 'rbf' for RBF kernel with median heuristic
+

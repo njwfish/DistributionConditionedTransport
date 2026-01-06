@@ -1,0 +1,23 @@
+# @package _global_.experiment
+# Base MVN experiment with EmbeddingEncoder - generator must be specified separately
+
+name: mvn_emb_exp
+description: "MVN experiment with EmbeddingEncoder (lookup table)"
+
+# Override defaults - uses embedding encoder instead of GNN
+defaults:
+  - /dataset: mvn
+  - /encoder: embedding
+  - /loss: multimarginal  # Required for EmbeddingEncoder (uses indices)
+  - /training: default
+  - /scheduler: none  # ConstantLR - keeps learning rate fixed
+
+# Experiment-specific parameters
+latent_dim: 16
+hidden_dim: 64
+set_size: 100
+batch_size: 256
+lr: 2e-4
+
+
+

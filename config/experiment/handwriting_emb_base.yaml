@@ -1,0 +1,22 @@
+# @package _global_.experiment
+# Base handwriting experiment with EmbeddingEncoder - generator must be specified separately
+
+name: handwriting_emb_exp
+description: "Handwriting experiment with EmbeddingEncoder (lookup table)"
+
+# Override defaults - uses embedding encoder instead of ConvGNN
+defaults:
+  - /dataset: handwriting
+  - /encoder: embedding_writers  # Uses n_unique_writers for handwriting
+  - /loss: multimarginal  # Required for EmbeddingEncoder (uses indices)
+  - /training: default
+  - /scheduler: none  # ConstantLR - keeps learning rate fixed
+  - /sampling: none
+
+# Experiment-specific parameters
+latent_dim: 128
+hidden_dim: 512
+set_size: 64
+batch_size: 24
+lr: 1e-4
+

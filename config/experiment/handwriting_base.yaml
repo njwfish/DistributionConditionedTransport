@@ -1,0 +1,21 @@
+# @package _global_.experiment
+# Base handwriting experiment - generator must be specified separately
+
+name: handwriting_exp
+description: "Handwriting experiment with convolutional GNN encoder"
+
+# Override defaults - NO generator specified (set via command line)
+defaults:
+  - /dataset: handwriting
+  - /encoder: conv_gnn
+  - /training: default
+  - /scheduler: none  # ConstantLR - keeps learning rate fixed
+  - /sampling: none
+
+# Experiment-specific parameters
+latent_dim: 128
+hidden_dim: 512
+set_size: 64
+batch_size: 24  # Smaller batch size for image data
+lr: 1e-4
+

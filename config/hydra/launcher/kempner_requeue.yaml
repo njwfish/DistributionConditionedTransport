@@ -1,0 +1,29 @@
+# @package hydra.launcher
+# Kempner preemptible partition (requeue) - good for sweeps!
+_target_: hydra_plugins.hydra_submitit_launcher.submitit_launcher.SlurmLauncher
+
+# SLURM partition and account
+partition: kempner_requeue
+account: kempner_mzitnik_lab
+
+# Resource allocation - optimized for lightweight jobs
+gpus_per_node: 1
+cpus_per_task: 4
+mem_gb: 16
+timeout_min: 120  # 2 hours (200 epochs takes ~30 min for MVN) (may get preempted)
+
+# Submitit settings
+submitit_folder: ${hydra.sweep.dir}/.submitit/%j
+array_parallelism: 64  # High parallelism - jobs are lightweight (~30 min each)
+nodes: 1
+tasks_per_node: 1
+max_num_timeout: 5  # More retries for preemption
+
+# GRES specification (generic GPU, scheduler picks available)
+gres: gpu:1
+
+# Additional SLURM parameters
+additional_parameters:
+  mail-type: END,FAIL
+  mail-user: ${oc.env:USER}@g.harvard.edu
+

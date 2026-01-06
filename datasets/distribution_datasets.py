@@ -228,6 +228,7 @@ class GaussianMixtureModelDistributionDataset(Dataset):
             self, 
             n_sets: int = 10_000, 
             set_size: int = 100, 
+            n_unique_sets: Optional[int] = None,
             data_shape: Tuple[int, ...] = (2,),
             n_components: int = 3,
             prior_mu: Tuple[float, float] = (0, 1),
@@ -250,6 +251,7 @@ class GaussianMixtureModelDistributionDataset(Dataset):
         """
         self.n_sets = n_sets
         self.n_components = n_components
+        self.n_unique_sets = n_unique_sets
         
         if seed is not None:
             np.random.seed(seed)
@@ -275,6 +277,16 @@ class GaussianMixtureModelDistributionDataset(Dataset):
                     df=prior_cov_df, 
                     scale=prior_cov_scale*np.eye(data_shape[0])
                 ))
+        
+        if n_unique_sets is not None:
+            self.weights = np.repeat(self.weights[:n_unique_sets], n_sets // n_unique_sets, axis=0)
+            self.mu = np.repeat(self.mu[:n_unique_sets], n_sets // n_unique_sets, axis=0)
+            self.cov = np.repeat(self.cov[:n_unique_sets], n_sets // n_unique_sets, axis=0)
+            # Create mapping from data index to unique set index (for EmbeddingEncoder)
+            self.set_idx = np.tile(np.arange(n_unique_sets), n_sets // n_unique_sets)
+        else:
+            # If no unique sets specified, each set is unique
+            self.set_idx = np.arange(n_sets)
         
         self.data = self.sample(
             self.weights, self.mu, self.cov, 
@@ -355,6 +367,6 @@ class GaussianMixtureModelDistributionDataset(Dataset):
         return {
             'source_samples': torch.tensor(self.data[source_idx], dtype=torch.float),
             'target_samples': torch.tensor(self.data[target_idx], dtype=torch.float),
-            'source_idx': source_idx,
-            'target_idx': target_idx
+            'source_idx': self.set_idx[source_idx],
+            'target_idx': self.set_idx[target_idx],
         }

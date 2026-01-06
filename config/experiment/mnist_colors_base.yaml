@@ -1,0 +1,20 @@
+# @package _global_.experiment
+# Base MNIST colors experiment - generator must be specified separately
+
+name: mnist_colors_exp
+description: "MNIST colors experiment with convolutional GNN encoder"
+
+# Override defaults - NO generator specified (set via command line)
+defaults:
+  - /dataset: mnist_colors
+  - /encoder: conv_gnn
+  - /training: default
+  - /scheduler: none  # ConstantLR - keeps learning rate fixed
+
+# Experiment-specific parameters
+latent_dim: 64
+hidden_dim: 128
+set_size: 64
+batch_size: 32  # Smaller batch size for image data
+lr: 2e-4
+

@@ -140,9 +140,24 @@ class ContextUnet(nn.Module):
             nn.Conv2d(n_feat, self.in_channels, 3, 1, 1)
         )
 
-    def forward(self, x_t, t, source_latent, target_latent): #, context_mask):
-        # x is (noisy) image, c is context label, t is timestep, 
-        # context_mask says which samples to block the context on
+    def forward(self, x_t, t_or_source_latent, source_latent_or_target_latent, target_latent=None):
+        """
+        Forward pass with optional time dimension.
+        
+        Can be called as:
+            forward(x_t, t, source_latent, target_latent)  # with time (flow matching)
+            forward(x_t, source_latent, target_latent)     # without time (direct generators)
+        """
+        # Detect if time is provided based on number of args
+        if target_latent is None:
+            # Called with 3 args: (x_t, source_latent, target_latent)
+            t = None
+            source_latent = t_or_source_latent
+            target_latent = source_latent_or_target_latent
+        else:
+            # Called with 4 args: (x_t, t, source_latent, target_latent)
+            t = t_or_source_latent
+            source_latent = source_latent_or_target_latent
 
         c = torch.cat([source_latent, target_latent], dim=-1)
 
@@ -151,14 +166,19 @@ class ContextUnet(nn.Module):
         down2 = self.down2(down1)
         hiddenvec = self.to_vec(down2)
 
-        # embed context, time step
+        # embed context
         cemb1 = self.contextembed1(c).view(-1, self.n_feat * 2, 1, 1)
-        temb1 = self.timeembed1(t).view(-1, self.n_feat * 2, 1, 1)
         cemb2 = self.contextembed2(c).view(-1, self.n_feat, 1, 1)
-        temb2 = self.timeembed2(t).view(-1, self.n_feat, 1, 1)
+        
+        # embed time step (if provided)
+        if t is not None:
+            temb1 = self.timeembed1(t).view(-1, self.n_feat * 2, 1, 1)
+            temb2 = self.timeembed2(t).view(-1, self.n_feat, 1, 1)
+        else:
+            temb1 = 0
+            temb2 = 0
 
         up1 = self.up0(hiddenvec)
-        # up2 = self.up1(up1, down2) # if want to avoid add and multiply embeddings
         up2 = self.up1(cemb1 * up1 + temb1, down2)  # add and multiply embeddings
         up3 = self.up2(cemb2 * up2 + temb2, down1)
         out = self.out(torch.cat((up3, x), 1))

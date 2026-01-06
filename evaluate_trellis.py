@@ -140,7 +140,12 @@ def cellot_corr(pred, ground_truth):
     return r2_pairwise_feat_corrs
 
 
-def compute_all_metrics(pred: torch.Tensor, target: torch.Tensor, wasserstein_only: bool = False):
+def compute_all_metrics(
+    pred: torch.Tensor, 
+    target: torch.Tensor, 
+    wasserstein_only: bool = False,
+    max_samples_w1: Optional[int] = None,
+):
     """
     Compute all metrics between two distributions.
     
@@ -148,11 +153,29 @@ def compute_all_metrics(pred: torch.Tensor, target: torch.Tensor, wasserstein_on
         pred: Predicted/source samples [N, dim] (torch tensor)
         target: Target samples [M, dim] (torch tensor)
         wasserstein_only: If True, only compute W1 and W2 (skip MMD and r2)
+        max_samples_w1: If provided, subsample both pred and target to at most this many
+                        samples when computing W1. Useful when datasets are large.
         
     Returns:
         Dictionary with W1, W2, and optionally MMD and r2
     """
-    w1 = wasserstein(pred, target, power=1)
+    # Subsample for W1 computation if needed
+    if max_samples_w1 is not None:
+        pred_w1 = pred
+        target_w1 = target
+        
+        if pred.shape[0] > max_samples_w1:
+            indices = torch.randperm(pred.shape[0])[:max_samples_w1]
+            pred_w1 = pred[indices]
+        
+        if target.shape[0] > max_samples_w1:
+            indices = torch.randperm(target.shape[0])[:max_samples_w1]
+            target_w1 = target[indices]
+        
+        w1 = wasserstein(pred_w1, target_w1, power=1)
+    else:
+        w1 = wasserstein(pred, target, power=1)
+    
     w2 = 0.0 #wasserstein(pred, target, power=2)
     
     result = {
@@ -445,6 +468,7 @@ def evaluate_sample(
     predictor: Optional[Union[Ridge, MLPPredictor]] = None,
     compute_baseline: bool = False,
     wasserstein_only: bool = False,
+    max_samples_w1: Optional[int] = None,
 ):
     """
     Evaluate the model on a single sample using precomputed latents.
@@ -460,6 +484,7 @@ def evaluate_sample(
                    as target latent instead of E(x1)
         compute_baseline: If True, compute baseline metrics (x0 vs x1)
         wasserstein_only: If True, only compute W1 and W2 (skip MMD and r2)
+        max_samples_w1: If provided, subsample to at most this many samples for W1
         
     Returns:
         Dictionary with generated samples, model metrics, and optionally baseline metrics
@@ -471,7 +496,11 @@ def evaluate_sample(
     # Compute baseline metrics: x0 vs x1_true (before any transport), if requested
     baseline_metrics = None
     if compute_baseline:
-        baseline_metrics = compute_all_metrics(x0_tensor, x1_tensor, wasserstein_only=wasserstein_only)
+        baseline_metrics = compute_all_metrics(
+            x0_tensor, x1_tensor, 
+            wasserstein_only=wasserstein_only,
+            max_samples_w1=max_samples_w1,
+        )
     
     # Convert latents to tensors
     source_latent_tensor = torch.tensor(source_latent, dtype=torch.float32, device=device)
@@ -498,7 +527,11 @@ def evaluate_sample(
         x1_pred = x1_pred.squeeze(0)  # [N, dim]
     
     # Compute model metrics: x1_pred vs x1_true
-    model_metrics = compute_all_metrics(x1_pred, x1_tensor, wasserstein_only=wasserstein_only)
+    model_metrics = compute_all_metrics(
+        x1_pred, x1_tensor, 
+        wasserstein_only=wasserstein_only,
+        max_samples_w1=max_samples_w1,
+    )
     
     result = {
         'x1_pred': x1_pred.cpu().numpy(),
@@ -694,6 +727,14 @@ def main():
              "Useful for faster evaluation."
     )
     parser.add_argument(
+        "--max_samples_w1",
+        type=int,
+        default=3000,
+        help="Maximum number of samples to use for W1 computation. "
+             "If source or target has more samples, randomly subsample. "
+             "Set to 0 or negative to disable subsampling. (default: 3000)"
+    )
+    parser.add_argument(
         "--device",
         type=str,
         default="cuda" if torch.cuda.is_available() else "cpu",
@@ -842,6 +883,11 @@ def main():
         print("Computing: W1, W2 only (skipping MMD and r2)")
     if args.compute_baseline:
         print("Computing baseline: x0 vs x1")
+    
+    # Handle max_samples_w1: convert to None if disabled (0 or negative)
+    max_samples_w1 = args.max_samples_w1 if args.max_samples_w1 > 0 else None
+    if max_samples_w1 is not None:
+        print(f"W1 subsampling: max {max_samples_w1} samples from source/target")
     print("=" * 80)
     
     # Determine which metrics to track
@@ -871,6 +917,7 @@ def main():
             predictor=predictor,
             compute_baseline=args.compute_baseline,
             wasserstein_only=args.wasserstein_only,
+            max_samples_w1=max_samples_w1,
         )
         
         model = results['model']

@@ -4,29 +4,28 @@
 split_name: "replicas-2"
 
 # Experiment name and description
-name: trellis_a2a
-description: "Trellis A2A experiment"
+name: trellis_cotrain
+description: "Trellis cotrain experiment"
 
 defaults:
   - /dataset: trellis
   - /encoder: gnn
   - /model: diffusion_mlp
   - /generator: flow_matching
-  - /training: default5000
+  - /training: default10000
   - /loss: predictor
   - /predictor: default
-  - /sampling: default
+  - /sampling: stratified_weighted
 
-ot_coupling: false
+ot_coupling: true
 
 # predictor parameters
 predictor_loss_weight: 0.1
 train_predictor_posthoc: false
 
-predictor_model_type: "mlp"
+predictor_model_type: "ridge"
 predictor_model_args:
-  hidden_dim: 128
-  num_layers: 2
+  ridge_alpha: 1e-3
 
 # sampling parameters
 num_samples: 100

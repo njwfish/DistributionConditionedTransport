@@ -72,7 +72,7 @@ class StratifiedBatchSampler(BaseSampler):
         
         # Non-consecutive count per batch
         self.non_consecutive_per_batch = batch_size - self.min_consecutive
-        
+    # TODO: this whole file is quite messy and hardocded for trellis now (and before it was hardcoded for snapMMD).
     def _categorize_indices(self):
         """Separate dataset indices into consecutive and non-consecutive groups."""
         for idx in range(len(self.dataset)):
@@ -80,8 +80,8 @@ class StratifiedBatchSampler(BaseSampler):
             source_idx = item['source_idx']
             target_idx = item['target_idx']
             
-            is_consecutive = (target_idx - source_idx) == 1
-            is_forward = target_idx > source_idx
+            is_consecutive = item['train_predictor_bool']
+            is_forward = True #target_idx > source_idx
             
             if is_consecutive:
                 self.consecutive_indices.append(idx)
@@ -195,7 +195,7 @@ class StratifiedWeightedSampler(BaseSampler):
     def __init__(
         self,
         dataset=None,
-        consecutive_weight: float = 5.0,
+        consecutive_weight: float = 1.0,
         num_samples: Optional[int] = None,
         seed: Optional[int] = None,
         forward_only: bool = False,
@@ -226,8 +226,8 @@ class StratifiedWeightedSampler(BaseSampler):
             source_idx = item['source_idx']
             target_idx = item['target_idx']
             
-            is_consecutive = (target_idx - source_idx) == 1
-            is_forward = target_idx > source_idx
+            is_consecutive = item['train_predictor_bool']
+            is_forward = True #target_idx > source_idx
             
             if is_consecutive:
                 weights[idx] = self.consecutive_weight

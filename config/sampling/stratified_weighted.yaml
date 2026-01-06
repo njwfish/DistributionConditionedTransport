@@ -2,7 +2,7 @@
 # Weighted sampler that oversamples consecutive pairs
 # Use this when you want simple weighted sampling (not batch composition control)
 _target_: sampler.stratified.StratifiedWeightedSampler
-consecutive_weight: 1000000.0  # Consecutive pairs are 100x more likely to be sampled
+consecutive_weight: 200.0  # Consecutive pairs are 100x more likely to be sampled
 num_samples: ${experiment.num_samples}
 seed: ${seed}
 forward_only: true  # Set true to exclude backward pairs entirely

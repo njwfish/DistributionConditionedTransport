@@ -24,6 +24,7 @@ class trellis_dataset(Dataset):
         split_mode="train",
         set_size=32,
         seed=0,
+        ot_coupling: bool = False,
         **kwargs,
     ):
         
@@ -75,7 +76,7 @@ class trellis_dataset(Dataset):
         self.control = control  # identify x0
         self.treatment = treatment
         self.cell_type = cell_type
-
+        self.ot_coupling = ot_coupling
         self.split_name = split_name
 
         self.split = self.__filter_control__(split)
@@ -226,6 +227,25 @@ class trellis_dataset(Dataset):
         
         treat_cond = treat_cond[source_subset_indices]
         cell_cond = cell_cond[source_subset_indices]
+        
+        if self.ot_coupling:
+            # NOTE: converted to numpy to avoid CUDA issues.  
+            # Compute OT coupling using POT with NumPy backend to avoid CUDA init in DataLoader workers
+            source_np = source_samples.cpu().numpy()
+            target_np = target_samples.cpu().numpy()
+            cost = ot.dist(source_np, target_np, metric="sqeuclidean")
+            G = ot.emd([], [], cost)
+            # G = ot.sinkhorn([], [], cost, 1e-1)
+            # G = ot.bregman.empirical_sinkhorn(src, tgt, 1e-1)
+
+            # use all elements from ot plan
+            # TODO: is random shuffling needed here?
+            choices = np.arange(G.shape[0] * G.shape[1])
+            idx0, idx1 = np.divmod(choices, G.shape[1])
+
+            # OT paired samples
+            source_samples = source_samples[idx0]
+            target_samples = target_samples[idx1]
 
         #print("--------------------------------")
         #print(type(x0), type(x1), type(cell_cond), type(treat_cond), type(patient), type(culture), type(idx))

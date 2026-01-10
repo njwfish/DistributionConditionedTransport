@@ -91,12 +91,12 @@ class trellis_dataset(Dataset):
         return (target_idx == source_idx)
 
     def construct_data(self):
-        self.samples_tmp, self.culture, self.x0, self.x1, self.cell_cond, self.treat_cond, self.patients = self.select_experiments()
+        self.samples_tmp, self.culture, self.x0, self.x1, self.cell_conds_source, self.cell_conds_target, self.treat_conds, self.patients = self.select_experiments()
 
         self.samples = self.samples_tmp
 
     def select_experiments(self):
-        samples_tmp, cultures, sources, targets, cell_conds, treat_conds, patients = [], [], [], [], [], [], []
+        samples_tmp, cultures, sources, targets, cell_conds_source, cell_conds_target, treat_conds, patients = [], [], [], [], [], [], [], []
 
         for i in range(len(self.split)):
             #exp = self.split[i]
@@ -144,9 +144,14 @@ class trellis_dataset(Dataset):
                     # get cell type one-hot encoding for x0 populations
                     x0_cell_pdos_idx = range(0, len(x0_pdos_idx))
                     x0_cell_fibs_idx = range(len(x0_pdos_idx), len(x0_idx))
-                    cond_cell = np.zeros((x0.shape[0], len(self.cell_type)))
-                    cond_cell[x0_cell_pdos_idx, 0] = 1
-                    cond_cell[x0_cell_fibs_idx, 1] = 1
+                    x1_cell_pdos_idx = range(0, len(x1_pdos_idx))
+                    x1_cell_fibs_idx = range(len(x1_pdos_idx), len(x1_idx))
+                    cond_cell_source = np.zeros((x0.shape[0], len(self.cell_type)))
+                    cond_cell_source[x0_cell_pdos_idx, 0] = 1
+                    cond_cell_source[x0_cell_fibs_idx, 1] = 1
+                    cond_cell_target = np.zeros((x1.shape[0], len(self.cell_type)))
+                    cond_cell_target[x1_cell_pdos_idx, 0] = 1
+                    cond_cell_target[x1_cell_fibs_idx, 1] = 1
 
                     # get treatment one-hot encoding
                     treat_idx = self.treatment.index(t)
@@ -160,7 +165,8 @@ class trellis_dataset(Dataset):
                             culture,
                             x0,
                             x1,
-                            cond_cell,
+                            cond_cell_source,
+                            cond_cell_target,
                             cond_treat,
                             str(pdo_num),
                         )
@@ -169,12 +175,13 @@ class trellis_dataset(Dataset):
                     patients.append(str(pdo_num))
                     cultures.append(culture)
                     targets.append(x1)
-                    cell_conds.append(cond_cell)
+                    cell_conds_source.append(cond_cell_source)
+                    cell_conds_target.append(cond_cell_target)
                     treat_conds.append(cond_treat)
             sources.append(x0)
 
         self.num_samples = len(samples_tmp)
-        return samples_tmp, cultures, sources, targets, cell_conds, treat_conds, patients
+        return samples_tmp, cultures, sources, targets, cell_conds_source, cell_conds_target, treat_conds, patients
 
     def __filter_control__(self, split):
         split_lst = []
@@ -210,13 +217,15 @@ class trellis_dataset(Dataset):
         j = idx % n
         
         source_idx, target_idx = i, j
-        culture, x0, _, cell_cond, treat_cond, patient = self.samples[source_idx]
-        _, _, x1, _, _, _ = self.samples[target_idx]
+        culture, x0, _, cell_cond_source, _, treat_cond, patient = self.samples[source_idx]
+        _, _, x1, _, cell_cond_target, _, _ = self.samples[target_idx]
         
         source_samples = torch.tensor(x0, dtype=torch.float)
         target_samples = torch.tensor(x1, dtype=torch.float)
-        treat_cond = torch.tensor(treat_cond, dtype=torch.float)
-        cell_cond = torch.tensor(cell_cond, dtype=torch.float)
+        treat_cond_source = torch.tensor(treat_cond_source, dtype=torch.float)
+        cell_cond_source = torch.tensor(cell_cond_source, dtype=torch.float)
+        treat_cond_target = torch.tensor(treat_cond_target, dtype=torch.float)
+        cell_cond_target = torch.tensor(cell_cond_target, dtype=torch.float)
         
         source_subset_indices = np.random.choice(source_samples.shape[0], size=self.set_size, replace=False)
         target_subset_indices = np.random.choice(target_samples.shape[0], size=self.set_size, replace=False)
@@ -224,9 +233,9 @@ class trellis_dataset(Dataset):
         source_samples = source_samples[source_subset_indices]
         target_samples = target_samples[target_subset_indices]
         
-        
         treat_cond = treat_cond[source_subset_indices]
-        cell_cond = cell_cond[source_subset_indices]
+        cell_cond_source = cell_cond_source[source_subset_indices]
+        cell_cond_target = cell_cond_target[target_subset_indices]
         
         if self.ot_coupling:
             # NOTE: converted to numpy to avoid CUDA issues.  
@@ -262,7 +271,8 @@ class trellis_dataset(Dataset):
         return {
             'source_samples': source_samples,
             'target_samples': target_samples,
-            'cell_cond': cell_cond,
+            'cell_cond_source': cell_cond_source,
+            'cell_cond_target': cell_cond_target,
             'treat_cond': treat_cond,
             'patient': patient,
             'culture': culture,

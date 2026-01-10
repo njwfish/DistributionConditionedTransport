@@ -1,0 +1,13 @@
+# @package _global_.sampling
+# Optimized batch sampler for Trellis datasets
+# Computes indices analytically instead of iterating through all items (much faster for large datasets)
+_target_: sampler.stratified_trellis.StratifiedBatchSamplerTrellis
+batch_size: ${experiment.batch_size}
+num_samples: ${experiment.num_samples}
+min_consecutive_per_batch: null  # If set, overrides consecutive_ratio
+consecutive_ratio: 0.25  # Target 25% consecutive pairs per batch
+drop_last: false
+shuffle: true
+seed: ${seed}
+forward_only: false  # Only include forward pairs (t→t+N, N>0) for non-consecutive
+

@@ -77,8 +77,6 @@ class StratifiedBatchSampler(BaseSampler):
         """Separate dataset indices into consecutive and non-consecutive groups."""
         for idx in range(len(self.dataset)):
             item = self.dataset[idx]
-            source_idx = item['source_idx']
-            target_idx = item['target_idx']
             
             is_consecutive = item['train_predictor_bool']
             is_forward = True #target_idx > source_idx
@@ -223,9 +221,7 @@ class StratifiedWeightedSampler(BaseSampler):
         
         for idx in range(len(self.dataset)):
             item = self.dataset[idx]
-            source_idx = item['source_idx']
-            target_idx = item['target_idx']
-            
+
             is_consecutive = item['train_predictor_bool']
             is_forward = True #target_idx > source_idx
             
@@ -248,4 +244,3 @@ class StratifiedWeightedSampler(BaseSampler):
     
     def __len__(self) -> int:
         return self.num_samples
-

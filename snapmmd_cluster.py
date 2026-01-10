@@ -300,13 +300,13 @@ def plot_forecast(cfg, data, forecast):
 predictor_loss_weights = [1, 0.1, 0.01, 0.001, 0.0]
 selective_pairing_modes = [None, "single_step", "unidirectional"]
 
-outputs_dir = "outputs_12_30_2025"
+outputs_dir = "outputs"
 
 for predictor_loss_weight in predictor_loss_weights:
     for selective_pairing_mode in selective_pairing_modes:
         ckpt_dir_ref = None
         for ckpt_dir in os.listdir(outputs_dir):
-            if ckpt_dir.startswith("snapMMD_G"):
+            if ckpt_dir.startswith("snapMMD_P"):
                 try:
                     cfg_ref,_ = load_cfg_and_ckpt(ckpt_dir,outputs_dir=outputs_dir)
                     if cfg_ref['experiment']['predictor_loss_weight'] == predictor_loss_weight and cfg_ref['experiment']['selective_pairing_mode'] == selective_pairing_mode:

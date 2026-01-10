@@ -205,7 +205,7 @@ def get_latent_cache_path(experiment_dir: str, split: str) -> str:
 
 def compute_and_cache_latents(
     encoder: torch.nn.Module,
-    dataset,
+    samples: list,
     device: torch.device,
     cache_path: str,
     split_name: str = "dataset",
@@ -216,7 +216,7 @@ def compute_and_cache_latents(
     
     Args:
         encoder: Trained encoder
-        dataset: Dataset with samples
+        samples: List of samples (e.g., dataset.samples_train or dataset.samples_test)
         device: Device to run on
         cache_path: Path to save/load cached latents
         split_name: Name of split for logging
@@ -230,14 +230,14 @@ def compute_and_cache_latents(
     #    cache = torch.load(cache_path, map_location='cpu', weights_only=False)
     #    return cache['source_latents'], cache['target_latents']
     
-    print(f"Computing {split_name} latents for {len(dataset.samples)} samples...")
+    print(f"Computing {split_name} latents for {len(samples)} samples...")
     
     source_latents = []
     target_latents = []
     
     encoder.eval()
     with torch.no_grad():
-        for i, sample in enumerate(dataset.samples):
+        for i, sample in enumerate(samples):
             culture, x0, x1, cell_cond, treat_cond, patient = sample
             
             # Convert to tensors and add batch dimension
@@ -252,7 +252,7 @@ def compute_and_cache_latents(
             target_latents.append(target_latent)
             
             if (i + 1) % 50 == 0:
-                print(f"  Processed {i + 1}/{len(dataset.samples)} samples")
+                print(f"  Processed {i + 1}/{len(samples)} samples")
     
     # Stack into arrays: [num_samples, latent_dim]
     source_latents = np.vstack(source_latents)
@@ -396,17 +396,19 @@ def train_mlp_predictor(
 # Main Evaluation Logic
 # ============================================================================
 
-def load_experiment(experiment_dir: str, device: torch.device, load_train_dataset: bool = False):
+def load_experiment(experiment_dir: str, device: torch.device):
     """
     Load the trained model, config, and instantiate the components.
     
     Args:
         experiment_dir: Path to the experiment directory containing best_model.pt and config.yaml
         device: Device to load the model onto
-        load_train_dataset: If True, also instantiate training dataset for predictor training
         
     Returns:
-        encoder, generator, test_dataset, config, train_dataset (or None if not requested)
+        encoder, generator, dataset, config
+        
+    Note:
+        The dataset contains both samples_train and samples_test attributes.
     """
     # Load config
     config_path = os.path.join(experiment_dir, "config.yaml")
@@ -428,20 +430,9 @@ def load_experiment(experiment_dir: str, device: torch.device, load_train_datase
     resolved_cfg = OmegaConf.to_container(cfg, resolve=True)
     resolved_cfg = OmegaConf.create(resolved_cfg)
     
-    # Instantiate training dataset if needed (keep split_mode="train")
-    train_dataset = None
-    if load_train_dataset:
-        train_cfg = OmegaConf.create(OmegaConf.to_container(resolved_cfg, resolve=True))
-        train_cfg.dataset.split_mode = "train"
-        train_dataset = hydra.utils.instantiate(train_cfg.dataset)
-        print(f"Instantiated training dataset with split_mode='train', {len(train_dataset.samples)} samples")
-    
-    # Modify dataset config to use test split
-    resolved_cfg.dataset.split_mode = "test"
-    
-    # Instantiate test dataset
-    test_dataset = hydra.utils.instantiate(resolved_cfg.dataset)
-    print(f"Instantiated test dataset with split_mode='test', {len(test_dataset.samples)} samples")
+    # Instantiate dataset (contains both samples_train and samples_test)
+    dataset = hydra.utils.instantiate(resolved_cfg.dataset)
+    print(f"Instantiated dataset with {len(dataset.samples_train)} train samples and {len(dataset.samples_test)} test samples")
     
     # Instantiate encoder
     encoder = hydra.utils.instantiate(resolved_cfg.encoder)
@@ -457,7 +448,7 @@ def load_experiment(experiment_dir: str, device: torch.device, load_train_datase
     generator.eval()
     print("Loaded generator")
     
-    return encoder, generator, test_dataset, cfg, train_dataset
+    return encoder, generator, dataset, cfg
 
 
 def evaluate_sample(
@@ -842,10 +833,8 @@ def main():
     device = torch.device(args.device)
     print(f"Using device: {device}")
     
-    # Load experiment (also load training dataset if using predictor)
-    encoder, generator, test_dataset, cfg, train_dataset = load_experiment(
-        args.experiment_dir, device, load_train_dataset=args.use_predictor
-    )
+    # Load experiment (dataset contains both samples_train and samples_test)
+    encoder, generator, dataset, cfg = load_experiment(args.experiment_dir, device)
     
     # Compute and cache test latents
     print("\n" + "=" * 80)
@@ -854,7 +843,7 @@ def main():
     
     test_cache_path = get_latent_cache_path(args.experiment_dir, "test")
     test_source_latents, test_target_latents = compute_and_cache_latents(
-        encoder, test_dataset, device, test_cache_path, split_name="test"
+        encoder, dataset.samples_test, device, test_cache_path, split_name="test"
     )
     
     # Train predictor if requested
@@ -867,7 +856,7 @@ def main():
         # Compute and cache training latents
         train_cache_path = get_latent_cache_path(args.experiment_dir, "train")
         train_source_latents, train_target_latents = compute_and_cache_latents(
-            encoder, train_dataset, device, train_cache_path, split_name="train"
+            encoder, dataset.samples_train, device, train_cache_path, split_name="train"
         )
         
         # Train predictor based on type
@@ -921,14 +910,14 @@ def main():
     all_model_metrics = {name: [] for name in metric_names}
     all_baseline_metrics = {name: [] for name in metric_names} if args.compute_baseline else None
     
-    for i, sample in enumerate(test_dataset.samples):
+    for i, sample in enumerate(dataset.samples_test):
         culture, x0, x1, cell_cond, treat_cond, patient = sample
         
         # Get precomputed latents for this sample
         source_latent = test_source_latents[i:i+1]  # [1, latent_dim]
         target_latent = test_target_latents[i:i+1]  # [1, latent_dim]
         
-        print(f"\nSample {i + 1}/{len(test_dataset.samples)}:")
+        print(f"\nSample {i + 1}/{len(dataset.samples_test)}:")
         print(f"  Culture: {culture}, Patient: {patient}")
         print(f"  x0 shape: {x0.shape}, x1 shape: {x1.shape}")
         

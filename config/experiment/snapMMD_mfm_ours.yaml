@@ -1,0 +1,30 @@
+# @package _global_.experiment
+
+# Experiment name and description
+name: snapMMD_MFM_ours_${dataset_name}
+description: "SnapMMD ${dataset_name} experiment with unified dataset class"
+
+# Override defaults from config.yaml
+defaults:
+  - /dataset: snapMMD_unified
+  - /encoder: gnn
+  - /model: diffusion_mlp_source_only
+  - /generator: flow_matching  # Use flow matching for coupled embeddings
+  - /training: default5000
+  - /loss: default_source_only
+  - /sampling: default
+
+ot_coupling: false
+
+train_predictor_posthoc: true
+
+# sampling parameters
+num_samples: null
+selective_pairing_mode: "single_step"
+
+# Experiment-specific parameters
+latent_dim: 32
+hidden_dim: 128
+set_size: 32
+batch_size: 4
+lr: 2e-4

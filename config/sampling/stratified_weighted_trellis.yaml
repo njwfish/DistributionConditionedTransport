@@ -1,0 +1,9 @@
+# @package _global_.sampling
+# Optimized weighted sampler for Trellis datasets
+# Computes weights analytically instead of iterating through all items (much faster for large datasets)
+_target_: sampler.stratified_trellis.StratifiedWeightedSamplerTrellis
+consecutive_weight: 200.0  # Consecutive pairs are 200x more likely to be sampled
+num_samples: ${experiment.num_samples}
+seed: ${seed}
+forward_only: false  # Set true to exclude backward pairs entirely
+

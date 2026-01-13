@@ -1,3 +1,16 @@
+"""
+Trellis A2A dataset with conditioning information (cell_cond and treat_cond).
+
+This is a modified version of trellis_a2a.py that returns:
+- cell_cond_source: 2-dimensional one-hot encoding of cell type for source samples
+- cell_cond_target: 2-dimensional one-hot encoding of cell type for target samples  
+- treat_cond: 11-dimensional one-hot encoding of treatment condition
+
+These conditioning vectors can be used to:
+1. Concatenate cell_cond with input features for the encoder (43 -> 45 dimensions)
+2. Concatenate treat_cond with source latent for the predictor (latent_dim -> latent_dim + 11)
+"""
+
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -13,7 +26,7 @@ import time
 import pickle
 
 
-class trellis_dataset(Dataset):
+class trellis_dataset_conditioned(Dataset):
     def __init__(
         self,
         control=set(["DMSO", "AH", "H2O"]),
@@ -21,7 +34,6 @@ class trellis_dataset(Dataset):
         culture=["PDO", "PDOF", "F"],
         cell_type=["PDOs", "Fibs"],
         split_name='pdo21',
-        split_mode="train",
         set_size=32,
         seed=0,
         ot_coupling: bool = False,
@@ -69,8 +81,9 @@ class trellis_dataset(Dataset):
         data_path = os.path.join(base_dir, data_path)
         self.data = np.load(data_path)[:, :-1]
 
-        # TODO: for the replica splits (I don't think for the patient splits) there is also a val part of the split that we can use.
-        split=self.data_splits[split_mode]
+        # Load both train and test splits
+        split_train = self.data_splits["train"]
+        split_test = self.data_splits["test"]
         
         self.set_size = set_size
         self.control = control  # identify x0
@@ -79,34 +92,47 @@ class trellis_dataset(Dataset):
         self.ot_coupling = ot_coupling
         self.split_name = split_name
 
-        self.split = self.__filter_control__(split)
+        self.split_train = self.__filter_control__(split_train)
+        self.split_test = self.__filter_control__(split_test)
 
         # construct dataset
         start = time.time()
         self.construct_data()
         end = time.time()
 
-    # TODO: make sure that there is no weird behavior here.
-    def get_train_predictor_bool(self, source_idx, target_idx):
-        return (target_idx == source_idx)
+    def get_train_predictor_bool(self, source_is_train, source_sample_idx, source_is_x0,
+                                  target_is_train, target_sample_idx, target_is_x0):
+        """
+        Returns True if source and target form the 'natural' (x0 -> x1) pairing 
+        from the same train sample.
+        """
+        return (source_is_train and target_is_train and 
+                source_sample_idx == target_sample_idx and 
+                source_is_x0 and not target_is_x0)
 
     def construct_data(self):
-        self.samples_tmp, self.culture, self.x0, self.x1, self.cell_conds_source, self.cell_conds_target, self.treat_conds, self.patients = self.select_experiments()
+        # Process train split
+        self.samples_train, _, _, _, _, _, _ = self.select_experiments(self.split_train)
+        
+        # Process test split
+        self.samples_test, _, _, _, _, _, _ = self.select_experiments(self.split_test)
+        
+        # Compute total number of x populations for indexing
+        # From train: x0 and x1 for each sample = 2 * n_train
+        # From test: only x0 for each sample = n_test (x1's are never touched)
+        self.n_train = len(self.samples_train)
+        self.n_test = len(self.samples_test)
+        self.total_x_populations = 2 * self.n_train + self.n_test
 
-        self.samples = self.samples_tmp
+    def select_experiments(self, split):
+        samples_tmp, cultures, sources, targets, cell_conds, treat_conds, patients = [], [], [], [], [], [], []
 
-    def select_experiments(self):
-        samples_tmp, cultures, sources, targets, cell_conds_source, cell_conds_target, treat_conds, patients = [], [], [], [], [], [], [], []
-
-        for i in range(len(self.split)):
-            #exp = self.split[i]
-
+        for i in range(len(split)):
             if self.split_name == "replicas-1" or self.split_name == "replicas-2":
-                exp = self.split[i]
+                exp = split[i]
                 pdo_num = -1 # no pdo number meta data in these splits
-
             else:
-                exp_patient = self.split[i]
+                exp_patient = split[i]
 
                 pdo_num = exp_patient.keys()
                 assert len(pdo_num) == 1, "More than one pdo number!"
@@ -144,14 +170,16 @@ class trellis_dataset(Dataset):
                     # get cell type one-hot encoding for x0 populations
                     x0_cell_pdos_idx = range(0, len(x0_pdos_idx))
                     x0_cell_fibs_idx = range(len(x0_pdos_idx), len(x0_idx))
+                    cond_cell_x0 = np.zeros((x0.shape[0], len(self.cell_type)))
+                    cond_cell_x0[x0_cell_pdos_idx, 0] = 1
+                    cond_cell_x0[x0_cell_fibs_idx, 1] = 1
+
+                    # get cell type one-hot encoding for x1 populations
                     x1_cell_pdos_idx = range(0, len(x1_pdos_idx))
                     x1_cell_fibs_idx = range(len(x1_pdos_idx), len(x1_idx))
-                    cond_cell_source = np.zeros((x0.shape[0], len(self.cell_type)))
-                    cond_cell_source[x0_cell_pdos_idx, 0] = 1
-                    cond_cell_source[x0_cell_fibs_idx, 1] = 1
-                    cond_cell_target = np.zeros((x1.shape[0], len(self.cell_type)))
-                    cond_cell_target[x1_cell_pdos_idx, 0] = 1
-                    cond_cell_target[x1_cell_fibs_idx, 1] = 1
+                    cond_cell_x1 = np.zeros((x1.shape[0], len(self.cell_type)))
+                    cond_cell_x1[x1_cell_pdos_idx, 0] = 1
+                    cond_cell_x1[x1_cell_fibs_idx, 1] = 1
 
                     # get treatment one-hot encoding
                     treat_idx = self.treatment.index(t)
@@ -165,8 +193,8 @@ class trellis_dataset(Dataset):
                             culture,
                             x0,
                             x1,
-                            cond_cell_source,
-                            cond_cell_target,
+                            cond_cell_x0,
+                            cond_cell_x1,
                             cond_treat,
                             str(pdo_num),
                         )
@@ -175,18 +203,15 @@ class trellis_dataset(Dataset):
                     patients.append(str(pdo_num))
                     cultures.append(culture)
                     targets.append(x1)
-                    cell_conds_source.append(cond_cell_source)
-                    cell_conds_target.append(cond_cell_target)
+                    cell_conds.append(cond_cell_x0)
                     treat_conds.append(cond_treat)
             sources.append(x0)
 
-        self.num_samples = len(samples_tmp)
-        return samples_tmp, cultures, sources, targets, cell_conds_source, cell_conds_target, treat_conds, patients
+        return samples_tmp, cultures, sources, targets, cell_conds, treat_conds, patients
 
     def __filter_control__(self, split):
         split_lst = []
         for ls in split:
-            #keyset = set(ls.keys())
             if self.has_empty_element(ls):
                 continue
             split_lst.append(ls)
@@ -205,26 +230,67 @@ class trellis_dataset(Dataset):
                         return True
         return False  # Return False if no empty dictionary is found after checking all items
 
+    def _flat_idx_to_x_info(self, flat_idx):
+        """
+        Map a flat index to x population info.
+        
+        Flat index layout:
+        - [0, 2*n_train): train samples, alternating x0 and x1
+          - flat_idx = 2*i => train sample i, x0
+          - flat_idx = 2*i+1 => train sample i, x1
+        - [2*n_train, 2*n_train + n_test): test samples, only x0
+          - flat_idx = 2*n_train + j => test sample j, x0
+        
+        Returns: (x, cell_cond, treat_cond, culture, patient, is_from_train, sample_idx, is_x0)
+        """
+        if flat_idx < 2 * self.n_train:
+            # From train data
+            sample_idx = flat_idx // 2
+            is_x0 = (flat_idx % 2 == 0)
+            culture, x0, x1, cell_cond_x0, cell_cond_x1, treat_cond, patient = self.samples_train[sample_idx]
+            x = x0 if is_x0 else x1
+            cell_cond = cell_cond_x0 if is_x0 else cell_cond_x1
+            # treat_cond is stored with x0's shape, so expand to correct size if using x1
+            # (the treat_cond value is the same for all cells, just needs correct size)
+            # TODO: fix this, this is quite hacky.
+            if is_x0:
+                treat_cond_out = treat_cond
+            else:
+                # Expand treat_cond to match x1's size (take one row and tile)
+                treat_cond_out = np.tile(treat_cond[0:1], (x1.shape[0], 1))
+            return x, cell_cond, treat_cond_out, culture, patient, True, sample_idx, is_x0
+        else:
+            # From test data (only x0)
+            test_sample_idx = flat_idx - 2 * self.n_train
+            culture, x0, x1, cell_cond_x0, cell_cond_x1, treat_cond, patient = self.samples_test[test_sample_idx]
+            return x0, cell_cond_x0, treat_cond, culture, patient, False, test_sample_idx, True
 
     def __len__(self):
-        n = len(self.samples)
-        return n**2
+        # Total pairs = (total x populations)^2
+        return self.total_x_populations ** 2
 
     def __getitem__(self, idx):
+        N = self.total_x_populations
         
-        n = len(self.samples)
-        i = idx // n
-        j = idx % n
+        # Decompose idx into source and target flat indices
+        source_flat_idx = idx // N
+        target_flat_idx = idx % N
         
-        source_idx, target_idx = i, j
-        culture, x0, _, cell_cond_source, _, treat_cond, patient = self.samples[source_idx]
-        _, _, x1, _, cell_cond_target, _, _ = self.samples[target_idx]
+        # Get source info
+        source_x, source_cell_cond, source_treat_cond, source_culture, source_patient, \
+            source_is_train, source_sample_idx, source_is_x0 = self._flat_idx_to_x_info(source_flat_idx)
         
-        source_samples = torch.tensor(x0, dtype=torch.float)
-        target_samples = torch.tensor(x1, dtype=torch.float)
-        treat_cond = torch.tensor(treat_cond, dtype=torch.float)
-        cell_cond_source = torch.tensor(cell_cond_source, dtype=torch.float)
-        cell_cond_target = torch.tensor(cell_cond_target, dtype=torch.float)
+        # Get target info
+        target_x, target_cell_cond, target_treat_cond, target_culture, target_patient, \
+            target_is_train, target_sample_idx, target_is_x0 = self._flat_idx_to_x_info(target_flat_idx)
+        
+        source_samples = torch.tensor(source_x, dtype=torch.float)
+        target_samples = torch.tensor(target_x, dtype=torch.float)
+        
+        # Convert conditioning to tensors
+        cell_cond_source = torch.tensor(source_cell_cond, dtype=torch.float)
+        cell_cond_target = torch.tensor(target_cell_cond, dtype=torch.float)
+        treat_cond = torch.tensor(source_treat_cond, dtype=torch.float)
         
         source_subset_indices = np.random.choice(source_samples.shape[0], size=self.set_size, replace=False)
         target_subset_indices = np.random.choice(target_samples.shape[0], size=self.set_size, replace=False)
@@ -232,9 +298,10 @@ class trellis_dataset(Dataset):
         source_samples = source_samples[source_subset_indices]
         target_samples = target_samples[target_subset_indices]
         
-        treat_cond = treat_cond[source_subset_indices]
+        # Subsample conditioning to match subsampled cells
         cell_cond_source = cell_cond_source[source_subset_indices]
         cell_cond_target = cell_cond_target[target_subset_indices]
+        treat_cond = treat_cond[source_subset_indices]
         
         if self.ot_coupling:
             # NOTE: converted to numpy to avoid CUDA issues.  
@@ -243,29 +310,19 @@ class trellis_dataset(Dataset):
             target_np = target_samples.cpu().numpy()
             cost = ot.dist(source_np, target_np, metric="sqeuclidean")
             G = ot.emd([], [], cost)
-            # G = ot.sinkhorn([], [], cost, 1e-1)
-            # G = ot.bregman.empirical_sinkhorn(src, tgt, 1e-1)
 
             # use all elements from ot plan
-            # TODO: is random shuffling needed here?
             choices = np.arange(G.shape[0] * G.shape[1])
             idx0, idx1 = np.divmod(choices, G.shape[1])
 
             # OT paired samples
             source_samples = source_samples[idx0]
             target_samples = target_samples[idx1]
-
-        #print("--------------------------------")
-        #print(type(x0), type(x1), type(cell_cond), type(treat_cond), type(patient), type(culture), type(idx))
-        #
-        #print("source_samples.shape: ", source_samples.shape)
-        #print("target_samples.shape: ", target_samples.shape)
-        #print("x1.shape: ", x1.shape)
-        #print("cell_cond.shape: ", cell_cond.shape)
-        #print("treat_cond.shape: ", treat_cond.shape)
-        #print("patient: ", patient)
-        #print("culture: ", culture)
-        #print("idx: ", idx)
+            
+            # Also reindex the conditioning to match OT coupling
+            cell_cond_source = cell_cond_source[idx0]
+            cell_cond_target = cell_cond_target[idx1]
+            treat_cond = treat_cond[idx0]
         
         return {
             'source_samples': source_samples,
@@ -273,9 +330,10 @@ class trellis_dataset(Dataset):
             'cell_cond_source': cell_cond_source,
             'cell_cond_target': cell_cond_target,
             'treat_cond': treat_cond,
-            'patient': patient,
-            'culture': culture,
-            'source_idx': source_idx,
-            'target_idx': target_idx,
-            'train_predictor_bool': self.get_train_predictor_bool(source_idx, target_idx)  
-            }
+            'patient': source_patient,
+            'culture': source_culture,
+            'train_predictor_bool': self.get_train_predictor_bool(
+                source_is_train, source_sample_idx, source_is_x0,
+                target_is_train, target_sample_idx, target_is_x0
+            )
+        }

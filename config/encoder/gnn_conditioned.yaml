@@ -1,0 +1,9 @@
+# @package _global_.encoder
+# GNN encoder with conditioned input (43 features + 2 cell_cond = 45)
+_target_: encoder.encoders.DistributionEncoderGNN
+in_dim: 45  # 43 original features + 2 cell type one-hot encoding
+latent_dim: ${experiment.latent_dim}
+hidden_dim: ${experiment.hidden_dim}
+set_size: ${experiment.set_size}
+layers: 2
+fc_layers: 2 

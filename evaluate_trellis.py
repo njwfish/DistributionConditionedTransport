@@ -8,9 +8,13 @@ This script:
 4. Generates x1_pred using the generator with x0 as source and the latent of x1
 5. Computes and prints W1, W2, MMD, and r2 metrics
 
+Supports both conditioned and non-conditioned models:
+- For conditioned models (encoder.in_dim == 45), concatenates cell_cond with samples before encoding
+- For conditioned predictors, uses treat_cond for prediction
+
 Optionally, with --use_predictor:
 - Trains a predictor P on training data to map E(x0) -> E(x1)
-- Predictor type can be "ridge" (default) or "mlp"
+- Predictor type can be "ridge" (default), "mlp", or "conditioned" (uses treat_cond)
 - Uses G(x0, E(x0), P(E(x0))) instead of G(x0, E(x0), E(x1))
 """
 
@@ -203,12 +207,35 @@ def get_latent_cache_path(experiment_dir: str, split: str) -> str:
     return os.path.join(experiment_dir, f"{split}_latents_cache.pt")
 
 
+def unpack_sample(sample):
+    """
+    Unpack a sample tuple, handling both old (6-element) and new (7-element) formats.
+    
+    Old format: (culture, x0, x1, cell_cond, treat_cond, patient)
+    New format: (culture, x0, x1, cell_cond_source, cell_cond_target, treat_cond, patient)
+    
+    Returns:
+        (culture, x0, x1, cell_cond_source, cell_cond_target, treat_cond, patient)
+    """
+    if len(sample) == 6:
+        # Old format: single cell_cond for both source and target
+        culture, x0, x1, cell_cond, treat_cond, patient = sample
+        return culture, x0, x1, cell_cond, cell_cond, treat_cond, patient
+    elif len(sample) == 7:
+        # New format: separate cell_cond_source and cell_cond_target
+        culture, x0, x1, cell_cond_source, cell_cond_target, treat_cond, patient = sample
+        return culture, x0, x1, cell_cond_source, cell_cond_target, treat_cond, patient
+    else:
+        raise ValueError(f"Unexpected sample format with {len(sample)} elements")
+
+
 def compute_and_cache_latents(
     encoder: torch.nn.Module,
     dataset,
     device: torch.device,
     cache_path: str,
     split_name: str = "dataset",
+    is_conditioned: bool = False,
 ) -> tuple:
     """
     Compute E(x0) and E(x1) for all samples in the dataset.
@@ -220,36 +247,57 @@ def compute_and_cache_latents(
         device: Device to run on
         cache_path: Path to save/load cached latents
         split_name: Name of split for logging
+        is_conditioned: If True, concatenate cell_cond with samples before encoding
         
     Returns:
-        Tuple of (source_latents, target_latents) as numpy arrays [num_samples, latent_dim]
+        Tuple of (source_latents, target_latents, treat_conds) as numpy arrays
+        source_latents, target_latents: [num_samples, latent_dim]
+        treat_conds: [num_samples, treat_dim] - treatment conditioning for each sample
     """
     ## Check if cache exists
     #if os.path.exists(cache_path):
     #    print(f"Loading cached {split_name} latents from {cache_path}")
     #    cache = torch.load(cache_path, map_location='cpu', weights_only=False)
-    #    return cache['source_latents'], cache['target_latents']
+    #    return cache['source_latents'], cache['target_latents'], cache.get('treat_conds')
     
     print(f"Computing {split_name} latents for {len(dataset.samples)} samples...")
+    if is_conditioned:
+        print(f"  Using conditioned encoding (concatenating cell_cond with samples)")
     
     source_latents = []
     target_latents = []
+    treat_conds = []
     
     encoder.eval()
     with torch.no_grad():
         for i, sample in enumerate(dataset.samples):
-            culture, x0, x1, cell_cond, treat_cond, patient = sample
+            culture, x0, x1, cell_cond_source, cell_cond_target, treat_cond, patient = unpack_sample(sample)
             
             # Convert to tensors and add batch dimension
             x0_tensor = torch.tensor(x0, dtype=torch.float32, device=device).unsqueeze(0)
             x1_tensor = torch.tensor(x1, dtype=torch.float32, device=device).unsqueeze(0)
             
+            if is_conditioned:
+                # Concatenate cell_cond with samples for conditioned encoder
+                cell_cond_source_tensor = torch.tensor(cell_cond_source, dtype=torch.float32, device=device).unsqueeze(0)
+                cell_cond_target_tensor = torch.tensor(cell_cond_target, dtype=torch.float32, device=device).unsqueeze(0)
+                
+                # x0_tensor: (1, N, 43) + cell_cond_source: (1, N, 2) -> (1, N, 45)
+                x0_input = torch.cat([x0_tensor, cell_cond_source_tensor], dim=-1)
+                x1_input = torch.cat([x1_tensor, cell_cond_target_tensor], dim=-1)
+            else:
+                x0_input = x0_tensor
+                x1_input = x1_tensor
+            
             # Encode
-            source_latent = encoder(x0_tensor).cpu().numpy()  # [1, latent_dim]
-            target_latent = encoder(x1_tensor).cpu().numpy()  # [1, latent_dim]
+            source_latent = encoder(x0_input).cpu().numpy()  # [1, latent_dim]
+            target_latent = encoder(x1_input).cpu().numpy()  # [1, latent_dim]
             
             source_latents.append(source_latent)
             target_latents.append(target_latent)
+            
+            # Store treat_cond (take first row since all rows are the same for a sample)
+            treat_conds.append(treat_cond[0:1])  # [1, treat_dim]
             
             if (i + 1) % 50 == 0:
                 print(f"  Processed {i + 1}/{len(dataset.samples)} samples")
@@ -257,15 +305,17 @@ def compute_and_cache_latents(
     # Stack into arrays: [num_samples, latent_dim]
     source_latents = np.vstack(source_latents)
     target_latents = np.vstack(target_latents)
+    treat_conds = np.vstack(treat_conds)
     
     # Cache to disk
     print(f"Saving {split_name} latents to {cache_path}")
     torch.save({
         'source_latents': source_latents,
         'target_latents': target_latents,
+        'treat_conds': treat_conds,
     }, cache_path)
     
-    return source_latents, target_latents
+    return source_latents, target_latents, treat_conds
 
 
 def train_ridge_predictor(
@@ -392,6 +442,145 @@ def train_mlp_predictor(
     return predictor
 
 
+class ConditionedPredictor(nn.Module):
+    """
+    Conditioned predictor that takes source latent and treat_cond as input.
+    Implements the same interface as MLPPredictor for compatibility.
+    """
+    
+    def __init__(self, latent_dim: int, treat_dim: int = 11, hidden_dim: int = 128, num_layers: int = 2):
+        super().__init__()
+        
+        input_dim = latent_dim + treat_dim
+        layers = []
+        in_dim = input_dim
+        
+        for i in range(num_layers):
+            layers.append(nn.Linear(in_dim, hidden_dim))
+            layers.append(nn.ReLU())
+            in_dim = hidden_dim
+        
+        layers.append(nn.Linear(hidden_dim, latent_dim))
+        
+        self.network = nn.Sequential(*layers)
+        self.latent_dim = latent_dim
+        self.treat_dim = treat_dim
+    
+    def forward(self, source_latent: torch.Tensor, treat_cond: torch.Tensor) -> torch.Tensor:
+        x = torch.cat([source_latent, treat_cond], dim=-1)
+        return self.network(x)
+    
+    def predict(self, source_latent: np.ndarray, treat_cond: np.ndarray) -> np.ndarray:
+        """Predict with conditioning - compatible interface for evaluation."""
+        self.eval()
+        with torch.no_grad():
+            source_tensor = torch.tensor(source_latent, dtype=torch.float32, device=next(self.parameters()).device)
+            treat_tensor = torch.tensor(treat_cond, dtype=torch.float32, device=next(self.parameters()).device)
+            output = self.forward(source_tensor, treat_tensor)
+            return output.cpu().numpy()
+
+
+def train_conditioned_predictor(
+    source_latents: np.ndarray,
+    target_latents: np.ndarray,
+    treat_conds: np.ndarray,
+    device: torch.device,
+    hidden_dim: int = 128,
+    num_layers: int = 2,
+    lr: float = 1e-3,
+    num_epochs: int = 1000,
+    batch_size: int = 32,
+) -> ConditionedPredictor:
+    """
+    Train a conditioned predictor that maps (source_latent, treat_cond) -> target_latent.
+    
+    Args:
+        source_latents: [num_samples, latent_dim] source latent encodings E(x0)
+        target_latents: [num_samples, latent_dim] target latent encodings E(x1)
+        treat_conds: [num_samples, treat_dim] treatment conditioning
+        device: Device to train on
+        hidden_dim: Hidden dimension
+        num_layers: Number of hidden layers
+        lr: Learning rate
+        num_epochs: Number of training epochs
+        batch_size: Batch size for training
+        
+    Returns:
+        Trained ConditionedPredictor model
+    """
+    latent_dim = source_latents.shape[1]
+    treat_dim = treat_conds.shape[1]
+    num_samples = source_latents.shape[0]
+    
+    print(f"Training CONDITIONED predictor...")
+    print(f"  Training data shape: {source_latents.shape} + {treat_conds.shape} -> {target_latents.shape}")
+    print(f"  Architecture: ({latent_dim} + {treat_dim}) -> {num_layers}x{hidden_dim} -> {latent_dim}")
+    print(f"  lr={lr}, epochs={num_epochs}, batch_size={batch_size}")
+    
+    # Create model
+    predictor = ConditionedPredictor(latent_dim, treat_dim, hidden_dim, num_layers).to(device)
+    
+    # Convert data to tensors
+    source_tensor = torch.tensor(source_latents, dtype=torch.float32, device=device)
+    target_tensor = torch.tensor(target_latents, dtype=torch.float32, device=device)
+    treat_tensor = torch.tensor(treat_conds, dtype=torch.float32, device=device)
+    
+    # Create optimizer and loss
+    optimizer = torch.optim.Adam(predictor.parameters(), lr=lr)
+    criterion = nn.MSELoss()
+    
+    # Training loop
+    predictor.train()
+    best_loss = float('inf')
+    
+    for epoch in range(num_epochs):
+        # Shuffle data
+        perm = torch.randperm(num_samples)
+        source_shuffled = source_tensor[perm]
+        target_shuffled = target_tensor[perm]
+        treat_shuffled = treat_tensor[perm]
+        
+        epoch_loss = 0.0
+        num_batches = 0
+        
+        for i in range(0, num_samples, batch_size):
+            batch_source = source_shuffled[i:i+batch_size]
+            batch_target = target_shuffled[i:i+batch_size]
+            batch_treat = treat_shuffled[i:i+batch_size]
+            
+            optimizer.zero_grad()
+            pred = predictor(batch_source, batch_treat)
+            loss = criterion(pred, batch_target)
+            loss.backward()
+            optimizer.step()
+            
+            epoch_loss += loss.item()
+            num_batches += 1
+        
+        avg_loss = epoch_loss / num_batches
+        
+        if avg_loss < best_loss:
+            best_loss = avg_loss
+        
+        if (epoch + 1) % 100 == 0 or epoch == 0:
+            print(f"  Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.6f}")
+    
+    # Compute final training metrics
+    predictor.eval()
+    with torch.no_grad():
+        pred = predictor(source_tensor, treat_tensor)
+        final_loss = criterion(pred, target_tensor).item()
+        
+        # Compute R^2-like metric
+        ss_res = ((pred - target_tensor) ** 2).sum().item()
+        ss_tot = ((target_tensor - target_tensor.mean(dim=0)) ** 2).sum().item()
+        r2 = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+    
+    print(f"  Final MSE: {final_loss:.6f}, R^2: {r2:.4f}")
+    
+    return predictor
+
+
 # ============================================================================
 # Main Evaluation Logic
 # ============================================================================
@@ -406,7 +595,7 @@ def load_experiment(experiment_dir: str, device: torch.device, load_train_datase
         load_train_dataset: If True, also instantiate training dataset for predictor training
         
     Returns:
-        encoder, generator, test_dataset, config, train_dataset (or None if not requested)
+        encoder, generator, test_dataset, config, train_dataset (or None if not requested), is_conditioned
     """
     # Load config
     config_path = os.path.join(experiment_dir, "config.yaml")
@@ -427,6 +616,14 @@ def load_experiment(experiment_dir: str, device: torch.device, load_train_datase
     # Resolve config references for instantiation
     resolved_cfg = OmegaConf.to_container(cfg, resolve=True)
     resolved_cfg = OmegaConf.create(resolved_cfg)
+    
+    # Detect if this is a conditioned model (encoder.in_dim == 45 means 43 features + 2 cell_cond)
+    encoder_in_dim = resolved_cfg.get("encoder", {}).get("in_dim", 43)
+    is_conditioned = (encoder_in_dim == 45)
+    if is_conditioned:
+        print(f"Detected CONDITIONED model (encoder.in_dim={encoder_in_dim})")
+    else:
+        print(f"Detected NON-CONDITIONED model (encoder.in_dim={encoder_in_dim})")
     
     # Instantiate training dataset if needed (keep split_mode="train")
     train_dataset = None
@@ -457,7 +654,7 @@ def load_experiment(experiment_dir: str, device: torch.device, load_train_datase
     generator.eval()
     print("Loaded generator")
     
-    return encoder, generator, test_dataset, cfg, train_dataset
+    return encoder, generator, test_dataset, cfg, train_dataset, is_conditioned
 
 
 def evaluate_sample(
@@ -467,7 +664,8 @@ def evaluate_sample(
     source_latent: np.ndarray,
     target_latent: np.ndarray,
     device: torch.device,
-    predictor: Optional[Union[Ridge, MLPPredictor]] = None,
+    predictor: Optional[Union[Ridge, MLPPredictor, ConditionedPredictor]] = None,
+    treat_cond: Optional[np.ndarray] = None,
     compute_baseline: bool = False,
     wasserstein_only: bool = False,
     max_samples_w1: Optional[int] = None,
@@ -482,8 +680,9 @@ def evaluate_sample(
         source_latent: Precomputed E(x0) [1, latent_dim]
         target_latent: Precomputed E(x1) [1, latent_dim]
         device: Device to run on
-        predictor: Optional predictor (Ridge or MLPPredictor). If provided, uses P(E(x0)) 
-                   as target latent instead of E(x1)
+        predictor: Optional predictor (Ridge, MLPPredictor, or ConditionedPredictor). 
+                   If provided, uses P(E(x0)) or P(E(x0), treat_cond) as target latent
+        treat_cond: Treatment conditioning [1, treat_dim], required for ConditionedPredictor
         compute_baseline: If True, compute baseline metrics (x0 vs x1)
         wasserstein_only: If True, only compute W1 and W2 (skip MMD and r2)
         max_samples_w1: If provided, subsample to at most this many samples for W1
@@ -509,8 +708,14 @@ def evaluate_sample(
     
     # Get target latent: either from predictor or use precomputed
     if predictor is not None:
-        # Use predictor: P(E(x0)) - both Ridge and MLPPredictor have .predict() method
-        predicted_target_latent = predictor.predict(source_latent)
+        if isinstance(predictor, ConditionedPredictor):
+            # Conditioned predictor: P(E(x0), treat_cond)
+            if treat_cond is None:
+                raise ValueError("treat_cond is required for ConditionedPredictor")
+            predicted_target_latent = predictor.predict(source_latent, treat_cond)
+        else:
+            # Ridge or MLPPredictor: P(E(x0))
+            predicted_target_latent = predictor.predict(source_latent)
         target_latent_tensor = torch.tensor(predicted_target_latent, dtype=torch.float32, device=device)
     else:
         # Use precomputed E(x1)
@@ -768,9 +973,10 @@ def main():
     parser.add_argument(
         "--predictor_type",
         type=str,
-        choices=["ridge", "mlp"],
+        choices=["ridge", "mlp", "conditioned"],
         default="ridge",
-        help="Type of predictor to use: 'ridge' for ridge regression, 'mlp' for neural network (default: ridge)"
+        help="Type of predictor to use: 'ridge' for ridge regression, 'mlp' for neural network, "
+             "'conditioned' for treatment-conditioned neural network (default: ridge)"
     )
     # Ridge-specific arguments
     parser.add_argument(
@@ -843,7 +1049,7 @@ def main():
     print(f"Using device: {device}")
     
     # Load experiment (also load training dataset if using predictor)
-    encoder, generator, test_dataset, cfg, train_dataset = load_experiment(
+    encoder, generator, test_dataset, cfg, train_dataset, is_conditioned = load_experiment(
         args.experiment_dir, device, load_train_dataset=args.use_predictor
     )
     
@@ -853,12 +1059,14 @@ def main():
     print("=" * 80)
     
     test_cache_path = get_latent_cache_path(args.experiment_dir, "test")
-    test_source_latents, test_target_latents = compute_and_cache_latents(
-        encoder, test_dataset, device, test_cache_path, split_name="test"
+    test_source_latents, test_target_latents, test_treat_conds = compute_and_cache_latents(
+        encoder, test_dataset, device, test_cache_path, split_name="test",
+        is_conditioned=is_conditioned
     )
     
     # Train predictor if requested
     predictor = None
+    train_treat_conds = None
     if args.use_predictor:
         print("\n" + "=" * 80)
         print(f"TRAINING PREDICTOR ({args.predictor_type.upper()})")
@@ -866,8 +1074,9 @@ def main():
         
         # Compute and cache training latents
         train_cache_path = get_latent_cache_path(args.experiment_dir, "train")
-        train_source_latents, train_target_latents = compute_and_cache_latents(
-            encoder, train_dataset, device, train_cache_path, split_name="train"
+        train_source_latents, train_target_latents, train_treat_conds = compute_and_cache_latents(
+            encoder, train_dataset, device, train_cache_path, split_name="train",
+            is_conditioned=is_conditioned
         )
         
         # Train predictor based on type
@@ -888,8 +1097,23 @@ def main():
                 num_epochs=args.mlp_epochs,
                 batch_size=args.mlp_batch_size,
             )
+        elif args.predictor_type == "conditioned":
+            predictor = train_conditioned_predictor(
+                train_source_latents,
+                train_target_latents,
+                train_treat_conds,
+                device=device,
+                hidden_dim=args.mlp_hidden_dim,
+                num_layers=args.mlp_num_layers,
+                lr=args.mlp_lr,
+                num_epochs=args.mlp_epochs,
+                batch_size=args.mlp_batch_size,
+            )
         
-        print(f"\nUsing {args.predictor_type} predictor: G(x0, E(x0), P(E(x0)))")
+        if args.predictor_type == "conditioned":
+            print(f"\nUsing {args.predictor_type} predictor: G(x0, E(x0), P(E(x0), treat_cond))")
+        else:
+            print(f"\nUsing {args.predictor_type} predictor: G(x0, E(x0), P(E(x0)))")
     else:
         print(f"\nUsing oracle target: G(x0, E(x0), E(x1))")
     
@@ -922,11 +1146,12 @@ def main():
     all_baseline_metrics = {name: [] for name in metric_names} if args.compute_baseline else None
     
     for i, sample in enumerate(test_dataset.samples):
-        culture, x0, x1, cell_cond, treat_cond, patient = sample
+        culture, x0, x1, cell_cond_source, cell_cond_target, treat_cond, patient = unpack_sample(sample)
         
         # Get precomputed latents for this sample
         source_latent = test_source_latents[i:i+1]  # [1, latent_dim]
         target_latent = test_target_latents[i:i+1]  # [1, latent_dim]
+        sample_treat_cond = test_treat_conds[i:i+1]  # [1, treat_dim]
         
         print(f"\nSample {i + 1}/{len(test_dataset.samples)}:")
         print(f"  Culture: {culture}, Patient: {patient}")
@@ -936,6 +1161,7 @@ def main():
         results = evaluate_sample(
             generator, x0, x1, source_latent, target_latent, device, 
             predictor=predictor,
+            treat_cond=sample_treat_cond if isinstance(predictor, ConditionedPredictor) else None,
             compute_baseline=args.compute_baseline,
             wasserstein_only=args.wasserstein_only,
             max_samples_w1=max_samples_w1,

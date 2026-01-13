@@ -1,0 +1,4 @@
+# @package _global_.loss
+# Conditioned default loss manager (no predictor cotraining)
+# - Concatenates cell_cond with input features for encoder (43 -> 45 dim)
+_target_: loss.default_conditioned.LossManager

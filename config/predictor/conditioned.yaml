@@ -1,0 +1,9 @@
+# @package _global_.predictor
+# Conditioned predictor that takes treatment condition as additional input
+_target_: predictor.predictor_conditioned.PredictorConditioned
+
+latent_dim: ${experiment.latent_dim}
+treat_dim: 11  # 11 treatment conditions one-hot encoded
+model_type: ${experiment.predictor_model_type}
+model_args: ${experiment.predictor_model_args}
+loss_type: cosine

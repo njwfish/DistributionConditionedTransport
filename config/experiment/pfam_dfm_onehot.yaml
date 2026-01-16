@@ -1,0 +1,36 @@
+# @package _global_.experiment
+
+# Experiment name and description
+name: pfam_dfm_onehot
+description: "Pfam dataset with DFM generator using index-based one-hot encoding"
+
+# Override defaults from config.yaml
+# Key difference: uses index_onehot encoder and loss instead of esm encoder
+defaults:
+  - /dataset: pfam
+  - /encoder: index_onehot
+  - /generator: dfm
+  - /training: default5000_mem
+  - /loss: index_onehot
+  - /sampling: default
+
+train_predictor_posthoc: true
+
+# sampling parameters
+num_samples: 100
+selective_pairing_mode: null
+
+# Experiment-specific parameters
+# latent_dim is used by the generator for conditioning; equals max_pfams for one-hot encoding
+latent_dim: ${dataset.max_pfams}
+set_size: 32
+batch_size: 4
+lr: 2e-4
+
+# DFM generator parameters
+esm_model_name: 'facebook/esm2_t6_8M_UR50D'
+freeze_esm2: false
+seq_length: 128  # Must match dataset max_length
+condition_dim: 256
+temperature: 1.0
+sample_dt: 0.1

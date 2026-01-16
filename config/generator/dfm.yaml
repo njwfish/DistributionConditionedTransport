@@ -1,0 +1,9 @@
+# @package _global_.generator
+_target_: generator.dfm.ESM2_DFM_Generator
+model_name: ${experiment.esm_model_name}
+latent_dim: ${experiment.latent_dim}
+condition_dim: ${experiment.condition_dim}
+freeze_esm2: ${experiment.freeze_esm2}
+temperature: ${experiment.temperature}
+seq_length: ${experiment.seq_length}
+sample_dt: ${experiment.sample_dt}

@@ -1,0 +1,35 @@
+# @package _global_.experiment
+
+# Experiment name and description
+name: pfam_dfm
+description: "Pfam dataset with DFM generator"
+
+# Override defaults from config.yaml
+defaults:
+  - /dataset: pfam
+  - /encoder: esm
+  - /generator: dfm
+  - /training: default5000_mem
+  - /loss: default
+  - /sampling: default
+
+train_predictor_posthoc: true
+
+# sampling parameters
+num_samples: 100
+selective_pairing_mode: null
+
+# Experiment-specific parameters
+latent_dim: 256
+hidden_dim: 256
+set_size: 32
+batch_size: 4
+lr: 2e-4
+
+# DFM generator parameters
+esm_model_name: 'facebook/esm2_t6_8M_UR50D'
+freeze_esm2: false
+seq_length: 128  # Must match dataset max_length
+condition_dim: 256
+temperature: 1.0
+sample_dt: 0.1

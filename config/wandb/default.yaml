@@ -2,7 +2,7 @@ _target_: wandb_utils.setup_wandb
 project: "distribution-embeddings"
 entity: null  # Change to your team name if needed
 name: null  # Will be auto-generated from config if null
-mode: "online"  # Options: online, offline, disabled
+mode: "online"  # Options: online, offline, disabled (use offline for SLURM)
 tags: []
 notes: null
 group: null

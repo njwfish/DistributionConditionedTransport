@@ -1,0 +1,27 @@
+# @package _global_.experiment
+
+# Experiment name and description
+name: pfam_onehot
+description: "Pfam dataset with Progen2 generator using index-based one-hot encoding"
+
+# Override defaults from config.yaml
+defaults:
+  - /dataset: pfam
+  - /encoder: index_onehot
+  - /generator: progen2
+  - /training: default5000_mem
+  - /loss: index_onehot
+  - /sampling: default
+
+train_predictor_posthoc: true
+
+# sampling parameters
+num_samples: 100
+selective_pairing_mode: null
+
+# Experiment-specific parameters
+# latent_dim is used by the generator for conditioning; equals max_pfams for one-hot encoding
+latent_dim: ${dataset.max_pfams}
+set_size: 32
+batch_size: 4
+lr: 2e-4

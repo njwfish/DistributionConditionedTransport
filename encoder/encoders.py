@@ -12,6 +12,36 @@ class OneHotEncoder(nn.Module):
     def forward(self, idx):
         return torch.nn.functional.one_hot(idx.long(), num_classes=self.latent_dim)
 
+
+class IndexOneHotEncoder(nn.Module):
+    """
+    Encoder that ignores input data and returns a one-hot encoding based on the dataset index.
+    
+    This is a 'dumb' encoder that doesn't learn anything from the input samples - it simply
+    outputs a one-hot vector where the index corresponds to which data item (e.g., pfam family)
+    was used to fetch the samples. The output dimension equals n_unique_sets.
+    
+    Args:
+        n_unique_sets: Total number of unique data items (e.g., number of pfam families)
+    """
+    def __init__(self, n_unique_sets: int):
+        super().__init__()
+        self.n_unique_sets = n_unique_sets
+        self.latent_dim = n_unique_sets  # For compatibility with other code that checks latent_dim
+    
+    def forward(self, idx: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass that returns one-hot encoding based on index.
+        
+        Args:
+            idx: Tensor of shape (batch_size,) containing dataset indices
+            
+        Returns:
+            Tensor of shape (batch_size, n_unique_sets) - one-hot encoding
+        """
+        idx = idx.long()
+        return torch.nn.functional.one_hot(idx, num_classes=self.n_unique_sets).float()
+
 class EmbeddingEncoder(nn.Module):
     def __init__(self, in_dim, latent_dim, n_unique_sets):
         super().__init__()

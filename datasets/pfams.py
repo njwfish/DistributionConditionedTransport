@@ -7,20 +7,27 @@ from typing import Optional
 import gzip
 import os
 import logging
+import time
+from hydra.core.global_hydra import GlobalHydra
+import hydra
+
 
 logger = logging.getLogger(__name__)
 
 class PfamDataset(Dataset):
     def __init__(self,
                  data_dir: str = 'data/pfam',
+                 data_file: str = "pfam_tokenized_data.pt",
                  set_size: int = 16,
                  esm_name: str = 'facebook/esm2_t6_8M_UR50D',
                  progen_name: str = 'hugohrban/progen2-small',
                  max_length: int = 512,
                  seed: Optional[int] = 212121,
                  tokenize: bool = False,
-                 lines_to_read: int = 10**5,
-                 max_sets_per_fam: int = 100):
+                 start_line: int = 0,
+                 lines_to_read: int = 10**8,
+                 max_seqs_per_fam: int = 64,
+                 max_pfams: Optional[int] = None):
         
         if seed is not None:
             random.seed(seed)
@@ -28,89 +35,121 @@ class PfamDataset(Dataset):
             torch.manual_seed(seed)
 
         self.data_dir = data_dir
+        self.data_file = data_file
         self.set_size = set_size
         self.max_length = max_length
-        self.max_sets_per_fam = max_sets_per_fam
+        self.max_seqs_per_fam = max_seqs_per_fam
         
         self.esm_tokenizer = AutoTokenizer.from_pretrained(esm_name, trust_remote_code=True)
         self.progen_tokenizer = AutoTokenizer.from_pretrained(progen_name, trust_remote_code=True)
-        
+
         self.progen_tokenizer.pad_token = '<|pad|>'
         self.progen_tokenizer.bos_token = '<|bos|>'
         self.progen_tokenizer.eos_token = '<|eos|>'
-
-        self.tokenized_data_file = f'{self.data_dir}/pfam_tokenized_data.pt'
+        # Resolve base directory robustly with or without Hydra
+        if GlobalHydra.instance().is_initialized():
+            self.base_dir = hydra.utils.get_original_cwd()
+        else:
+            self.base_dir = os.getcwd()
+            
+        self.tokenized_data_file = os.path.join(self.base_dir, self.data_dir, self.data_file)
 
         if not os.path.exists(self.tokenized_data_file) or tokenize:
-            self._tokenize_data(lines_to_read=lines_to_read)
+            self._tokenize_data(start_line=start_line, lines_to_read=lines_to_read, max_pfams=max_pfams)
         self.data = torch.load(self.tokenized_data_file)
-    
-    def _tokenize_data(self, lines_to_read=10**5):
+        
+        
+    def _tokenize_data(self, start_line=0, lines_to_read=10**5, max_pfams=None):
 
-        f = gzip.open(self.data_dir+'/Pfam-A.fasta.gz', 'rt')
+        f = gzip.open(os.path.join(self.base_dir, self.data_dir, 'Pfam-A.fasta.gz'), 'rt')
         d = {}
         i = 0
+        pfam_count = 0
+        fam = None  # Initialize fam to handle case where start_line lands on a sequence line
 
-        logger.info('building pfam dict')
-
+        logger.info(f'building pfam dict from line {start_line} to line {start_line + lines_to_read}')
         # collect seqs per pfam
         for line in f:
+            # Skip lines until we reach start_line
+            if i < start_line:
+                i += 1
+                continue
+            
+            # Stop reading after we've read lines_to_read lines from start_line
+            if i >= start_line + lines_to_read:
+                break
+                
             if line.startswith('>'):
                 fam = line.split()[-1].split(';')[0]
+                # Check if we've already read max_pfams families
+                if max_pfams is not None and pfam_count >= max_pfams:
+                    break
+                # Only increment pfam_count when encountering a NEW family
+                if fam not in d:
+                    pfam_count += 1
                 d.setdefault(fam, [])
-            else:
+            elif fam is not None:
+                # Only append sequence if we've seen a header (fam is defined)
                 d[fam].append(line.strip())
+            # else: skip orphan sequence lines before the first header
             i += 1
-            if i > lines_to_read:
-                break
 
         # Print all families and sequences per family
-        print(f'Total families: {len(d)}')
+        print(f'!!!!!!!!!!!!!!!!!!!!!!!!!! Total families: {len(d)}, line where we stopped: {i}')
+
+        tokenized_data = []
+        logger.info('tokenizing pfam data')
         for fam, seqs in d.items():
-            print(f'Family: {fam}, Sequences: {len(seqs)}')
+            # Shuffle and limit to max_seqs_per_fam
+            np.random.shuffle(seqs)
+            seqs = seqs[:self.max_seqs_per_fam]
 
-        #tokenized_data = []
-        #logger.info('tokenizing pfam data')
-        #for fam, seqs in d.items():
-        #    if len(seqs) < self.set_size:
-        #        continue   
-        #    # how many sets can we make? 
-        #    n_sets = min(len(seqs) // self.set_size, self.max_sets_per_fam)
-        #    np.random.shuffle(seqs)
-        #    for i in range(n_sets):
-        #        batch = seqs[i*self.set_size : (i+1)*self.set_size]
-        #        esm_input_ids = []
-        #        esm_attention_mask = []
-        #        progen_input_ids = []
-        #        progen_attention_mask = []
-        #        texts = []
-        #        for seq in batch:
-        #            pg2 = self._tokenize_for_progen(seq)
-        #            progen_input_ids.append(pg2[0])
-        #            progen_attention_mask.append(pg2[1])
-        #            esm = self._tokenize_for_esm(seq)
-        #            esm_input_ids.append(esm[0])
-        #            esm_attention_mask.append(esm[1])
-        #            texts.append(seq[:self.max_length]) # note truncated
-
-        #        esm_input_ids = torch.stack(esm_input_ids)
-        #        esm_attention_mask = torch.stack(esm_attention_mask)
-        #        progen_input_ids = torch.stack(progen_input_ids)
-        #        progen_attention_mask = torch.stack(progen_attention_mask)
-
-        #        tokenized_data.append({
-        #            'samples' : {
-        #            'esm_input_ids': esm_input_ids,
-        #            'esm_attention_mask': esm_attention_mask,
-        #            'progen_input_ids': progen_input_ids,
-        #            'progen_attention_mask': progen_attention_mask,},
-        #            'pfam': fam,
-        #            'raw_texts': texts
-        #        })
-
-        #torch.save(tokenized_data, self.tokenized_data_file)
-        #logger.info(f"Tokenized data saved to {self.tokenized_data_file}")
-        #f.close()
+            # Skip families that cannot produce at least one full set
+            # (otherwise downstream batching sees variable num_seqs per family).
+            if len(seqs) < self.set_size:
+                logger.info(
+                    f"Skipping family {fam}: only {len(seqs)} sequences (< set_size={self.set_size})"
+                )
+                continue
+            
+            # Accumulate all tokenized sequences for this family
+            all_esm_input_ids = []
+            all_esm_attention_mask = []
+            all_progen_input_ids = []
+            all_progen_attention_mask = []
+            all_texts = []
+            
+            # Process in batches for efficiency
+            for i in range(0, len(seqs), self.set_size):
+                batch = seqs[i:i + self.set_size]
+                for seq in batch:
+                    pg2 = self._tokenize_for_progen(seq)
+                    all_progen_input_ids.append(pg2[0])
+                    all_progen_attention_mask.append(pg2[1])
+                    esm = self._tokenize_for_esm(seq)
+                    all_esm_input_ids.append(esm[0])
+                    all_esm_attention_mask.append(esm[1])
+                    all_texts.append(seq[:self.max_length]) # note truncated
+            
+            # Stack all sequences for this family into single tensors
+            esm_input_ids = torch.stack(all_esm_input_ids)
+            esm_attention_mask = torch.stack(all_esm_attention_mask)
+            progen_input_ids = torch.stack(all_progen_input_ids)
+            progen_attention_mask = torch.stack(all_progen_attention_mask)
+            
+            # Add one entry per family with all its sequences
+            tokenized_data.append({
+                'samples' : {
+                'esm_input_ids': esm_input_ids,
+                'esm_attention_mask': esm_attention_mask,
+                'progen_input_ids': progen_input_ids,
+                'progen_attention_mask': progen_attention_mask,},
+                'pfam': fam,
+                'raw_texts': all_texts
+            })
+        torch.save(tokenized_data, self.tokenized_data_file)
+        logger.info(f"Tokenized data saved to {self.tokenized_data_file}")
+        f.close()
 
     def _tokenize_for_esm(self, sequence):
         """
@@ -183,20 +222,53 @@ class PfamDataset(Dataset):
         return tokens.input_ids[0], tokens.attention_mask[0]
 
     def __len__(self):
-        return len(self.data)
+        return len(self.data)**2
     
     def __getitem__(self, idx):
-        item = self.data[idx]
-        esm_input_ids = item['samples']['esm_input_ids']
-        esm_attention_mask = item['samples']['esm_attention_mask']
-        progen_input_ids = item['samples']['progen_input_ids']
-        progen_attention_mask = item['samples']['progen_attention_mask']
 
-        return { 'samples' : {
-            'esm_input_ids': esm_input_ids,
-            'esm_attention_mask': esm_attention_mask,
-            'progen_input_ids': progen_input_ids,
-            'progen_attention_mask': progen_attention_mask},
-            'pfam': item['pfam'],
-            'raw_texts': tuple(item['raw_texts'])
+        n = len(self.data)
+        i = idx // n
+        j = idx % n
+        source_idx, target_idx = i, j
+        item_source = self.data[source_idx]
+        item_target = self.data[target_idx]
+        
+        source_subset_indices = np.random.choice(len(item_source['samples']['esm_input_ids']), size=self.set_size, replace=False)
+        target_subset_indices = np.random.choice(len(item_target['samples']['esm_input_ids']), size=self.set_size, replace=False)
+        
+        # Use torch.tensor() to create new tensors with resizable storage (needed for DataLoader collation)
+        # .clone() is insufficient as it may preserve non-resizable storage from torch.load
+        esm_input_ids_source = item_source['samples']['esm_input_ids'][source_subset_indices]
+        esm_attention_mask_source = item_source['samples']['esm_attention_mask'][source_subset_indices]
+        progen_input_ids_source = item_source['samples']['progen_input_ids'][source_subset_indices]
+        progen_attention_mask_source = item_source['samples']['progen_attention_mask'][source_subset_indices]
+
+        esm_input_ids_target = item_target['samples']['esm_input_ids'][target_subset_indices]
+        esm_attention_mask_target = item_target['samples']['esm_attention_mask'][target_subset_indices]
+        progen_input_ids_target = item_target['samples']['progen_input_ids'][target_subset_indices]
+        progen_attention_mask_target = item_target['samples']['progen_attention_mask'][target_subset_indices]   
+
+
+        return { 'source_samples' : {
+                'esm_input_ids': esm_input_ids_source,
+                'esm_attention_mask': esm_attention_mask_source,
+                'progen_input_ids': progen_input_ids_source,
+                'progen_attention_mask': progen_attention_mask_source,
+                'pfam': item_source['pfam'],
+                'raw_texts': [item_source['raw_texts']],
+            },
+            'target_samples' : {
+                'esm_input_ids': esm_input_ids_target,
+                'esm_attention_mask': esm_attention_mask_target,
+                'progen_input_ids': progen_input_ids_target,
+                'progen_attention_mask': progen_attention_mask_target,
+                'pfam': item_target['pfam'],
+                'raw_texts': [item_target['raw_texts']],
+            }, 
+            'source_idx': source_idx, 
+            'target_idx': target_idx, 
+            'train_predictor_bool': self.get_train_predictor_bool(source_idx, target_idx)     
         }
+    
+    def get_train_predictor_bool(self, source_idx, target_idx):
+        return False

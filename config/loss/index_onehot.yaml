@@ -1,0 +1,5 @@
+# @package _global_.loss
+# Loss manager for index-based one-hot encoding
+# Passes dataset indices to the encoder instead of actual sample data
+
+_target_: loss.index_onehot.LossManager

@@ -1,0 +1,8 @@
+# @package _global_.encoder
+# Index-based one-hot encoder
+# Uses dataset index (e.g., pfam family index) as the latent representation
+# instead of computing a learned representation from the input samples.
+# Output dimension is n_unique_sets (pure one-hot, no learnable parameters).
+
+_target_: encoder.encoders.IndexOneHotEncoder
+n_unique_sets: ${dataset.max_pfams}

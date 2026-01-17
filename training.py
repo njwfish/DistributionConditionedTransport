@@ -161,6 +161,7 @@ class Trainer:
         device=None,
         output_dir='./outputs',
         config=None,
+        eval_dataloader=None,
     ):
         """Train the model with W&B logging."""
         training_start = time.time()
@@ -380,7 +381,9 @@ class Trainer:
             
             # Evaluation and early stopping logic
             if ((epoch + 1) % self.eval_interval == 0 or (epoch + 1) == self.num_epochs):
-                eval_loss = self._evaluate(encoder, generator, dataloader, device, loss_manager, predictor=predictor)
+                # Use eval_dataloader if provided, otherwise fall back to training dataloader
+                eval_dl = eval_dataloader if eval_dataloader is not None else dataloader
+                eval_loss = self._evaluate(encoder, generator, eval_dl, device, loss_manager, predictor=predictor)
                 stats['eval_losses'].append(eval_loss)
                 
                 self.logger.info(f"Evaluation Loss: {eval_loss:.6f}")

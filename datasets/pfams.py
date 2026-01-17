@@ -25,7 +25,7 @@ class PfamDataset(Dataset):
                  seed: Optional[int] = 212121,
                  tokenize: bool = False,
                  start_line: int = 0,
-                 lines_to_read: int = 10**8,
+                 lines_to_read: int = 10**10,
                  max_seqs_per_fam: int = 64,
                  max_pfams: Optional[int] = None):
         
@@ -59,16 +59,17 @@ class PfamDataset(Dataset):
         self.data = torch.load(self.tokenized_data_file)
         
         
-    def _tokenize_data(self, start_line=0, lines_to_read=10**5, max_pfams=None):
+    def _tokenize_data(self, start_line=0, lines_to_read=10**10, max_pfams=None):
 
         f = gzip.open(os.path.join(self.base_dir, self.data_dir, 'Pfam-A.fasta.gz'), 'rt')
         d = {}
         i = 0
         pfam_count = 0
-        fam = None  # Initialize fam to handle case where start_line lands on a sequence line
+        prev_fam = None  # Track previous family to check if it had enough sequences
+        fam = None  # Current family
 
         logger.info(f'building pfam dict from line {start_line} to line {start_line + lines_to_read}')
-        # collect seqs per pfam
+        # collect seqs per pfam, filtering on-the-fly (pfams are grouped in the file)
         for line in f:
             # Skip lines until we reach start_line
             if i < start_line:
@@ -80,22 +81,40 @@ class PfamDataset(Dataset):
                 break
                 
             if line.startswith('>'):
-                fam = line.split()[-1].split(';')[0]
-                # Check if we've already read max_pfams families
+                new_fam = line.split()[-1].split(';')[0]
+                
+                # When we encounter a new family, check if the previous one had enough sequences
+                if prev_fam is not None and prev_fam != new_fam:
+                    if len(d[prev_fam]) < self.set_size:
+                        # Remove the previous family - it doesn't have enough sequences
+                        logger.info(f"Removing family {prev_fam}: only {len(d[prev_fam])} sequences (< set_size={self.set_size})")
+                        del d[prev_fam]
+                        pfam_count -= 1
+                
+                # Check if we've already collected max_pfams valid families
                 if max_pfams is not None and pfam_count >= max_pfams:
                     break
+                
+                fam = new_fam
                 # Only increment pfam_count when encountering a NEW family
                 if fam not in d:
                     pfam_count += 1
-                d.setdefault(fam, [])
+                    d[fam] = []
+                prev_fam = fam
             elif fam is not None:
                 # Only append sequence if we've seen a header (fam is defined)
                 d[fam].append(line.strip())
             # else: skip orphan sequence lines before the first header
             i += 1
 
-        # Print all families and sequences per family
-        print(f'!!!!!!!!!!!!!!!!!!!!!!!!!! Total families: {len(d)}, line where we stopped: {i}')
+        # Check the last family after the loop ends
+        if prev_fam is not None and prev_fam in d and len(d[prev_fam]) < self.set_size:
+            logger.info(f"Removing family {prev_fam}: only {len(d[prev_fam])} sequences (< set_size={self.set_size})")
+            del d[prev_fam]
+            pfam_count -= 1
+
+        f.close()
+        print(f'!!!!!!!!!!!!!!!!!!!!!!!!!! Total valid families: {len(d)}, line where we stopped: {i}')
 
         tokenized_data = []
         logger.info('tokenizing pfam data')
@@ -103,14 +122,6 @@ class PfamDataset(Dataset):
             # Shuffle and limit to max_seqs_per_fam
             np.random.shuffle(seqs)
             seqs = seqs[:self.max_seqs_per_fam]
-
-            # Skip families that cannot produce at least one full set
-            # (otherwise downstream batching sees variable num_seqs per family).
-            if len(seqs) < self.set_size:
-                logger.info(
-                    f"Skipping family {fam}: only {len(seqs)} sequences (< set_size={self.set_size})"
-                )
-                continue
             
             # Accumulate all tokenized sequences for this family
             all_esm_input_ids = []
@@ -149,7 +160,6 @@ class PfamDataset(Dataset):
             })
         torch.save(tokenized_data, self.tokenized_data_file)
         logger.info(f"Tokenized data saved to {self.tokenized_data_file}")
-        f.close()
 
     def _tokenize_for_esm(self, sequence):
         """
@@ -222,7 +232,8 @@ class PfamDataset(Dataset):
         return tokens.input_ids[0], tokens.attention_mask[0]
 
     def __len__(self):
-        return len(self.data)**2
+        # Cap at 2**24 - 1 to avoid torch.multinomial limit in WeightedRandomSampler
+        return min(len(self.data)**2, 2**24 - 1)
     
     def __getitem__(self, idx):
 
@@ -255,7 +266,7 @@ class PfamDataset(Dataset):
                 'progen_input_ids': progen_input_ids_source,
                 'progen_attention_mask': progen_attention_mask_source,
                 'pfam': item_source['pfam'],
-                'raw_texts': [item_source['raw_texts']],
+                'raw_texts': [item_source['raw_texts'][i] for i in source_subset_indices],
             },
             'target_samples' : {
                 'esm_input_ids': esm_input_ids_target,
@@ -263,7 +274,7 @@ class PfamDataset(Dataset):
                 'progen_input_ids': progen_input_ids_target,
                 'progen_attention_mask': progen_attention_mask_target,
                 'pfam': item_target['pfam'],
-                'raw_texts': [item_target['raw_texts']],
+                'raw_texts': [item_target['raw_texts'][i] for i in target_subset_indices],
             }, 
             'source_idx': source_idx, 
             'target_idx': target_idx, 

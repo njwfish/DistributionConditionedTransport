@@ -101,7 +101,7 @@ def inspect_pfam_data(file_path):
 
 if __name__ == '__main__':
     # Default path - can be changed as needed
-    data_file = 'data/pfam/pfam_tokenized_data_1000.pt'
+    data_file = 'data/pfam/pfam_tokenized_data_10000.pt'
     
     # Get absolute path relative to script location
     script_dir = os.path.dirname(os.path.abspath(__file__))

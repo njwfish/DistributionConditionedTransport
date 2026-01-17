@@ -55,6 +55,19 @@ def main(cfg: DictConfig):
         # Create the dataset
         dataset = hydra.utils.instantiate(cfg.dataset)
 
+        # Create the evaluation dataset with modified data_file and start_line
+        eval_dataset_cfg = OmegaConf.to_container(cfg.dataset, resolve=True)
+        # Modify data_file: add "_eval.pt" before ".pt"
+        original_data_file = eval_dataset_cfg.get('data_file')
+        if original_data_file.endswith('.pt'):
+            eval_data_file = original_data_file[:-3] + '_eval.pt'
+        else:
+            raise ValueError(f"Invalid data_file: {original_data_file}")
+        eval_dataset_cfg['data_file'] = eval_data_file
+        # Modify start_line: add 5*10**8
+        original_start_line = eval_dataset_cfg.get('start_line',0)
+        eval_dataset_cfg['start_line'] = original_start_line + int(5e8)
+        eval_dataset = hydra.utils.instantiate(eval_dataset_cfg)
 
         # Improved DataLoader with parallel workers and pinned memory
         num_workers = min(8, os.cpu_count())  # Reduced from 4 to 2 to avoid DataLoader warnings and reduce memory contention
@@ -118,6 +131,27 @@ def main(cfg: DictConfig):
                 shuffle=False if sampler is not None else True,
             )
         
+        # Create eval dataloader for the validation dataset
+        eval_sampler = hydra.utils.instantiate(sampling_config, dataset=eval_dataset, **sampler_kwargs) if sampling_config._target_ != "types.NoneType" else None
+        eval_is_batch_sampler = hasattr(eval_sampler, '__iter__') and hasattr(eval_sampler, '__len__') and \
+                          'BatchSampler' in type(eval_sampler).__name__
+        
+        if eval_is_batch_sampler:
+            eval_batch_sampler_kwargs = {k: v for k, v in base_dataloader_kwargs.items() 
+                                   if k not in ['batch_size']}
+            eval_dataloader = DataLoader(
+                eval_dataset,
+                **eval_batch_sampler_kwargs,
+                batch_sampler=eval_sampler,
+            )
+        else:
+            eval_dataloader = DataLoader(
+                eval_dataset,
+                **base_dataloader_kwargs,
+                sampler=eval_sampler,
+                shuffle=False if eval_sampler is not None else True,
+            )
+        
         # Create encoder
         encoder = hydra.utils.instantiate(cfg.encoder)
         
@@ -167,6 +201,7 @@ def main(cfg: DictConfig):
             generator=generator,
             predictor=predictor if not train_predictor_posthoc else None,
             dataloader=dataloader,
+            eval_dataloader=eval_dataloader,
             optimizer=optimizer,
             scheduler=scheduler,
             loss_manager=loss_manager,

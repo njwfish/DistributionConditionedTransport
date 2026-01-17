@@ -66,7 +66,7 @@ def main(cfg: DictConfig):
         eval_dataset_cfg['data_file'] = eval_data_file
         # Modify start_line: add 5*10**8
         original_start_line = eval_dataset_cfg.get('start_line',0)
-        eval_dataset_cfg['start_line'] = original_start_line + int(5e8)
+        eval_dataset_cfg['start_line'] = original_start_line + int(1e8)
         eval_dataset = hydra.utils.instantiate(eval_dataset_cfg)
 
         # Improved DataLoader with parallel workers and pinned memory

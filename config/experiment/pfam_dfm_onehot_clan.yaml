@@ -1,13 +1,13 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: pfam_dfm_onehot
+name: pfam_dfm_onehot_clan
 description: "Pfam dataset with DFM generator using index-based one-hot encoding"
 
 # Override defaults from config.yaml
 # Key difference: uses index_onehot encoder and loss instead of esm encoder
 defaults:
-  - /dataset: pfam_random
+  - /dataset: pfam_clan
   - /encoder: index_onehot
   - /generator: dfm
   - /training: default5000_mem
@@ -21,12 +21,12 @@ num_samples: 100
 selective_pairing_mode: null
 
 # Dataset parameters
-max_pfams: 2000
-data_file: "pfam_tokenized_data_${experiment.max_pfams}.pt"
+max_pfams: 200
+data_file: "pfam_tokenized_data_clan.pt"
 
 # Experiment-specific parameters
 # latent_dim is used by the generator for conditioning; equals max_pfams for one-hot encoding
-latent_dim: ${dataset.max_pfams}
+latent_dim: 200
 set_size: 32
 batch_size: 4
 lr: 2e-4

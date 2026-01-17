@@ -4,7 +4,7 @@ esm_model_name: 'facebook/esm2_t6_8M_UR50D'
 latent_dim: ${experiment.latent_dim}
 hidden_dim: ${experiment.hidden_dim}
 pooling: 'mean'
-freeze: false
+freeze: true
 dist_type: 'tx'
 layers: 2
 heads: 4

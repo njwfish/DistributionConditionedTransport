@@ -6,6 +6,7 @@ data_dir: 'data/pfam'
 
 # Tokenized data filename (from experiment config)
 data_file: ${experiment.data_file}
+raw_data_file: 'Pfam-A-filtered.fasta.gz'
 
 # Set size for sampling (from experiment config)
 set_size: ${experiment.set_size}
@@ -22,5 +23,5 @@ seed: ${seed}
 
 # Data loading settings
 tokenize: false
-max_seqs_per_fam: 64
+max_seqs_per_fam: 2048
 max_pfams: ${experiment.max_pfams}

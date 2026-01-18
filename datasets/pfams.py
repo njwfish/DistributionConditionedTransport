@@ -18,6 +18,7 @@ class PfamDataset(Dataset):
     def __init__(self,
                  data_dir: str = 'data/pfam',
                  data_file: str = "pfam_tokenized_data.pt",
+                 raw_data_file: str = "Pfam-A.fasta.gz",
                  set_size: int = 16,
                  esm_name: str = 'facebook/esm2_t6_8M_UR50D',
                  progen_name: str = 'hugohrban/progen2-small',
@@ -25,8 +26,8 @@ class PfamDataset(Dataset):
                  seed: Optional[int] = 212121,
                  tokenize: bool = False,
                  start_line: int = 0,
-                 lines_to_read: int = 10**10,
-                 max_seqs_per_fam: int = 64,
+                 lines_to_read: int = 10**12,
+                 max_seqs_per_fam: int = 256,
                  max_pfams: Optional[int] = None):
         
         if seed is not None:
@@ -36,6 +37,7 @@ class PfamDataset(Dataset):
 
         self.data_dir = data_dir
         self.data_file = data_file
+        self.raw_data_file = raw_data_file
         self.set_size = set_size
         self.max_length = max_length
         self.max_seqs_per_fam = max_seqs_per_fam
@@ -61,12 +63,11 @@ class PfamDataset(Dataset):
         
     def _tokenize_data(self, start_line=0, lines_to_read=10**10, max_pfams=None):
 
-        f = gzip.open(os.path.join(self.base_dir, self.data_dir, 'Pfam-A.fasta.gz'), 'rt')
+        f = gzip.open(os.path.join(self.base_dir, self.data_dir, self.raw_data_file), 'rt')
         d = {}
         i = 0
-        pfam_count = 0
-        prev_fam = None  # Track previous family to check if it had enough sequences
-        fam = None  # Current family
+        validated_count = 0  # Count of families confirmed to have enough sequences
+        current_fam = None   # Family currently being read
 
         logger.info(f'building pfam dict from line {start_line} to line {start_line + lines_to_read}')
         # collect seqs per pfam, filtering on-the-fly (pfams are grouped in the file)
@@ -83,38 +84,34 @@ class PfamDataset(Dataset):
             if line.startswith('>'):
                 new_fam = line.split()[-1].split(';')[0]
                 
-                # When we encounter a new family, check if the previous one had enough sequences
-                if prev_fam is not None and prev_fam != new_fam:
-                    if len(d[prev_fam]) < self.set_size:
+                # When we encounter a new family, validate the previous one
+                if current_fam is not None and current_fam != new_fam:
+                    if len(d[current_fam]) >= self.set_size:
+                        validated_count += 1
+                        # Only stop when we have enough VALIDATED families
+                        if max_pfams is not None and validated_count >= max_pfams:
+                            break
+                    else:
                         # Remove the previous family - it doesn't have enough sequences
-                        logger.info(f"Removing family {prev_fam}: only {len(d[prev_fam])} sequences (< set_size={self.set_size})")
-                        del d[prev_fam]
-                        pfam_count -= 1
+                        logger.info(f"Removing family {current_fam}: only {len(d[current_fam])} sequences (< set_size={self.set_size})")
+                        del d[current_fam]
                 
-                # Check if we've already collected max_pfams valid families
-                if max_pfams is not None and pfam_count >= max_pfams:
-                    break
-                
-                fam = new_fam
-                # Only increment pfam_count when encountering a NEW family
-                if fam not in d:
-                    pfam_count += 1
-                    d[fam] = []
-                prev_fam = fam
-            elif fam is not None:
-                # Only append sequence if we've seen a header (fam is defined)
-                d[fam].append(line.strip())
+                # Start collecting the new family (if we haven't seen it before)
+                if new_fam not in d:
+                    d[new_fam] = []
+                current_fam = new_fam
+            elif current_fam is not None:
+                # Only append sequence if we've seen a header
+                d[current_fam].append(line.strip())
             # else: skip orphan sequence lines before the first header
             i += 1
 
-        # Check the last family after the loop ends
-        if prev_fam is not None and prev_fam in d and len(d[prev_fam]) < self.set_size:
-            logger.info(f"Removing family {prev_fam}: only {len(d[prev_fam])} sequences (< set_size={self.set_size})")
-            del d[prev_fam]
-            pfam_count -= 1
+        # Validate the last family (wasn't validated in the loop if we hit the line limit)
+        if current_fam is not None and current_fam in d and len(d[current_fam]) < self.set_size:
+            logger.info(f"Removing family {current_fam}: only {len(d[current_fam])} sequences (< set_size={self.set_size})")
+            del d[current_fam]
 
         f.close()
-        print(f'!!!!!!!!!!!!!!!!!!!!!!!!!! Total valid families: {len(d)}, line where we stopped: {i}')
 
         tokenized_data = []
         logger.info('tokenizing pfam data')
@@ -233,14 +230,13 @@ class PfamDataset(Dataset):
 
     def __len__(self):
         # Cap at 2**24 - 1 to avoid torch.multinomial limit in WeightedRandomSampler
-        return min(len(self.data)**2, 2**24 - 1)
+        return 1000
     
     def __getitem__(self, idx):
 
         n = len(self.data)
-        i = idx // n
-        j = idx % n
-        source_idx, target_idx = i, j
+        source_idx = np.random.randint(0, n)
+        target_idx = np.random.randint(0, n)
         item_source = self.data[source_idx]
         item_target = self.data[target_idx]
         

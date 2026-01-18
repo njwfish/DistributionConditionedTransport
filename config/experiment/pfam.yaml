@@ -9,7 +9,7 @@ defaults:
   - /dataset: pfam
   - /encoder: esm
   - /generator: progen2
-  - /training: default5000_mem
+  - /training: default_mem
   - /loss: default
   - /sampling: default
 
@@ -21,12 +21,13 @@ selective_pairing_mode: null
 
 # Dataset parameters
 max_length: 128
-max_pfams: 900
-data_file: "pfam_tokenized_data_${experiment.max_pfams}.pt"
+max_pfams: 200
+data_file: "pfam_tokenized_data_clan.pt"
+eval_data_file: "pfam_tokenized_data_clan_eval.pt"
 
 # Experiment-specific parameters
-latent_dim: 256
-hidden_dim: 256
+latent_dim: 128
+hidden_dim: 128
 set_size: 32
 batch_size: 4
 lr: 2e-4

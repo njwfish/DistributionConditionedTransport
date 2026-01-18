@@ -17,7 +17,7 @@ def count_pfams(obj: Any) -> int:
 
 
 def main() -> None:
-    data = torch.load("data/pfam/pfam_tokenized_data_clan.pt", map_location="cpu")
+    data = torch.load("data/pfam/pfam_tokenized_data_clan_eval.pt", map_location="cpu")
     num_pfams = count_pfams(data)
     print(num_pfams)
 

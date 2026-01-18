@@ -57,13 +57,16 @@ def main(cfg: DictConfig):
 
         # Create the evaluation dataset with modified data_file and start_line
         eval_dataset_cfg = OmegaConf.to_container(cfg.dataset, resolve=True)
-        # Modify data_file: add "_eval.pt" before ".pt"
+        # Check if eval_data_file is specified in experiment config, otherwise append "_eval" to training data filename
         original_data_file = eval_dataset_cfg.get('data_file')
-        if original_data_file.endswith('.pt'):
+        if hasattr(cfg.experiment, 'eval_data_file') and cfg.experiment.eval_data_file is not None:
+            eval_data_file = cfg.experiment.eval_data_file
+        elif original_data_file.endswith('.pt'):
             eval_data_file = original_data_file[:-3] + '_eval.pt'
         else:
             raise ValueError(f"Invalid data_file: {original_data_file}")
         eval_dataset_cfg['data_file'] = eval_data_file
+        logger.info(f"Using eval data file: {eval_data_file}")
         # Modify start_line: add 5*10**8
         original_start_line = eval_dataset_cfg.get('start_line',0)
         eval_dataset_cfg['start_line'] = original_start_line + int(1e8)

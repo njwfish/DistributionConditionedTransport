@@ -21,13 +21,14 @@ if __name__ == "__main__":
     t1 = time.time()
     dataset = PfamDataset(
         data_dir='data/pfam',  # Adjust this path if needed
-        data_file="pfam_tokenized_data_100.pt",
+        data_file="pfam_tokenized_data_long_fast.pt",
         set_size=16,
         tokenize=True,  # Force re-tokenization to see the print output
-        start_line=0,
-        lines_to_read=10**9,
+        start_line=1000000,
+        lines_to_read=10**10,
         max_pfams=100,
-        max_length=128,
+        max_seqs_per_fam=32,
+        max_length=1024,
     )
     t2 = time.time()
     print(f"Time taken: {t2 - t1} seconds")

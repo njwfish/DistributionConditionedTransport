@@ -9,13 +9,20 @@
 export HYDRA_FULL_ERROR=1
 export WANDB_API_KEY="c72e34cd8dc67f7220e3517232e86861cd5c537b"
 
-#python -u test_pfam_print.py
+python -u test_pfam_print.py
 #python -u visualize_pfam_embeddings.py
 #python -u print_progen2_vocab.py
 #python print_pfam_sequences.py
 #python -u test_pfam_print.py
 
-python -u count_pfams_in_pt.py
+python -u visualize_esm_embeddings.py \
+    --test_pt_file data/pfam/pfam_tokenized_data_long.pt \
+    --num_elements 99 \
+    --output_file esm_embeddings_pca_long.png \
+
+#python subset_pfam_data.py data/pfam/pfam_tokenized_data_clan.pt 10
+
+#python -u count_pfams_in_pt.py
 #python split_pt_file.py data/pfam/pfam_tokenized_data_clan.pt --train_size 200
 #python -u analyze_pfam_lengths.py
 #python count_pfam_stats.py

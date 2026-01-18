@@ -70,7 +70,7 @@ class ConditionedProgen2(nn.Module):
         else:
             raise ValueError(f"Unknown conditioning method: {condition_method}")
 
-    def forward(self, input_ids, attention_mask, latent_source, latent_target):
+    def forward(self, input_ids, attention_mask, latent_source, latent_target, target_start_idx=None):
         """
         Forward pass through the conditioned Progen2 model.
         
@@ -80,6 +80,7 @@ class ConditionedProgen2(nn.Module):
             attention_mask: Attention mask [batch_size, seq_len]
             latent_source: Latent distribution embedding for source [batch_size, latent_dim]
             latent_target: Latent distribution embedding for target [batch_size, latent_dim]
+            target_start_idx: Index where target sequence starts (for prefix insertion)
             
         Returns:
             Logits for next token prediction
@@ -93,8 +94,7 @@ class ConditionedProgen2(nn.Module):
         condition = self.condition_proj(combined_latent)
         
         if self.condition_method == "prefix":
-            # Use the condition as a prefix hidden state
-            # Create a prefix token
+            # Use the condition as a prefix hidden state inserted right before target
             
             # Handle attention mask dimension properly - check shape and reshape if needed
             if len(attention_mask.shape) == 3:  # [batch_size, set_size, seq_len]
@@ -104,10 +104,6 @@ class ConditionedProgen2(nn.Module):
                 input_ids = input_ids.view(batch_size * set_size, seq_len)
                 condition = condition.unsqueeze(1).repeat(1, set_size, 1).view(batch_size * set_size, -1)
                 batch_size = batch_size * set_size
-            
-            # Add prefix to attention mask
-            prefix_attention = torch.ones(batch_size, 1, dtype=attention_mask.dtype, device=attention_mask.device)
-            extended_attention_mask = torch.cat([prefix_attention, attention_mask], dim=1)
             
             # Get embeddings for the input sequence (directly from token embeddings or wte)
             if hasattr(self.progen2.transformer, 'wte'):
@@ -120,8 +116,23 @@ class ConditionedProgen2(nn.Module):
             # Create prefix embedding
             prefix_embeds = condition.unsqueeze(1)  # [batch_size, 1, hidden_dim]
             
-            # Concatenate prefix embedding with input embeddings
-            combined_embeds = torch.cat([prefix_embeds, token_embeds], dim=1)
+            if target_start_idx is not None:
+                # Insert prefix right before target sequence
+                # Structure: <|bos|>SOURCE<|eos|><|pad|>... [PREFIX] <|bos|>TARGET<|eos|>
+                source_embeds = token_embeds[:, :target_start_idx, :]
+                target_embeds = token_embeds[:, target_start_idx:, :]
+                combined_embeds = torch.cat([source_embeds, prefix_embeds, target_embeds], dim=1)
+                
+                # Update attention mask similarly
+                source_mask = attention_mask[:, :target_start_idx]
+                target_mask = attention_mask[:, target_start_idx:]
+                prefix_attention = torch.ones(batch_size, 1, dtype=attention_mask.dtype, device=attention_mask.device)
+                extended_attention_mask = torch.cat([source_mask, prefix_attention, target_mask], dim=1)
+            else:
+                # Fallback: prepend prefix to entire sequence (for sampling)
+                combined_embeds = torch.cat([prefix_embeds, token_embeds], dim=1)
+                prefix_attention = torch.ones(batch_size, 1, dtype=attention_mask.dtype, device=attention_mask.device)
+                extended_attention_mask = torch.cat([prefix_attention, attention_mask], dim=1)
             
             # Run through Progen2 with custom embeddings
             outputs = self.progen2(
@@ -131,7 +142,15 @@ class ConditionedProgen2(nn.Module):
             )
             
             # Get logits and remove the prefix logit
-            logits = outputs.logits[:, 1:, :]
+            # The prefix was inserted at target_start_idx, so we need to remove that position
+            if target_start_idx is not None:
+                # Remove the logit at the prefix position
+                logits_before = outputs.logits[:, :target_start_idx, :]
+                logits_after = outputs.logits[:, target_start_idx + 1:, :]
+                logits = torch.cat([logits_before, logits_after], dim=1)
+            else:
+                # Prefix was at the beginning, remove first logit
+                logits = outputs.logits[:, 1:, :]
             
         elif self.condition_method == "additive":
             # Handle attention mask dimension properly - check shape and reshape if needed
@@ -196,13 +215,11 @@ class Progen2Generator(nn.Module):
         # Initialize tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(progen2_name, trust_remote_code=True)
         
-        # Add special tokens if they don't exist
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = '<|pad|>'
-        if self.tokenizer.bos_token is None:
-            self.tokenizer.bos_token = '<|bos|>'
-        if self.tokenizer.eos_token is None:
-            self.tokenizer.eos_token = '<|eos|>'
+        # Set special tokens to match the dataset's tokenizer configuration
+        # (unconditional assignment to ensure consistency)
+        self.tokenizer.pad_token = '<|pad|>'
+        self.tokenizer.bos_token = '<|bos|>'
+        self.tokenizer.eos_token = '<|eos|>'
         
         # Initialize model
         # Note: No separator token needed - source and target sequences are already
@@ -288,7 +305,8 @@ class Progen2Generator(nn.Module):
             latent_target = latent_target.unsqueeze(1).repeat(1, set_size, 1).view(batch_size * set_size, -1)
         
         # Forward pass through the model
-        logits = self.model(combined_input_ids, combined_attention_mask, latent_source, latent_target)
+        # Pass target_start_idx so prefix is inserted right before target
+        logits = self.model(combined_input_ids, combined_attention_mask, latent_source, latent_target, target_start_idx)
         
         # For causal LM: shift logits and labels
         # We only want to compute loss on the target portion
@@ -333,8 +351,13 @@ class Progen2Generator(nn.Module):
         source_ids = x_source['progen_input_ids']
         source_mask = x_source['progen_attention_mask']
         
+        # Track where target starts (right after source)
+        # This is where the prefix will be inserted, consistent with training
+        source_len = source_ids.shape[1]
+        target_start_idx = source_len
+        
         # Create the starting sequence: source + BOS token for target
-        # Source is: <|bos|>SOURCE<|eos|>
+        # Source is: <|bos|>SOURCE<|eos|><|pad|>...
         # We start target generation with: <|bos|>
         bos_token_id = self.tokenizer.convert_tokens_to_ids(self.tokenizer.bos_token)
         bos_token = torch.full((batch_size, 1), bos_token_id, dtype=source_ids.dtype, device=device)
@@ -342,9 +365,6 @@ class Progen2Generator(nn.Module):
         
         start_ids = torch.cat([source_ids, bos_token], dim=1)
         start_mask = torch.cat([source_mask, bos_mask], dim=1)
-        
-        # Track where target generation starts
-        target_start_idx = start_ids.shape[1]
         
         # Generate samples
         all_samples = []
@@ -365,9 +385,11 @@ class Progen2Generator(nn.Module):
                     noisy_latent_source,
                     noisy_latent_target,
                     self.max_length,
-                    self.temperature
+                    self.temperature,
+                    target_start_idx
                 )
-            # Extract only the generated target portion (after source + BOS)
+            # Extract only the generated target portion (after source)
+            # The BOS token we added is now part of the target
             target_out = out[:, target_start_idx:]
             all_samples.append(target_out)
         
@@ -406,7 +428,7 @@ class Progen2Generator(nn.Module):
         
         return result
 
-    def _generate_text(self, input_ids, attention_mask, latent_source, latent_target, max_length, temperature=1.0):
+    def _generate_text(self, input_ids, attention_mask, latent_source, latent_target, max_target_length, temperature=1.0, target_start_idx=None):
         """
         Helper method for text generation using the conditioned Progen2 model.
         
@@ -415,8 +437,9 @@ class Progen2Generator(nn.Module):
             attention_mask: Attention mask
             latent_source: Latent distribution embedding for source
             latent_target: Latent distribution embedding for target
-            max_length: Maximum sequence length
+            max_target_length: Maximum length for the generated target sequence
             temperature: Sampling temperature
+            target_start_idx: Index where target starts (for prefix insertion)
             
         Returns:
             Generated token IDs (full sequence including source + generated target)
@@ -434,11 +457,12 @@ class Progen2Generator(nn.Module):
         # Track which sequences are finished
         finished = torch.zeros(batch_size, dtype=torch.bool, device=device)
         
-        # Generate tokens up to max_length or until all sequences have EOS
-        for _ in range(max_length - cur_input_ids.size(1)):
-            # Forward pass
+        # Generate tokens up to max_target_length or until all sequences have EOS
+        # max_target_length refers to the target portion only
+        for _ in range(max_target_length):
+            # Forward pass with target_start_idx for proper prefix positioning
             with torch.no_grad():
-                logits = self.model(cur_input_ids, cur_attention_mask, latent_source, latent_target)
+                logits = self.model(cur_input_ids, cur_attention_mask, latent_source, latent_target, target_start_idx)
             
             # Get logits for next token prediction (last position)
             next_token_logits = logits[:, -1, :] / temperature

@@ -6,7 +6,7 @@ description: "Pfam dataset with DFM generator"
 
 # Override defaults from config.yaml
 defaults:
-  - /dataset: pfam_clan
+  - /dataset: pfam
   - /encoder: esm
   - /generator: dfm
   - /training: default5000_mem

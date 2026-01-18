@@ -6,7 +6,7 @@ description: "Pfam dataset"
 
 # Override defaults from config.yaml
 defaults:
-  - /dataset: pfam_random
+  - /dataset: pfam
   - /encoder: esm
   - /generator: progen2
   - /training: default5000_mem

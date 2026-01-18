@@ -1,0 +1,41 @@
+# @package _global_.experiment
+
+# Experiment name and description
+name: pfam_dfm
+description: "Pfam dataset with Edit Flow generator for variable-length protein sequence generation"
+
+# Override defaults from config.yaml
+defaults:
+  - /dataset: pfam
+  - /encoder: esm
+  - /generator: dfm
+  - /training: default5000_mem
+  - /loss: default
+  - /sampling: default
+
+train_predictor_posthoc: true
+
+# Sampling parameters
+num_samples: 100
+selective_pairing_mode: null
+
+# Dataset parameters
+max_length: 128
+max_pfams: 200
+data_file: "pfam_tokenized_data_clan.pt"
+eval_data_file: "pfam_tokenized_data_clan_eval.pt"
+
+# Experiment-specific parameters
+latent_dim: 128
+hidden_dim: 128
+condition_dim: 256
+set_size: 32
+batch_size: 4
+lr: 2e-4
+
+# Edit Flow generator parameters
+esm_model_name: 'facebook/esm2_t6_8M_UR50D'
+freeze_backbone: false
+scheduler: "cubic"  # "linear" or "cubic" - cubic works better per the paper
+sample_steps: 100
+temperature: 1.0

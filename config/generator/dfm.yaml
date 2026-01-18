@@ -1,9 +1,13 @@
 # @package _global_.generator
-_target_: generator.dfm.ESM2_DFM_Generator
+# Edit Flow Generator for variable-length protein sequence generation
+# Uses edit operations (insertions, deletions, substitutions) for discrete flow matching
+
+_target_: generator.dfm.EditFlowGenerator
 model_name: ${experiment.esm_model_name}
 latent_dim: ${experiment.latent_dim}
 condition_dim: ${experiment.condition_dim}
-freeze_esm2: ${experiment.freeze_esm2}
+freeze_backbone: ${experiment.freeze_backbone}
+max_length: ${experiment.max_length}
+scheduler: ${experiment.scheduler}
+sample_steps: ${experiment.sample_steps}
 temperature: ${experiment.temperature}
-seq_length: ${experiment.seq_length}
-sample_dt: ${experiment.sample_dt}

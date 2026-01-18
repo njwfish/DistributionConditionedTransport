@@ -12,8 +12,7 @@ class ConditionedProgen2(nn.Module):
         latent_dim=32,
         condition_dim=256,
         freeze_progen2=False,
-        condition_method="prefix",
-        separator_token_id=None
+        condition_method="prefix"
     ):
         """
         Initialize a conditioned Progen2 model for source-to-target generation.
@@ -24,7 +23,6 @@ class ConditionedProgen2(nn.Module):
             condition_dim: Dimension to project the condition to
             freeze_progen2: Whether to freeze the Progen2 parameters
             condition_method: How to condition the model ('prefix' or 'additive')
-            separator_token_id: Token ID for the separator between source and target sequences
         """
         super().__init__()
         
@@ -52,7 +50,6 @@ class ConditionedProgen2(nn.Module):
             print(f"Warning: Could not determine hidden dimension from model config. Using default: {self.hidden_dim}")
         
         self.condition_method = condition_method
-        self.separator_token_id = separator_token_id
         
         # Project combined latents (source + target) to correct dimension
         # We concatenate latent_source and latent_target, so input dim is 2 * latent_dim
@@ -78,7 +75,8 @@ class ConditionedProgen2(nn.Module):
         Forward pass through the conditioned Progen2 model.
         
         Args:
-            input_ids: Tensor of token IDs [batch_size, seq_len] (concatenated: source + sep + target)
+            input_ids: Tensor of token IDs [batch_size, seq_len] (concatenated: source + target)
+                       Format: <|bos|>SOURCE<|eos|><|bos|>TARGET<|eos|>
             attention_mask: Attention mask [batch_size, seq_len]
             latent_source: Latent distribution embedding for source [batch_size, latent_dim]
             latent_target: Latent distribution embedding for target [batch_size, latent_dim]
@@ -166,7 +164,6 @@ class ConditionedProgen2(nn.Module):
         return logits
 
 
-# TODO: watch out for max_length = 128 right now in the dataset class.
 class Progen2Generator(nn.Module):
     """Generator class using conditioned Progen2 for source-to-target protein generation."""
     
@@ -178,7 +175,7 @@ class Progen2Generator(nn.Module):
         freeze_progen2=False,
         condition_method="prefix",
         temperature=1.0,
-        max_length=512
+        max_length=128
     ):
         """
         Initialize the Progen2 generator for source-to-target generation.
@@ -196,7 +193,7 @@ class Progen2Generator(nn.Module):
         self.temperature = temperature
         self.max_length = max_length
         
-        # Initialize tokenizer first (needed to get separator token id)
+        # Initialize tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(progen2_name, trust_remote_code=True)
         
         # Add special tokens if they don't exist
@@ -207,124 +204,55 @@ class Progen2Generator(nn.Module):
         if self.tokenizer.eos_token is None:
             self.tokenizer.eos_token = '<|eos|>'
         
-        # Add separator token for distinguishing source from target
-        special_tokens_dict = {'additional_special_tokens': ['<|sep|>']}
-        num_added = self.tokenizer.add_special_tokens(special_tokens_dict)
-        self.separator_token = '<|sep|>'
-        self.separator_token_id = self.tokenizer.convert_tokens_to_ids('<|sep|>')
-        
         # Initialize model
+        # Note: No separator token needed - source and target sequences are already
+        # tokenized with BOS/EOS tokens, so concatenation yields:
+        # <|bos|>SOURCE<|eos|><|bos|>TARGET<|eos|>
+        # The EOS-BOS boundary clearly separates source from target.
         self.model = ConditionedProgen2(
             progen2_name=progen2_name,
             latent_dim=latent_dim,
             condition_dim=condition_dim,
             freeze_progen2=freeze_progen2,
-            condition_method=condition_method,
-            separator_token_id=self.separator_token_id
+            condition_method=condition_method
         )
-        
-        # Resize token embeddings if new tokens were added
-        # Note: ProGenModel doesn't support resize_token_embeddings natively,
-        # so we manually resize the embedding layer and lm_head
-        if num_added > 0:
-            self._resize_embeddings(len(self.tokenizer))
-    
-    def _resize_embeddings(self, new_num_tokens):
-        """
-        Manually resize token embeddings for ProGenModel since it doesn't
-        implement get_input_embeddings/set_input_embeddings.
-        
-        Args:
-            new_num_tokens: New vocabulary size
-        """
-        # Get the old embedding layer
-        old_embeddings = self.model.progen2.transformer.wte
-        old_num_tokens, embedding_dim = old_embeddings.weight.shape
-        
-        if new_num_tokens == old_num_tokens:
-            return
-        
-        # Create new embedding layer with more tokens
-        new_embeddings = nn.Embedding(new_num_tokens, embedding_dim)
-        new_embeddings.to(old_embeddings.weight.device, dtype=old_embeddings.weight.dtype)
-        
-        # Copy old weights
-        num_tokens_to_copy = min(old_num_tokens, new_num_tokens)
-        new_embeddings.weight.data[:num_tokens_to_copy, :] = old_embeddings.weight.data[:num_tokens_to_copy, :]
-        
-        # Initialize new token embeddings with mean of existing embeddings
-        if new_num_tokens > old_num_tokens:
-            mean_embedding = old_embeddings.weight.data.mean(dim=0)
-            new_embeddings.weight.data[old_num_tokens:, :] = mean_embedding
-        
-        # Replace the embedding layer
-        self.model.progen2.transformer.wte = new_embeddings
-        
-        # Also resize lm_head if it exists and is a Linear layer
-        if hasattr(self.model.progen2, 'lm_head') and isinstance(self.model.progen2.lm_head, nn.Linear):
-            old_lm_head = self.model.progen2.lm_head
-            old_out_features, in_features = old_lm_head.weight.shape
-            
-            # Create new lm_head
-            new_lm_head = nn.Linear(in_features, new_num_tokens, bias=old_lm_head.bias is not None)
-            new_lm_head.to(old_lm_head.weight.device, dtype=old_lm_head.weight.dtype)
-            
-            # Copy old weights
-            num_to_copy = min(old_out_features, new_num_tokens)
-            new_lm_head.weight.data[:num_to_copy, :] = old_lm_head.weight.data[:num_to_copy, :]
-            if old_lm_head.bias is not None:
-                new_lm_head.bias.data[:num_to_copy] = old_lm_head.bias.data[:num_to_copy]
-            
-            # Initialize new output weights
-            if new_num_tokens > old_out_features:
-                nn.init.normal_(new_lm_head.weight.data[old_out_features:, :], mean=0.0, std=0.02)
-                if old_lm_head.bias is not None:
-                    new_lm_head.bias.data[old_out_features:] = 0
-            
-            self.model.progen2.lm_head = new_lm_head
     
     def _concatenate_source_target(self, x_source, x_target):
         """
-        Concatenate source and target sequences with a separator token.
+        Concatenate source and target sequences.
+        
+        Since both source and target are already tokenized with BOS/EOS tokens,
+        the concatenation yields: <|bos|>SOURCE<|eos|><|bos|>TARGET<|eos|>
+        The EOS-BOS boundary naturally separates source from target.
         
         Args:
             x_source: Dictionary containing 'progen_input_ids' and 'progen_attention_mask' for source
             x_target: Dictionary containing 'progen_input_ids' and 'progen_attention_mask' for target
             
         Returns:
-            combined_input_ids: Concatenated input IDs [batch_size, source_len + 1 + target_len]
+            combined_input_ids: Concatenated input IDs [batch_size, source_len + target_len]
             combined_attention_mask: Concatenated attention mask
-            target_start_idx: Index where the target sequence starts (after separator)
+            target_start_idx: Index where the target sequence starts
         """
         source_ids = x_source['progen_input_ids']
         source_mask = x_source['progen_attention_mask']
         target_ids = x_target['progen_input_ids']
         target_mask = x_target['progen_attention_mask']
         
-        device = source_ids.device
-        
         # Handle 3D tensors (batch_size, set_size, seq_len)
         if len(source_ids.shape) == 3:
-            batch_size, set_size, _ = source_ids.shape
-            # Create separator with matching 3D shape
-            separator = torch.full((batch_size, set_size, 1), self.separator_token_id, dtype=source_ids.dtype, device=device)
-            separator_mask = torch.ones((batch_size, set_size, 1), dtype=source_mask.dtype, device=device)
             # Concatenate along the sequence dimension (dim=2)
-            combined_input_ids = torch.cat([source_ids, separator, target_ids], dim=2)
-            combined_attention_mask = torch.cat([source_mask, separator_mask, target_mask], dim=2)
+            combined_input_ids = torch.cat([source_ids, target_ids], dim=2)
+            combined_attention_mask = torch.cat([source_mask, target_mask], dim=2)
         else:
-            batch_size = source_ids.shape[0]
-            # Create separator token tensor
-            separator = torch.full((batch_size, 1), self.separator_token_id, dtype=source_ids.dtype, device=device)
-            separator_mask = torch.ones((batch_size, 1), dtype=source_mask.dtype, device=device)
-            # Concatenate: source + separator + target
-            combined_input_ids = torch.cat([source_ids, separator, target_ids], dim=1)
-            combined_attention_mask = torch.cat([source_mask, separator_mask, target_mask], dim=1)
+            # Concatenate: source + target
+            combined_input_ids = torch.cat([source_ids, target_ids], dim=1)
+            combined_attention_mask = torch.cat([source_mask, target_mask], dim=1)
         
-        # Target starts right after source + separator
+        # Target starts right after source
         # For 3D tensors, seq_len is shape[2]; for 2D, it's shape[1]
         source_seq_len = source_ids.shape[2] if len(source_ids.shape) == 3 else source_ids.shape[1]
-        target_start_idx = source_seq_len + 1  # +1 for separator
+        target_start_idx = source_seq_len
         
         return combined_input_ids, combined_attention_mask, target_start_idx
     
@@ -344,7 +272,7 @@ class Progen2Generator(nn.Module):
         Returns:
             Negative log likelihood loss (computed only on target tokens)
         """
-        # Concatenate source and target with separator
+        # Concatenate source and target sequences
         combined_input_ids, combined_attention_mask, target_start_idx = self._concatenate_source_target(
             x_source, x_target
         )
@@ -405,12 +333,15 @@ class Progen2Generator(nn.Module):
         source_ids = x_source['progen_input_ids']
         source_mask = x_source['progen_attention_mask']
         
-        # Create the starting sequence: source + separator
-        separator = torch.full((batch_size, 1), self.separator_token_id, dtype=source_ids.dtype, device=device)
-        separator_mask = torch.ones((batch_size, 1), dtype=source_mask.dtype, device=device)
+        # Create the starting sequence: source + BOS token for target
+        # Source is: <|bos|>SOURCE<|eos|>
+        # We start target generation with: <|bos|>
+        bos_token_id = self.tokenizer.convert_tokens_to_ids(self.tokenizer.bos_token)
+        bos_token = torch.full((batch_size, 1), bos_token_id, dtype=source_ids.dtype, device=device)
+        bos_mask = torch.ones((batch_size, 1), dtype=source_mask.dtype, device=device)
         
-        start_ids = torch.cat([source_ids, separator], dim=1)
-        start_mask = torch.cat([source_mask, separator_mask], dim=1)
+        start_ids = torch.cat([source_ids, bos_token], dim=1)
+        start_mask = torch.cat([source_mask, bos_mask], dim=1)
         
         # Track where target generation starts
         target_start_idx = start_ids.shape[1]
@@ -436,7 +367,7 @@ class Progen2Generator(nn.Module):
                     self.max_length,
                     self.temperature
                 )
-            # Extract only the generated target portion (after separator)
+            # Extract only the generated target portion (after source + BOS)
             target_out = out[:, target_start_idx:]
             all_samples.append(target_out)
         
@@ -480,7 +411,7 @@ class Progen2Generator(nn.Module):
         Helper method for text generation using the conditioned Progen2 model.
         
         Args:
-            input_ids: Starting token IDs (source + separator)
+            input_ids: Starting token IDs (source + BOS token for target)
             attention_mask: Attention mask
             latent_source: Latent distribution embedding for source
             latent_target: Latent distribution embedding for target
@@ -488,7 +419,7 @@ class Progen2Generator(nn.Module):
             temperature: Sampling temperature
             
         Returns:
-            Generated token IDs (full sequence including source + separator + generated target)
+            Generated token IDs (full sequence including source + generated target)
         """
         batch_size = input_ids.shape[0]
         device = input_ids.device

@@ -16,7 +16,7 @@ esm_name: 'facebook/esm2_t6_8M_UR50D'
 progen_name: 'hugohrban/progen2-small'
 
 # Sequence settings
-max_length: 128
+max_length: ${experiment.max_length}
 
 # Reproducibility
 seed: ${seed}

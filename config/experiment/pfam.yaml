@@ -20,6 +20,7 @@ num_samples: 100
 selective_pairing_mode: null
 
 # Dataset parameters
+max_length: 128
 max_pfams: 900
 data_file: "pfam_tokenized_data_${experiment.max_pfams}.pt"
 

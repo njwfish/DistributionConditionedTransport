@@ -6,4 +6,4 @@ condition_dim: 256
 freeze_progen2: false
 condition_method: "prefix"
 temperature: 1.0
-max_length: 512
+max_length: ${experiment.max_length}

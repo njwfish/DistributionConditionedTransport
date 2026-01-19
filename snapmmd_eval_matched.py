@@ -157,6 +157,10 @@ def find_matching_ckpt_dirs(ckpt_dir, outputs_dir="outputs"):
 
 
 def generate_cde_forecast(cfg, data, encoder, generator, predictor=None, two_step=False):
+    """
+    Generate forecast by feeding all data at once into encoder and generator.
+    No subsetting by set_size - uses all samples at each timepoint.
+    """
 
     # Re-seed for deterministic forecasting per run
     try:
@@ -167,45 +171,41 @@ def generate_cde_forecast(cfg, data, encoder, generator, predictor=None, two_ste
         seed_everything(cfg_seed, deterministic=True)
 
     Xs = data['Xs']
-    n_steps = int(data['N_steps'])
     
-    set_size = cfg.experiment.set_size
+    # Feed all data at each timepoint (no subsetting)
     Xs_third_last = torch.tensor(Xs[-3], dtype=torch.float).to(device)
     Xs_second_last = torch.tensor(Xs[-2], dtype=torch.float).to(device)
     Xs_last = torch.tensor(Xs[-1], dtype=torch.float).to(device)
     
-    num_sets = Xs_second_last.shape[0] // set_size
-    
-    all_gen_samples = []
-    
-    for i in range(num_sets):
-        Xs_third_last_set = Xs_third_last[i*set_size:(i+1)*set_size].unsqueeze(0)
-        Xs_second_last_set = Xs_second_last[i*set_size:(i+1)*set_size].unsqueeze(0)
-        Xs_last_set = Xs_last[i*set_size:(i+1)*set_size].unsqueeze(0)
+    # Add batch dimension for encoder (expects [batch, num_samples, features])
+    Xs_third_last_batch = Xs_third_last.unsqueeze(0)
+    Xs_second_last_batch = Xs_second_last.unsqueeze(0)
+    Xs_last_batch = Xs_last.unsqueeze(0)
 
-        if two_step:
-            src_latent_1 = encoder(Xs_third_last_set)
-            src_latent_2 = encoder(Xs_second_last_set)
-            
-            src_latent_combined = torch.cat([src_latent_1, src_latent_2], dim=-1)
-            src_latent = src_latent_2
-        else:
-            src_latent = encoder(Xs_second_last_set)
-            src_latent_combined = src_latent
+    if two_step:
+        src_latent_1 = encoder(Xs_third_last_batch)
+        src_latent_2 = encoder(Xs_second_last_batch)
         
-        if predictor is not None:
-            #print(src_latent.detach().cpu().numpy().shape)
-            tgt_latent = torch.tensor(predictor.predict(src_latent_combined.detach().cpu().numpy()), dtype=torch.float).to(device)
-            #tgt_latent = tgt_latent / tgt_latent.norm(dim=-1, keepdim=True)t
-            tgt_latent = normalize_latent(tgt_latent)
-        else:
-            tgt_latent = encoder(Xs_last_set)
-
-        gen = generator.sample(Xs_second_last_set.squeeze(0), src_latent, tgt_latent)
-        all_gen_samples.append(gen.squeeze(0))
+        src_latent_combined = torch.cat([src_latent_1, src_latent_2], dim=-1)
+        src_latent = src_latent_2
+    else:
+        src_latent = encoder(Xs_second_last_batch)
+        src_latent_combined = src_latent
     
-    all_gen_samples = torch.cat(all_gen_samples, dim=0)
-    return all_gen_samples.cpu().numpy()
+    if predictor is not None:
+        tgt_latent = torch.tensor(predictor.predict(src_latent_combined.detach().cpu().numpy()), dtype=torch.float).to(device)
+        tgt_latent = normalize_latent(tgt_latent)
+    else:
+        tgt_latent = encoder(Xs_last_batch)
+
+    # Generate samples using all source samples at once
+    gen = generator.sample(Xs_second_last, src_latent, tgt_latent)
+    
+    # Squeeze out batch dimension if present to get [num_samples, features]
+    if gen.dim() == 3:
+        gen = gen.squeeze(0)
+    
+    return gen.cpu().numpy()
 
 
 def compute_scores(cfg, data, forecast):
@@ -362,14 +362,12 @@ for predictor_loss_weight in predictor_loss_weights:
                 if j == 0:
                     print(f"Using matched predictor: loss_type={loss_type}, ridge_alpha={ridge_alpha}")
                 
-                # Train predictor with matched loss function
+                # Train predictor with matched loss function (feeds all data at once)
                 predictor = get_matched_predictor(
                     encoder, 
                     data, 
                     loss_type=loss_type,
                     ridge_alpha=ridge_alpha,
-                    num_sets=5, 
-                    set_size=32, 
                     device=device, 
                     seed=42, 
                     two_step=two_step,

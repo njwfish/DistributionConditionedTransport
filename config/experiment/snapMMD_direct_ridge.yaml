@@ -1,7 +1,7 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: snapMMD_mse_${dataset_name}
+name: snapMMD_direct_ridge_${dataset_name}
 description: "SnapMMD ${dataset_name} experiment with unified dataset class"
 
 # Override defaults from config.yaml
@@ -12,19 +12,25 @@ defaults:
   - /generator: flow_matching
   - /training: default5000
   - /loss: predictor
-  - /predictor: default_mse
+  - /predictor: default
   - /sampling: default
 
 ot_coupling: false
 
 # predictor parameters
 predictor_loss_weight: 1
+predictor_cotrain_direct: true  # If true, use predictor output as target_latent for generator instead of adding loss term
 
 train_predictor_posthoc: false
 
 predictor_model_type: "ridge"
 predictor_model_args:
   ridge_alpha: 1e-3
+
+#predictor_model_type: "mlp"
+#predictor_model_args:
+#  hidden_dim: 128
+#  num_layers: 2
 
 # sampling parameters
 num_samples: null

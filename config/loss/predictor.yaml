@@ -1,3 +1,4 @@
 # @package _global_.loss
 _target_: loss.predictor.PredictorLossManager
 predictor_loss_weight: ${experiment.predictor_loss_weight}
+predictor_cotrain_direct: ${experiment.predictor_cotrain_direct}

@@ -10,6 +10,7 @@ The predictor loss_type and ridge_alpha are read from the saved config.
 """
 
 import os
+import argparse
 from typing import Any, Dict
 
 import numpy as np
@@ -308,14 +309,27 @@ def plot_forecast(cfg, data, forecast):
 
     
 
+# Parse command line arguments
+parser = argparse.ArgumentParser(description="Evaluate snapMMD models with matched predictor loss")
+parser.add_argument("--two_step", type=lambda x: x.lower() in ('true', '1', 'yes'), 
+                    default=False, help="Use two-step prediction (default: True)")
+parser.add_argument("--ckpt_prefix", type=str, default="snapMMD_unstructured_G", 
+                    help="Checkpoint directory prefix to search for (default: snapMMD_G)")
+parser.add_argument("--outputs_dir", type=str, default="outputs",
+                    help="Directory containing model outputs (default: outputs)")
+args = parser.parse_args()
+
 # Training hyperparameter combinations to evaluate
 # These match the original snapmmd_eval_strat.py
 predictor_loss_weights = [1, 0.1, 0.01, 0.001, 0.0]
 selective_pairing_modes = [None, "single_step"]
 
-# Change this to match your outputs directory and checkpoint prefix
-outputs_dir = "outputs"
-ckpt_prefix = "snapMMD_P"  # Change to "snapMMD_" if needed
+# Use command line arguments
+outputs_dir = args.outputs_dir
+ckpt_prefix = args.ckpt_prefix
+two_step = args.two_step
+
+print(f"Configuration: two_step={two_step}, ckpt_prefix={ckpt_prefix}, outputs_dir={outputs_dir}")
 
 for predictor_loss_weight in predictor_loss_weights:
     for selective_pairing_mode in selective_pairing_modes:
@@ -343,11 +357,11 @@ for predictor_loss_weight in predictor_loss_weights:
         all_emd = []
         use_predictor = True
         predictor_source = "posthoc"
-        two_step = True
         
         print(f"=" * 60)
         print(f"Predictor loss weight: {predictor_loss_weight}")
         print(f"Selective pairing mode: {selective_pairing_mode}")
+        print(f"Two step: {two_step}")
         print(f"=" * 60)
         
         for j, ckpt_dir in enumerate(matching_dirs):

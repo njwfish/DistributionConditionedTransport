@@ -1,12 +1,12 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: snapMMD_${dataset_name}
-description: "SnapMMD ${dataset_name} experiment with unified dataset class"
+name: snapMMD_unstructured_${dataset_name}
+description: "SnapMMD ${dataset_name} experiment with unstructured dataset class"
 
 # Override defaults from config.yaml
 defaults:
-  - /dataset: snapMMD_unified
+  - /dataset: snapMMD_unstructured
   - /encoder: knn
   - /model: diffusion_mlp
   - /generator: flow_matching

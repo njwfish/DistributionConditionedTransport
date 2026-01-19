@@ -4,5 +4,9 @@ _target_: datasets.tcr.TCRDataset
 seed: ${seed}
 set_size: ${experiment.set_size}
 
-data_dir: ${experiment.data_dir}
-max_seq_length: 301
+data_dir: data/tcr
+data_file: tcr_tokenized_data.pt
+esm_name: facebook/esm2_t6_8M_UR50D
+progen_name: hugohrban/progen2-small
+max_seq_length: 30
+tokenize: false

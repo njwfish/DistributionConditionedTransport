@@ -1,0 +1,29 @@
+# @package _global_.experiment
+
+# Experiment name and description
+name: tcr
+description: "TCR dataset"
+
+# Override defaults from config.yaml
+defaults:
+  - /dataset: tcr
+  - /encoder: esm
+  - /generator: progen2
+  - /training: default5000_mem
+  - /loss: default
+  - /sampling: default
+
+train_predictor_posthoc: true
+
+# sampling parameters
+num_samples: 100
+selective_pairing_mode: null
+
+max_length: 30
+
+# Experiment-specific parameters
+latent_dim: 64
+hidden_dim: 128
+set_size: 64
+batch_size: 4
+lr: 2e-4

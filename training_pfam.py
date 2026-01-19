@@ -26,6 +26,7 @@ class Trainer:
         use_tqdm=True,
         mask_context_prob=0.0,
         sub_epoch=None,
+        use_amp=False,
     ):
         """
         Initialize the trainer.
@@ -38,6 +39,7 @@ class Trainer:
             early_stopping: Whether to use early stopping
             patience: Number of evaluations with no improvement before early stopping
             use_tqdm: Whether to use tqdm progress bars
+            use_amp: Whether to use automatic mixed precision (AMP) for training
         """
         self.num_epochs = num_epochs
         self.log_interval = log_interval
@@ -52,12 +54,15 @@ class Trainer:
         self.patience = patience
         self.use_tqdm = use_tqdm
         self.mask_context_prob = mask_context_prob
+        self.use_amp = use_amp
         
         self.logger = logging.getLogger(__name__)
         self.best_loss = float('inf')
         self.no_improve_count = 0
         # log sub_epoch_interval
         self.logger.info(f"Sub epoch interval: {self.sub_epoch_interval}, save interval: {self.save_interval}, eval interval: {self.eval_interval}")
+        if self.use_amp:
+            self.logger.info("Automatic Mixed Precision (AMP) is enabled")
     
     def _find_similar_experiment_by_name(self, experiment_name, current_config, base_dir):
         """
@@ -149,6 +154,12 @@ class Trainer:
                     
         return latest_checkpoint
     
+    def _get_autocast_context(self, device):
+        """Return autocast context if AMP is enabled, otherwise nullcontext."""
+        if self.use_amp and device.type == 'cuda':
+            return torch.amp.autocast(device_type='cuda', dtype=torch.float16)
+        return contextlib.nullcontext()
+
     def train(
         self,
         encoder,
@@ -161,12 +172,16 @@ class Trainer:
         device=None,
         output_dir='./outputs',
         config=None,
+        eval_dataloader=None,
     ):
         """Train the model with W&B logging."""
         training_start = time.time()
         
         if device is None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        # Initialize GradScaler for AMP if enabled
+        scaler = torch.amp.GradScaler('cuda') if self.use_amp and device.type == 'cuda' else None
         
         encoder.to(device)
         generator.to(device)
@@ -260,6 +275,8 @@ class Trainer:
                 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             if 'scheduler_state_dict' in checkpoint:
                 scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            if scaler is not None and 'scaler_state_dict' in checkpoint:
+                scaler.load_state_dict(checkpoint['scaler_state_dict'])
             start_epoch = checkpoint['epoch']
             if 'step' in checkpoint:
                 step = checkpoint['step'] + 1
@@ -293,12 +310,17 @@ class Trainer:
                 # Handle samples which can be either a tensor or a dictionary
                 batch_loss_start = time.time()
                 optimizer.zero_grad(set_to_none=True)
-                with contextlib.nullcontext():
+                with self._get_autocast_context(device):
                     loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 
-                # Standard backward and optimizer step per batch
-                loss.backward()
-                optimizer.step()
+                # Standard backward and optimizer step per batch (with AMP scaling if enabled)
+                if scaler is not None:
+                    scaler.scale(loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    loss.backward()
+                    optimizer.step()
                 
                 # Record batch loss
                 current_loss = loss.item()
@@ -371,6 +393,9 @@ class Trainer:
                 if predictor is not None:
                     checkpoint_data['predictor_state_dict'] = predictor.state_dict()
                 
+                if scaler is not None:
+                    checkpoint_data['scaler_state_dict'] = scaler.state_dict()
+                
                 torch.save(checkpoint_data, checkpoint_path)
                 self.logger.info(f"Saved checkpoint to {checkpoint_path}")
                 
@@ -380,7 +405,9 @@ class Trainer:
             
             # Evaluation and early stopping logic
             if ((epoch + 1) % self.eval_interval == 0 or (epoch + 1) == self.num_epochs):
-                eval_loss = self._evaluate(encoder, generator, dataloader, device, loss_manager, predictor=predictor)
+                # Use eval_dataloader if provided, otherwise fall back to training dataloader
+                eval_dl = eval_dataloader if eval_dataloader is not None else dataloader
+                eval_loss = self._evaluate(encoder, generator, eval_dl, device, loss_manager, predictor=predictor)
                 stats['eval_losses'].append(eval_loss)
                 
                 self.logger.info(f"Evaluation Loss: {eval_loss:.6f}")
@@ -413,6 +440,9 @@ class Trainer:
                     
                     if predictor is not None:
                         checkpoint_data['predictor_state_dict'] = predictor.state_dict()
+                    
+                    if scaler is not None:
+                        checkpoint_data['scaler_state_dict'] = scaler.state_dict()
                     
                     torch.save(checkpoint_data, best_model_path)
                     self.logger.info(f"New best model saved to {best_model_path}")
@@ -467,7 +497,7 @@ class Trainer:
             for batch in dataloader:
                 # TODO: legacy code was not using loss manager here, is there any specific reason for this?
                 # Use loss manager for consistent loss computation
-                with contextlib.nullcontext():
+                with self._get_autocast_context(device):
                     loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 total_loss += loss.item()
                 num_batches += 1
@@ -494,7 +524,7 @@ class Trainer:
                     batch_size, set_size, *data_shape = source_samples.shape
                     
                     # Encode samples to latent space
-                    with contextlib.nullcontext():
+                    with self._get_autocast_context(device):
                         source_latent = encoder(source_samples)
                         target_latent = encoder(target_samples)
 
@@ -535,7 +565,7 @@ class Trainer:
                         target_raw_texts = [[target_raw_texts[j][i] for j in range(set_size)] for i in range(num_sets)]
 
                     # Encode samples to latent space
-                    with contextlib.nullcontext():
+                    with self._get_autocast_context(device):
                         source_latent = encoder(source_samples)
                         target_latent = encoder(target_samples)
                     
@@ -549,7 +579,7 @@ class Trainer:
                             source_sample[key] = value
                     
                     # Generate new samples
-                    with contextlib.nullcontext():
+                    with self._get_autocast_context(device):
                         generated = generator.sample(source_sample, source_latent, target_latent, num_samples=set_size, return_texts=True)
                     
                     if isinstance(generated, tuple):

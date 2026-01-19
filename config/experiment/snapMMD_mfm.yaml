@@ -16,6 +16,9 @@ defaults:
 
 ot_coupling: false
 
+# predictor parameters
+predictor_loss_weight: 0.0
+
 train_predictor_posthoc: true
 
 # sampling parameters
@@ -26,5 +29,5 @@ selective_pairing_mode: "single_step"
 latent_dim: 32
 hidden_dim: 128
 set_size: 32
-batch_size: 4
+batch_size: 8
 lr: 2e-4

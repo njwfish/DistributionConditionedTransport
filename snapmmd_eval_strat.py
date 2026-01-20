@@ -306,7 +306,7 @@ for predictor_loss_weight in predictor_loss_weights:
     for selective_pairing_mode in selective_pairing_modes:
         ckpt_dir_ref = None
         for ckpt_dir in os.listdir(outputs_dir):
-            if ckpt_dir.startswith("snapMMD_mse_P"):
+            if ckpt_dir.startswith("snapMMD_gnn_G"):
                 try:
                     cfg_ref,_ = load_cfg_and_ckpt(ckpt_dir,outputs_dir=outputs_dir)
                     if cfg_ref['experiment']['predictor_loss_weight'] == predictor_loss_weight and cfg_ref['experiment']['selective_pairing_mode'] == selective_pairing_mode:

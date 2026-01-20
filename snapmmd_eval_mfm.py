@@ -303,7 +303,7 @@ outputs_dir = "outputs"
 
 ckpt_dir_ref = None
 for ckpt_dir in os.listdir(outputs_dir):
-    if ckpt_dir.startswith("snapMMD_MFM_P"):
+    if ckpt_dir.startswith("snapMMD_MFM_gnn_G"):
         try:
             cfg_ref,_ = load_cfg_and_ckpt(ckpt_dir,outputs_dir=outputs_dir)
             if True:

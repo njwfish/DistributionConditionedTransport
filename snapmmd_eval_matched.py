@@ -313,7 +313,7 @@ def plot_forecast(cfg, data, forecast):
 parser = argparse.ArgumentParser(description="Evaluate snapMMD models with matched predictor loss")
 parser.add_argument("--two_step", type=lambda x: x.lower() in ('true', '1', 'yes'), 
                     default=False, help="Use two-step prediction (default: True)")
-parser.add_argument("--ckpt_prefix", type=str, default="snapMMD_unstructured_G", 
+parser.add_argument("--ckpt_prefix", type=str, default="snapMMD_G", 
                     help="Checkpoint directory prefix to search for (default: snapMMD_G)")
 parser.add_argument("--outputs_dir", type=str, default="outputs",
                     help="Directory containing model outputs (default: outputs)")

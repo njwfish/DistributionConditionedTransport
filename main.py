@@ -156,8 +156,18 @@ def main(cfg: DictConfig):
         # Create trainer
         trainer = hydra.utils.instantiate(cfg.training)
         
-        # GPU Transfer Check
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # GPU Transfer Check with proper initialization
+        if torch.cuda.is_available():
+            try:
+                torch.cuda.init()
+                device = torch.device('cuda')
+                logger.info(f"Using CUDA device: {torch.cuda.get_device_name(0)}")
+            except RuntimeError as e:
+                logger.warning(f"CUDA initialization failed: {e}. Falling back to CPU.")
+                device = torch.device('cpu')
+        else:
+            device = torch.device('cpu')
+        
         encoder = encoder.to(device)
         generator = generator.to(device)
         

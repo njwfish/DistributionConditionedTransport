@@ -155,45 +155,30 @@ def generate_cde_forecast(cfg, data, encoder, generator, predictor = None, two_s
         seed_everything(cfg_seed, deterministic=True)
 
     Xs = data['Xs']
-    n_steps = int(data['N_steps'])
     
-    set_size = cfg.experiment.set_size
-    Xs_third_last = torch.tensor(Xs[-3], dtype=torch.float).to(device)
-    Xs_second_last = torch.tensor(Xs[-2], dtype=torch.float).to(device)
-    Xs_last = torch.tensor(Xs[-1], dtype=torch.float).to(device)
-    
-    num_sets = Xs_second_last.shape[0] // set_size
-    
-    all_gen_samples = []
-    
-    for i in range(num_sets):
-        Xs_third_last_set = Xs_third_last[i*set_size:(i+1)*set_size].unsqueeze(0)
-        Xs_second_last_set = Xs_second_last[i*set_size:(i+1)*set_size].unsqueeze(0)
-        Xs_last_set = Xs_last[i*set_size:(i+1)*set_size].unsqueeze(0)
+    # Feed entire data at once into the encoder (no chunking)
+    Xs_third_last = torch.tensor(Xs[-3], dtype=torch.float).to(device).unsqueeze(0)
+    Xs_second_last = torch.tensor(Xs[-2], dtype=torch.float).to(device).unsqueeze(0)
+    Xs_last = torch.tensor(Xs[-1], dtype=torch.float).to(device).unsqueeze(0)
 
-        if two_step:
-            src_latent_1 = encoder(Xs_third_last_set)
-            src_latent_2 = encoder(Xs_second_last_set)
-            
-            src_latent_combined = torch.cat([src_latent_1, src_latent_2], dim=-1)
-            src_latent = src_latent_2
-        else:
-            src_latent = encoder(Xs_second_last_set)
-            src_latent_combined = src_latent
+    if two_step:
+        src_latent_1 = encoder(Xs_third_last)
+        src_latent_2 = encoder(Xs_second_last)
         
-        if predictor is not None:
-            #print(src_latent.detach().cpu().numpy().shape)
-            tgt_latent = torch.tensor(predictor.predict(src_latent_combined.detach().cpu().numpy()), dtype=torch.float).to(device)
-            #tgt_latent = tgt_latent / tgt_latent.norm(dim=-1, keepdim=True)t
-            tgt_latent = normalize_latent(tgt_latent)
-        else:
-            tgt_latent = encoder(Xs_last_set)
-
-        gen = generator.sample(Xs_second_last_set.squeeze(0), src_latent, tgt_latent)
-        all_gen_samples.append(gen.squeeze(0))
+        src_latent_combined = torch.cat([src_latent_1, src_latent_2], dim=-1)
+        src_latent = src_latent_2
+    else:
+        src_latent = encoder(Xs_second_last)
+        src_latent_combined = src_latent
     
-    all_gen_samples = torch.cat(all_gen_samples, dim=0)
-    return all_gen_samples.cpu().numpy()
+    if predictor is not None:
+        tgt_latent = torch.tensor(predictor.predict(src_latent_combined.detach().cpu().numpy()), dtype=torch.float).to(device)
+        tgt_latent = normalize_latent(tgt_latent)
+    else:
+        tgt_latent = encoder(Xs_last)
+
+    gen = generator.sample(Xs_second_last.squeeze(0), src_latent, tgt_latent)
+    return gen.squeeze(0).cpu().numpy()
 
 
 def compute_scores(cfg, data, forecast):
@@ -297,7 +282,7 @@ def plot_forecast(cfg, data, forecast):
     
 
 
-predictor_loss_weights = [1, 0.1, 0.01, 0.001, 0.0]
+predictor_loss_weights = [10, 1, 0.1, 0.01, 0.001, 0.0]
 selective_pairing_modes = [None, "single_step"]
 
 outputs_dir = "outputs"
@@ -331,7 +316,7 @@ for predictor_loss_weight in predictor_loss_weights:
         plot_seed = 0
         all_mmd = []
         all_emd = []
-        use_predictor = True
+        use_predictor = False
         predictor_source = "posthoc"
         two_step = True
         print(f"Predictor loss weight: {predictor_loss_weight} Selective pairing mode: {selective_pairing_mode}")
@@ -342,8 +327,7 @@ for predictor_loss_weight in predictor_loss_weights:
             data = np.load(DATASET_CONFIGS[cfg.dataset_name]['data_path'])
 
             if use_predictor and predictor_source == "posthoc":
-                #predictor = get_ridge(encoder, data, num_sets=20, set_size=32, alpha = 1, device=device)
-                predictor = get_ridge(encoder, data, num_sets=5, set_size=32, device=device, alpha = 0.001, seed=42, two_step=two_step)
+                predictor = get_ridge(encoder, data, device=device, alpha = 0.001, seed=42, two_step=two_step)
             
             elif use_predictor and predictor_source == "cotrained":
                 pass

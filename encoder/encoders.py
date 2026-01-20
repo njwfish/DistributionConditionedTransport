@@ -54,12 +54,12 @@ class EmbeddingEncoder(nn.Module):
 
 
 class DistributionEncoder(nn.Module):
-    def __init__(self, in_dim, latent_dim, hidden_dim, set_size, normalize_latent=True):
+    def __init__(self, in_dim, latent_dim, hidden_dim, set_size, do_normalize_latent=True):
         super().__init__()
         self.latent_proj = nn.Linear(hidden_dim, latent_dim)
         self.latent_dim = latent_dim
         # self.positional_embedding = nn.Embedding(set_size, latent_dim)
-        self.normalize_latent_fn = normalize_latent if normalize_latent else nn.Identity()
+        self.do_normalize_latent = do_normalize_latent
         self.latent_act = nn.SELU()
         self.encoder = None
 
@@ -69,12 +69,13 @@ class DistributionEncoder(nn.Module):
         enc_mean = torch.mean(enc, dim=1)
         # enc_mean = torch.median(enc, dim=1).values
         lat = self.latent_act(self.latent_proj(enc_mean))
-        lat = self.normalize_latent_fn(lat)
+        if self.do_normalize_latent:
+            lat = normalize_latent(lat)
         return lat
 
 class DistributionEncoderTx(DistributionEncoder):
-    def __init__(self, in_dim, latent_dim, hidden_dim, set_size, layers=2, heads=4, normalize_latent=False):
-        super().__init__(in_dim, latent_dim, hidden_dim, set_size, normalize_latent=normalize_latent)
+    def __init__(self, in_dim, latent_dim, hidden_dim, set_size, layers=2, heads=4, do_normalize_latent=True):
+        super().__init__(in_dim, latent_dim, hidden_dim, set_size, do_normalize_latent=do_normalize_latent)
         self.encoder = nn.Sequential(
             nn.Linear(in_dim, hidden_dim),
             nn.SELU(),
@@ -82,24 +83,24 @@ class DistributionEncoderTx(DistributionEncoder):
         )
 
 class DistributionEncoderGNN(DistributionEncoder):
-    def __init__(self, in_dim, latent_dim, hidden_dim, set_size, layers=2, fc_layers=2, normalize_latent=False):
-        super().__init__(in_dim, latent_dim, hidden_dim, set_size, normalize_latent=normalize_latent)
+    def __init__(self, in_dim, latent_dim, hidden_dim, set_size, layers=2, fc_layers=2, do_normalize_latent=True):
+        super().__init__(in_dim, latent_dim, hidden_dim, set_size, do_normalize_latent=do_normalize_latent)
         self.encoder = nn.Sequential(
             MLP(in_dim, hidden_dim, hidden_dim, fc_layers),
             *[MeanPooledFC(hidden_dim, hidden_dim, hidden_dim, fc_layers) for _ in range(layers)]
         )
 
 class DistributionEncoderMedianGNN(DistributionEncoder):
-    def __init__(self, in_dim, latent_dim, hidden_dim, set_size, layers=2, fc_layers=2, normalize_latent=False):
-        super().__init__(in_dim, latent_dim, hidden_dim, set_size, normalize_latent=normalize_latent)
+    def __init__(self, in_dim, latent_dim, hidden_dim, set_size, layers=2, fc_layers=2, do_normalize_latent=True):
+        super().__init__(in_dim, latent_dim, hidden_dim, set_size, do_normalize_latent=do_normalize_latent)
         self.encoder = nn.Sequential(
             MLP(in_dim, hidden_dim, hidden_dim, fc_layers),
             *[MedianPooledFC(hidden_dim, hidden_dim, hidden_dim, fc_layers) for _ in range(layers)]
         )
 
 class DistributionEncoderResNet(DistributionEncoder):
-    def __init__(self, in_dim, latent_dim, hidden_dim, set_size, layers=2, fc_layers=2, norm=True, normalize_latent=False):
-        super().__init__(in_dim, latent_dim, hidden_dim, set_size, normalize_latent=normalize_latent)
+    def __init__(self, in_dim, latent_dim, hidden_dim, set_size, layers=2, fc_layers=2, norm=True, do_normalize_latent=True):
+        super().__init__(in_dim, latent_dim, hidden_dim, set_size, do_normalize_latent=do_normalize_latent)
         
         # Initial projection to hidden dimension
         self.input_projection = MLP(in_dim, hidden_dim, hidden_dim, fc_layers)
@@ -124,7 +125,6 @@ class DistributionEncoderResNet(DistributionEncoder):
         # Override the encoder in parent class
         self.encoder = None
         self.norm = norm
-        self.normalize_latent_fn = normalize_latent if normalize_latent else nn.Identity()
 
     def forward(self, x):
         # Store original input for later use
@@ -167,12 +167,13 @@ class DistributionEncoderResNet(DistributionEncoder):
         
         # Final projection to latent space
         lat = self.latent_act(self.latent_proj(enc_mean))
-        lat = self.normalize_latent_fn(lat)
+        if self.do_normalize_latent:
+            lat = normalize_latent(lat)
         return lat
 
 class DistributionEncoderResNetTx(DistributionEncoder):
-    def __init__(self, in_dim, latent_dim, hidden_dim, set_size, layers=2, fc_layers=2, heads=4, norm=True, normalize_latent=False):
-        super().__init__(in_dim, latent_dim, hidden_dim, set_size, normalize_latent=normalize_latent)
+    def __init__(self, in_dim, latent_dim, hidden_dim, set_size, layers=2, fc_layers=2, heads=4, norm=True, do_normalize_latent=True):
+        super().__init__(in_dim, latent_dim, hidden_dim, set_size, do_normalize_latent=do_normalize_latent)
         
         # Initial projection to hidden dimension
         self.input_projection = MLP(in_dim, hidden_dim, hidden_dim, fc_layers)
@@ -197,7 +198,6 @@ class DistributionEncoderResNetTx(DistributionEncoder):
         # Override the encoder in parent class
         self.encoder = None
         self.norm = norm
-        self.normalize_latent_fn = normalize_latent if normalize_latent else nn.Identity()
         
     def forward(self, x):
         # Store original input for later use
@@ -240,7 +240,8 @@ class DistributionEncoderResNetTx(DistributionEncoder):
         
         # Final projection to latent space
         lat = self.latent_act(self.latent_proj(enc_mean))
-        lat = self.normalize_latent_fn(lat)
+        if self.do_normalize_latent:
+            lat = normalize_latent(lat)
         return lat
         
         

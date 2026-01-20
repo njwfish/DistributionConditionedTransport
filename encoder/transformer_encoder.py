@@ -75,7 +75,7 @@ class SequenceTransformerEncoder(nn.Module):
         num_layers=6,
         num_heads=8,
         dropout=0.1,
-        normalize_latent_flag=False
+        normalize_latent_flag=True
     ):
         super().__init__()
         

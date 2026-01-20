@@ -195,9 +195,9 @@ def generate_cde_forecast(cfg, data, encoder, generator, predictor=None, two_ste
     
     if predictor is not None:
         tgt_latent = torch.tensor(predictor.predict(src_latent_combined.detach().cpu().numpy()), dtype=torch.float).to(device)
-        tgt_latent = normalize_latent(tgt_latent)
+        tgt_latent = normalize_latent(tgt_latent)  # Normalize predicted latent to match encoder output
     else:
-        tgt_latent = encoder(Xs_last_batch)
+        tgt_latent = encoder(Xs_last_batch)  # Encoder already normalizes output
 
     # Generate samples using all source samples at once
     gen = generator.sample(Xs_second_last, src_latent, tgt_latent)
@@ -313,7 +313,7 @@ def plot_forecast(cfg, data, forecast):
 parser = argparse.ArgumentParser(description="Evaluate snapMMD models with matched predictor loss")
 parser.add_argument("--two_step", type=lambda x: x.lower() in ('true', '1', 'yes'), 
                     default=False, help="Use two-step prediction (default: True)")
-parser.add_argument("--ckpt_prefix", type=str, default="snapMMD_G", 
+parser.add_argument("--ckpt_prefix", type=str, default="snapMMD_gnn_G", 
                     help="Checkpoint directory prefix to search for (default: snapMMD_G)")
 parser.add_argument("--outputs_dir", type=str, default="outputs",
                     help="Directory containing model outputs (default: outputs)")
@@ -321,7 +321,7 @@ args = parser.parse_args()
 
 # Training hyperparameter combinations to evaluate
 # These match the original snapmmd_eval_strat.py
-predictor_loss_weights = [1, 0.1, 0.01, 0.001, 0.0]
+predictor_loss_weights = [10, 1, 0.1, 0.01, 0.001, 0.0]
 selective_pairing_modes = [None, "single_step"]
 
 # Use command line arguments

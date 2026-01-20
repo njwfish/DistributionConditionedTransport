@@ -1,0 +1,37 @@
+# @package _global_.experiment
+
+# Experiment name and description
+name: tcr_dfm
+description: "Pfam dataset with Edit Flow generator for variable-length protein sequence generation"
+
+# Override defaults from config.yaml
+defaults:
+  - /dataset: tcr
+  - /encoder: esm
+  - /generator: dfm
+  - /training: default30000
+  - /loss: default
+  - /sampling: default
+
+train_predictor_posthoc: true
+
+# Sampling parameters
+num_samples: 100
+selective_pairing_mode: null
+
+max_length: 30
+
+# Experiment-specific parameters
+latent_dim: 128
+hidden_dim: 128
+condition_dim: 256
+set_size: 64
+batch_size: 4
+lr: 2e-4
+
+# Edit Flow generator parameters
+esm_model_name: 'facebook/esm2_t6_8M_UR50D'
+freeze_backbone: false
+scheduler: "cubic"  # "linear" or "cubic" - cubic works better per the paper
+sample_steps: 30
+temperature: 1.0

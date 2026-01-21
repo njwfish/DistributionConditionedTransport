@@ -284,11 +284,11 @@ def plot_forecast(cfg, data, forecast):
 
 
 
-outputs_dir = "outputs"
+outputs_dir = "outputs_01_19_2025"
 
 ckpt_dir_ref = None
 for ckpt_dir in os.listdir(outputs_dir):
-    if ckpt_dir.startswith("snapMMD_MFM_gnn_G"):
+    if ckpt_dir.startswith("snapMMD_MFM_gnn_P"):
         try:
             cfg_ref,_ = load_cfg_and_ckpt(ckpt_dir,outputs_dir=outputs_dir)
             if True:

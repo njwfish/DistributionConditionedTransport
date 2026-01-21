@@ -4,7 +4,7 @@
 split_name: "replicas-2"
 
 # Experiment name and description
-name: trellis_a2a_compressed
+name: trellis_a2a_conditioned_cotrain
 description: "Trellis A2A experiment with conditioning on cell type and treatment"
 
 defaults:
@@ -20,7 +20,7 @@ defaults:
 ot_coupling: true
 
 # predictor parameters
-predictor_loss_weight: 1
+predictor_loss_weight: 0.1
 train_predictor_posthoc: false
 
 predictor_model_type: "ridge"
@@ -32,7 +32,7 @@ num_samples: 100
 selective_pairing_mode: null
 
 # Experiment-specific parameters
-latent_dim: 16
+latent_dim: 128
 hidden_dim: 256
 set_size: 32
 batch_size: 4

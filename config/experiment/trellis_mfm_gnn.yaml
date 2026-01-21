@@ -4,7 +4,7 @@
 split_name: "replicas-2"
 
 # Experiment name and description
-name: trellis_mfm_ours
+name: trellis_mfm_gnn
 description: "Trellis MFM experiment"
 
 defaults:
@@ -27,7 +27,7 @@ num_samples: 100
 selective_pairing_mode: "single_step"
 
 # Experiment-specific parameters
-latent_dim: 32
+latent_dim: 64
 hidden_dim: 128
 set_size: 32
 batch_size: 4

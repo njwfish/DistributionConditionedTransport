@@ -4,11 +4,11 @@
 split_name: "replicas-2"
 
 # Experiment name and description
-name: trellis_default_conditioned
+name: trellis_conditioned
 description: "Trellis experiment with cell type conditioning (predictor trained posthoc)"
 
 defaults:
-  - /dataset: trellis_conditioned
+  - /dataset: trellis
   - /encoder: gnn_conditioned
   - /model: diffusion_mlp
   - /generator: flow_matching  # Use flow matching for coupled embeddings
@@ -27,8 +27,8 @@ num_samples: 100
 selective_pairing_mode: null
 
 # Experiment-specific parameters
-latent_dim: 32
-hidden_dim: 128
+latent_dim: 128
+hidden_dim: 256
 set_size: 32
 batch_size: 4
 lr: 2e-4

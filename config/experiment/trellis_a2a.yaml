@@ -4,31 +4,36 @@
 split_name: "replicas-2"
 
 # Experiment name and description
-name: trellis
-description: "Trellis experiment"
+name: trellis_a2a
+description: "Trellis a2a experiment"
 
 defaults:
-  - /dataset: trellis
+  - /dataset: trellis_a2a
   - /encoder: gnn
   - /model: diffusion_mlp
-  - /generator: flow_matching  # Use flow matching for coupled embeddings
+  - /generator: flow_matching
   - /training: default10000
-  - /loss: default
-  - /sampling: default
+  - /loss: predictor
+  - /predictor: default
+  - /sampling: stratified_trellis
 
-ot_coupling: false
+ot_coupling: true
 
 # predictor parameters
-predictor_loss_weight: 0.0
-train_predictor_posthoc: true
+predictor_loss_weight: 0.1
+train_predictor_posthoc: false
+
+predictor_model_type: "ridge"
+predictor_model_args:
+  ridge_alpha: 1e-3
 
 # sampling parameters
 num_samples: 100
 selective_pairing_mode: null
 
 # Experiment-specific parameters
-latent_dim: 32
-hidden_dim: 128
+latent_dim: 128
+hidden_dim: 256
 set_size: 32
 batch_size: 4
 lr: 2e-4

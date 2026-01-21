@@ -13,27 +13,22 @@ defaults:
   - /model: diffusion_mlp
   - /generator: flow_matching
   - /training: default10000
-  - /loss: predictor_conditioned
-  - /predictor: conditioned
-  - /sampling: stratified_trellis
+  - /loss: default_conditioned
+  - /sampling: default
 
 ot_coupling: true
 
 # predictor parameters
-predictor_loss_weight: 0.1
-train_predictor_posthoc: false
-
-predictor_model_type: "ridge"
-predictor_model_args:
-  ridge_alpha: 1e-3
+predictor_loss_weight: 0.0
+train_predictor_posthoc: true
 
 # sampling parameters
 num_samples: 100
 selective_pairing_mode: null
 
 # Experiment-specific parameters
-latent_dim: 32
-hidden_dim: 128
+latent_dim: 256
+hidden_dim: 256
 set_size: 32
 batch_size: 4
 lr: 2e-4

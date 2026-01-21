@@ -1,0 +1,53 @@
+# @package _global_.experiment
+
+# Experiment name and description
+name: synth_discrete_progen
+description: "Synthetic discrete k-mer dataset with Progen2 generator"
+
+# Override defaults from config.yaml
+defaults:
+  - /dataset: synth_discrete
+  - /encoder: esm
+  - /generator: progen
+  - /scheduler: cosine
+  - /loss: default
+  - /predictor: default
+  - /sampling: default
+  - /training: default
+
+# Predictor settings
+use_predicted_latent: false
+predictor_loss_weight: 0.1
+train_predictor_posthoc: true
+
+predictor_model_type: "mlp"
+predictor_conditioning_mode: "concat"
+predictor_condition_type: null
+predictor_model_args:
+  hidden_dim: 128
+  num_layers: 2
+
+# Sampling parameters
+num_samples: 50
+exponential_weight_scale: 1.0
+selective_pairing_mode: null
+
+# Model dimensions
+latent_dim: 128
+hidden_dim: 256
+
+# Training/data sizing
+batch_size: 1
+set_size: 8
+lr: 2e-5
+
+# ESM encoder settings
+esm_model_name: 'facebook/esm2_t6_8M_UR50D'
+freeze_esm2: false
+
+# Progen2 generator settings
+progen2_model_name: 'hugohrban/progen2-small'
+max_length: 16  # Short length for k-mers
+
+# Tokenization
+tokenize: false

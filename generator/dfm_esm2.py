@@ -243,12 +243,16 @@ class ESM2_DFM_Generator(nn.Module):
             self.x_id = None
     # TODO: I scanned the dataset and since there is no padding, we should generally be fine. But I think this code is a little shaky when it comes to handling padding.
     # TODO: make sure the attention mask of the dataset is actually correct (I think it should basically be all 1s).
-    def loss(self, x_source, x_target, latent_source: torch.Tensor, latent_target: torch.Tensor) -> torch.Tensor:
+    def loss(self, x_source, x_target, latent_source: torch.Tensor, latent_target: Optional[torch.Tensor]) -> torch.Tensor:
 
-        input_ids_source = x_source["esm_input_ids"]  
-        attention_mask_source = x_source["esm_attention_mask"] 
-        input_ids_target = x_target["esm_input_ids"]  
-        attention_mask_target = x_target["esm_attention_mask"] 
+        input_ids_source = x_source["esm_input_ids"]
+        attention_mask_source = x_source["esm_attention_mask"]
+        input_ids_target = x_target["esm_input_ids"]
+        attention_mask_target = x_target["esm_attention_mask"]
+
+        # If target latent is None, use source latent (source-only conditioning)
+        if latent_target is None:
+            latent_target = latent_source
 
         # TODO: why does the ESM-DFM model do all this reshaping work, while the Progen2 code doesn't?
         if input_ids_source.ndim == 3:

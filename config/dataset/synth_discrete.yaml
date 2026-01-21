@@ -1,0 +1,23 @@
+# @package _global_.dataset
+_target_: datasets.synth_discrete.SyntheticProteinDataset
+
+# Basic parameters
+set_size: ${experiment.set_size}
+n_copies: 16               # Number of identical copies per distribution
+kmer_length: 4             # Length of random amino acid sequence
+num_distributions: 20      # Number of unique distributions to generate
+max_length: ${experiment.max_length}
+dataset_length: 1000       # Dataset iteration length
+
+# Model names for tokenization
+esm_name: ${experiment.esm_model_name}
+progen_name: ${experiment.progen2_model_name}
+
+# Data storage
+data_dir: 'data/synth_discrete'
+data_file: "synth_discrete_tokenized_data.pt"
+
+# Reproducibility
+seed: ${seed}
+tokenize: false
+test_split: 0.25

@@ -46,7 +46,7 @@ class HandwritingDataset(Dataset):
             set_size: int = 64, 
             n_sets: Optional[int] = None,
             seed: Optional[int] = None,
-            data_root: str = '/orcd/data/omarabu/001/njwfish/CoupledDistributionEmbeddings/data',
+            data_root: str = '/n/holylfs06/LABS/mzitnik_lab/Users/nfishman/CoupledDistributionEmbeddings/data',
             train: bool = True,
             data_shape: Tuple[int, int, int] = (1, 28, 28),
             train_split: float = 0.9,
@@ -145,6 +145,10 @@ class HandwritingDataset(Dataset):
         self.n_sets = len(self.train_writers)
         # Alias for EmbeddingEncoder compatibility
         self.n_unique_sets = self.n_sets
+
+        # Build writer name to index mapping for embedding encoder (like MNIST set_idx)
+        self.set_idx = np.arange(self.n_sets)  # numpy array for proper collation
+        self.writer_to_idx = {w: i for i, w in enumerate(self.train_writers)}
         
     def __len__(self):
         return self.n_sets
@@ -179,6 +183,6 @@ class HandwritingDataset(Dataset):
         return {
             'source_samples': resize_batch(source_samples, self.data_shape[1:]),
             'target_samples': resize_batch(target_samples, self.data_shape[1:]),
-            'source_idx': source_writer,
-            'target_idx': target_writer,
+            'source_idx': self.set_idx[self.writer_to_idx[source_writer]],
+            'target_idx': self.set_idx[self.writer_to_idx[target_writer]],
         }

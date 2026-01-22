@@ -12,7 +12,7 @@ defaults:
   - /scheduler: cosine
   - /loss: default
   - /sampling: default
-  - /training: default5000
+  - /training: default5000_50
 
 # Predictor settings
 train_predictor_posthoc: true
@@ -27,7 +27,7 @@ hidden_dim: 256
 
 # Training/data sizing
 batch_size: 1
-set_size: 32
+set_size: 2048
 lr: 2e-5
 
 # ESM settings (encoder and generator)

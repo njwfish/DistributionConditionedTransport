@@ -11,25 +11,15 @@ defaults:
   - /generator: progen
   - /scheduler: cosine
   - /loss: default_source_only
-  - /predictor: default
   - /sampling: default
-  - /training: default
+  - /training: default5000_mem
+  - /coupling: edit_distance
 
 # Predictor settings
-use_predicted_latent: false
-predictor_loss_weight: 0.1
 train_predictor_posthoc: true
-
-predictor_model_type: "mlp"
-predictor_conditioning_mode: "concat"
-predictor_condition_type: null
-predictor_model_args:
-  hidden_dim: 128
-  num_layers: 2
 
 # Sampling parameters
 num_samples: 50
-exponential_weight_scale: 1.0
 selective_pairing_mode: null
 
 # Model dimensions
@@ -38,7 +28,7 @@ hidden_dim: 256
 
 # Training/data sizing
 batch_size: 1
-set_size: 32
+set_size: 512
 lr: 2e-5
 
 # ESM encoder settings
@@ -47,12 +37,9 @@ freeze_esm2: false
 
 # Progen2 generator settings
 progen2_model_name: 'hugohrban/progen2-small'
-max_length: 30  # TCR junction sequences are short
-
-# Tokenization
-tokenize: false
+max_length_progen: 16 # TCR junction sequences are short
 
 # Dataset behavior
 within_patient: true  # Only consecutive timepoints within patients
 split: train
-test_fraction: 0.2
+test_fraction: 0.0

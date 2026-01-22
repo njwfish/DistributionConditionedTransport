@@ -1,0 +1,10 @@
+# @package _global_.coupling
+_target_: coupling.edit_distance.EditDistanceOTCollate
+ot_type: sinkhorn
+ot_params:
+  reg: 1.0  # TODO: not sure about this parameter
+normalize_distance: true
+workers: -1  # use all CPUs for parallel edit distance computation
+replace: false
+sequence_key: raw_texts  # key in sample dict containing sequences
+debug: false  # set to true to see pairing statistics

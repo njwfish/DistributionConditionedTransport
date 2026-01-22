@@ -1,0 +1,28 @@
+# @package _global_.dataset
+_target_: datasets.pfams.PfamDataset
+
+# Data directory
+data_dir: 'data/pfam'
+
+# Tokenized data filename (from experiment config)
+data_file: ${experiment.data_file}
+raw_data_file: 'Pfam-A.fasta.gz'
+base_dir: ${experiment.base_dir}
+
+# Set size for sampling (from experiment config)
+set_size: ${experiment.set_size}
+
+# Model names for tokenization
+esm_name: 'facebook/esm2_t6_8M_UR50D'
+progen_name: 'hugohrban/progen2-small'
+
+# Sequence settings
+max_length: ${experiment.max_length}
+
+# Reproducibility
+seed: ${seed}
+
+# Data loading settings
+tokenize: false
+max_seqs_per_fam: 2048
+max_pfams: ${experiment.max_pfams}

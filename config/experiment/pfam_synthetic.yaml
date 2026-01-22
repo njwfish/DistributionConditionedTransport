@@ -1,12 +1,12 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: pfam
-description: "Pfam dataset"
+name: pfam_synthetic
+description: "synthetic pfam dataset"
 
 # Override defaults from config.yaml
 defaults:
-  - /dataset: pfam
+  - /dataset: pfam_synthetic
   - /encoder: esm
   - /generator: progen2
   - /training: default_mem
@@ -16,21 +16,18 @@ defaults:
 train_predictor_posthoc: true
 
 # sampling parameters
-num_samples: 100
+num_samples: 1
 selective_pairing_mode: null
 
 # Dataset parameters
 max_length: 128
-max_pfams: 2000
-max_fam_size: 100
 tokenize: true
-data_file: "pfam_tokenized_data_small.pt"
-eval_data_file: "eval_pfam_tokenized_data_small.pt"
-base_dir: "/orcd/data/omarabu/001/gokul/DistributionEmbeddings"
+data_file: "synthetic_pfam_tokenized_data.pt"
+eval_data_file: "eval_synthetic_pfam_tokenized_data.pt"
 
 # Experiment-specific parameters
 latent_dim: 128
 hidden_dim: 128
 set_size: 8
-batch_size: 1
+batch_size: 8
 lr: 2e-4

@@ -55,4 +55,4 @@ tokenize: false
 # Dataset behavior
 within_patient: true  # Only consecutive timepoints within patients
 split: train
-test_fraction: 0.2
+test_fraction: 0.3

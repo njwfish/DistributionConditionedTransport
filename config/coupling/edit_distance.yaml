@@ -1,0 +1,10 @@
+# @package _global_.coupling
+_target_: coupling.edit_distance.EditDistanceOTCollate
+ot_type: sinkhorn
+ot_params:
+  reg: 0.1  # Lower regularization for more sparse coupling
+normalize_distance: true
+workers: -1  # Use all CPUs for parallel computation
+replace: false
+sequence_key: raw_texts
+debug: false  # Set to true to print pairing debug info

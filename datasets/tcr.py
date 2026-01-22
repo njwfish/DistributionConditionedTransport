@@ -33,7 +33,7 @@ class TCRDataset(Dataset):
             tokenize: bool = False,
             within_patient: bool = True,  # If True, only learn within-patient transitions; else any-to-any
             split: str = 'train',  # 'train' or 'test'
-            test_fraction: float = 0.2,  # Fraction of patients to hold out for testing
+            test_fraction: float = 0.3,  # Fraction of multi-timepoint patients to hold out for testing
             **kwargs,  # absorb any extra keyword args without failing
             ):
 
@@ -86,21 +86,40 @@ class TCRDataset(Dataset):
         """Split data by patient into train/test sets.
 
         Special handling:
-        - When within_patient=False and split='train': Include first timepoint from ALL patients
-          (including test patients) to ensure train set has anchor points from all patients.
-        - When within_patient=True: First timepoint cannot be used as source (handled in _build_pair_indices).
+        - Train/test split is done on MULTI-TIMEPOINT patients only to ensure consistent
+          holdout regardless of within_patient setting.
+        - Single-timepoint patients are always assigned to train (when within_patient=False).
+        - When within_patient=True: Only multi-timepoint patients are used.
+        - When within_patient=False and split='train': Include first timepoint from test patients
+          as anchor points.
         """
-        # Get unique patients
-        unique_patients = list(set(subject_id for subject_id, _ in all_metadata))
-        unique_patients.sort()  # Sort for reproducibility
+        # Count timepoints per patient
+        patient_timepoint_counts = {}
+        for subject_id, _ in all_metadata:
+            patient_timepoint_counts[subject_id] = patient_timepoint_counts.get(subject_id, 0) + 1
 
-        # Determine train/test patients
-        n_test = max(1, int(len(unique_patients) * self.test_fraction))
-        test_patients = set(unique_patients[:n_test])
-        train_patients = set(unique_patients[n_test:])
+        # Separate multi-timepoint and single-timepoint patients
+        multi_timepoint_patients = sorted([p for p, count in patient_timepoint_counts.items() if count > 1])
+        single_timepoint_patients = sorted([p for p, count in patient_timepoint_counts.items() if count == 1])
 
-        logger.info(f'Split {len(unique_patients)} patients: {len(train_patients)} train, {len(test_patients)} test')
-        logger.info(f'Test patients: {sorted(test_patients)}')
+        logger.info(f'Found {len(multi_timepoint_patients)} multi-timepoint patients, '
+                   f'{len(single_timepoint_patients)} single-timepoint patients')
+
+        # Split ONLY multi-timepoint patients into train/test (ensures consistent holdout)
+        n_test = max(1, int(len(multi_timepoint_patients) * self.test_fraction))
+        test_patients = set(multi_timepoint_patients[:n_test])
+        train_patients_multi = set(multi_timepoint_patients[n_test:])
+
+        logger.info(f'Test patients ({len(test_patients)}): {sorted(test_patients)}')
+
+        # For within_patient=False, add single-timepoint patients to train
+        if self.within_patient:
+            train_patients = train_patients_multi
+            logger.info(f'within_patient=True: Using {len(train_patients)} multi-timepoint train patients')
+        else:
+            train_patients = train_patients_multi | set(single_timepoint_patients)
+            logger.info(f'within_patient=False: Using {len(train_patients)} train patients '
+                       f'({len(train_patients_multi)} multi-tp + {len(single_timepoint_patients)} single-tp)')
 
         # Find first timepoint for each patient
         first_timepoints = {}
@@ -116,10 +135,17 @@ class TCRDataset(Dataset):
         else:
             raise ValueError(f"Unknown split: {self.split}. Must be 'train' or 'test'.")
 
+        # Set of all valid patients (those we're considering for this run)
+        valid_patients = train_patients | test_patients
+
         self.data = []
         self.metadata = []
         for data_item, (subject_id, timepoint) in zip(all_data, all_metadata):
             include = False
+
+            # Skip patients not in our valid set (e.g., single-timepoint patients when within_patient=True)
+            if subject_id not in valid_patients:
+                continue
 
             if subject_id in target_patients:
                 include = True

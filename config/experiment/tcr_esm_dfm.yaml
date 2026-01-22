@@ -58,4 +58,4 @@ tokenize: false
 # Dataset behavior
 within_patient: false  # True: only consecutive timepoints within patients; False: any-to-any
 split: train  # 'train' or 'test'
-test_fraction: 0.2  # Fraction of patients to hold out for testing
+test_fraction: 0.3  # Fraction of patients to hold out for testing

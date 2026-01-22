@@ -1,35 +1,24 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: tcr_esm_dfm
+name: tcr_dfm
 description: "TCR repertoire dataset with ESM2 DFM generator"
 
 # Override defaults from config.yaml
 defaults:
   - /dataset: tcr
   - /encoder: esm
-  - /generator: esm_dfm
+  - /generator: dfm
   - /scheduler: cosine
   - /loss: default
-  - /predictor: default
   - /sampling: default
-  - /training: default
+  - /training: default5000
 
 # Predictor settings
-use_predicted_latent: false
-predictor_loss_weight: 0.1
 train_predictor_posthoc: true
-
-predictor_model_type: "mlp"
-predictor_conditioning_mode: "concat"
-predictor_condition_type: null
-predictor_model_args:
-  hidden_dim: 128
-  num_layers: 2
 
 # Sampling parameters
 num_samples: 50
-exponential_weight_scale: 1.0
 selective_pairing_mode: null
 
 # Model dimensions
@@ -46,16 +35,10 @@ esm_model_name: 'facebook/esm2_t6_8M_UR50D'
 freeze_esm2: false
 
 # Generator-specific settings
-seq_length: 30  # TCR junction sequences are short
-max_length: 30
 condition_dim: 32
-condition_method: "additive"
 temperature: 1.0
-
-# Tokenization
-tokenize: false
 
 # Dataset behavior
 within_patient: false  # True: only consecutive timepoints within patients; False: any-to-any
 split: train  # 'train' or 'test'
-test_fraction: 0.2  # Fraction of patients to hold out for testing
+test_fraction: 0.0  # Fraction of patients to hold out for testing

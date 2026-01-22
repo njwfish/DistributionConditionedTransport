@@ -5,10 +5,10 @@ seed: ${seed}
 set_size: ${experiment.set_size}
 
 data_dir: data/tcr
-data_file: tcr_tokenized_data.pt
+data_file: tcr_tokenized_data_no_split.pt
 esm_name: facebook/esm2_t6_8M_UR50D
 progen_name: hugohrban/progen2-small
-max_length: 30
+max_length: 18 # need to consider CLS/BOS and EOS tokens
 tokenize: false
 within_patient: ${experiment.within_patient}
 split: ${experiment.split}

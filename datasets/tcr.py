@@ -95,7 +95,7 @@ class TCRDataset(Dataset):
         unique_patients.sort()  # Sort for reproducibility
 
         # Determine train/test patients
-        n_test = max(1, int(len(unique_patients) * self.test_fraction))
+        n_test = 0 if self.test_fraction == 0 else max(1, int(len(unique_patients) * self.test_fraction))
         test_patients = set(unique_patients[:n_test])
         train_patients = set(unique_patients[n_test:])
 

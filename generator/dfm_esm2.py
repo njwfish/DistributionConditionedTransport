@@ -34,59 +34,33 @@ def transformer_timestep_embedding(timesteps: torch.Tensor, embedding_dim: int, 
 
 
 class TimeAwareEsmForFlow(EsmForMaskedLM):
-    """ESM2 with additive conditioning on (source_latent, target_latent) and time t.
+    """ESM2 with conditioning on (source_latent, target_latent) and time t.
 
-    The model outputs logits over tokens at each position like standard MLM, but we
-    feed current sequence xt (token ids), attention mask, continuous time t, and a
-    projected conditioning vector derived from the two latents.
+    Conditioning is injected at TWO points for stronger signal:
+    1. Input-level: added to embeddings BEFORE transformer (all layers see it)
+    2. Output-level: added after transformer BEFORE lm_head
     """
 
-    def __init__(self, config: EsmConfig, latent_dim: int = 32, condition_dim: int = 256, condition_method: str = "additive", num_condition_layers: int = 1, use_delta_token: bool = True, gate_method: str = "time_linear"):
+    def __init__(self, config: EsmConfig, latent_dim: int = 32, condition_dim: int = 256):
         super().__init__(config)
         self.hidden_size = config.hidden_size
-        self.condition_method = condition_method
-        self.num_condition_layers = num_condition_layers
-        self.use_delta_token = use_delta_token
-        self.gate_method = gate_method
 
-        if self.condition_method not in ["additive", "cross_attn"]:
-            raise ValueError(f"Unknown conditioning method: {self.condition_method}")
-
-        # Combine source and target latents as in Progen2 (concatenate)
+        # Combine source and target latents (concatenate)
         combined_latent_dim = latent_dim * 2
-        self.condition_proj = nn.Sequential(
+        
+        # Input-level conditioning: injected into embeddings before transformer
+        self.input_cond_proj = nn.Sequential(
             nn.Linear(combined_latent_dim, condition_dim),
             nn.GELU(),
-            nn.Linear(condition_dim, self.hidden_size)
+            nn.Linear(condition_dim, self.hidden_size),
         )
-
-        # Cross-attention conditioning modules
-        # Project latent vectors (source, target, delta) to hidden size and attend from tokens to these memory tokens
-        self.latent_proj = nn.Linear(latent_dim, self.hidden_size)
-        num_heads = getattr(config, "num_attention_heads", 8)
-        attn_dropout = getattr(config, "attention_probs_dropout_prob", 0.0)
-        hidden_dropout = getattr(config, "hidden_dropout_prob", 0.0)
-        self.cross_attn_layers = nn.ModuleList([
-            nn.ModuleDict({
-                "ln1": nn.LayerNorm(self.hidden_size),
-                "attn": nn.MultiheadAttention(self.hidden_size, num_heads, dropout=attn_dropout, batch_first=True),
-                "dropout1": nn.Dropout(hidden_dropout),
-                "ln2": nn.LayerNorm(self.hidden_size),
-                "ff": nn.Sequential(
-                    nn.Linear(self.hidden_size, self.hidden_size * 4),
-                    nn.GELU(),
-                    nn.Linear(self.hidden_size * 4, self.hidden_size),
-                ),
-                "dropout2": nn.Dropout(hidden_dropout),
-            })
-            for _ in range(self.num_condition_layers)
-        ])
-        # Normalize memory tokens to control attention score magnitude
-        self.mem_ln = nn.LayerNorm(self.hidden_size)
-        # Zero-init residual scales so blocks start as identity
-        self.cross_attn_scales = nn.ParameterList([nn.Parameter(torch.zeros(1)) for _ in range(self.num_condition_layers)])
-        self.cross_ff_scales = nn.ParameterList([nn.Parameter(torch.zeros(1)) for _ in range(self.num_condition_layers)])
-
+        
+        # Output-level conditioning: injected after transformer before lm_head
+        self.output_cond_proj = nn.Sequential(
+            nn.Linear(combined_latent_dim, condition_dim),
+            nn.GELU(),
+            nn.Linear(condition_dim, self.hidden_size),
+        )
 
     def forward(
         self,
@@ -96,58 +70,38 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
         latent_source: torch.Tensor,
         latent_target: torch.Tensor,
     ) -> torch.Tensor:
-        # Encode tokens
-        outputs = self.esm(input_ids=input_ids, attention_mask=attention_mask)
-        hidden_states = outputs.last_hidden_state  # (B, L, D)
-
-        # Time embedding
-        time_embed = transformer_timestep_embedding(t, self.hidden_size).to(hidden_states.dtype)[:, None, :]
-
-        hidden_states = hidden_states + time_embed
-
-        # Latent conditioning
-        if self.condition_method == "additive":
-            combined_latent = torch.cat([latent_source, latent_target], dim=-1)
-            cond = self.condition_proj(combined_latent)  # (B, D)
-            hidden_states = hidden_states + cond.unsqueeze(1)
-
-        # NOTE: doesn't work, I keep hitting NaNs, haven't figured out why yet.
-        elif self.condition_method == "cross_attn":
-            # Build memory tokens from source, target, and optionally delta latents
-            delta_latent = latent_target - latent_source
-            mem_list = [latent_source, latent_target]
-            if self.use_delta_token:
-                mem_list.append(delta_latent)
-            mem_tokens = torch.stack(mem_list, dim=1)  # (B, M, Z)
-            mem_tokens = self.latent_proj(mem_tokens).to(dtype=hidden_states.dtype)  # (B, M, D)
-            mem_tokens = self.mem_ln(mem_tokens)
-
-            x = hidden_states
-            # Per-sample time gating in [0,1]
-            if self.gate_method == "time_linear":
-                gate = t.clamp(0, 1).view(-1, 1, 1).to(x.dtype)
-            else:
-                gate = torch.tensor(1.0, device=x.device, dtype=x.dtype)
-            for idx, layer in enumerate(self.cross_attn_layers):
-                # Cross-attention block (Pre-LN + residual)
-                y = layer["ln1"](x)
-                attn_out, _ = layer["attn"](y, mem_tokens, mem_tokens, need_weights=False)
-                attn_out = layer["dropout1"](attn_out)
-                attn_scale = torch.tanh(self.cross_attn_scales[idx]).to(x.dtype)
-                x = x + gate * (attn_scale * attn_out)
-
-                # Feed-forward block (Pre-LN + residual)
-                z = layer["ln2"](x)
-                ff_out = layer["ff"](z)
-                ff_out = layer["dropout2"](ff_out)
-                ff_scale = torch.tanh(self.cross_ff_scales[idx]).to(x.dtype)
-                x = x + gate * (ff_scale * ff_out)
-
-            hidden_states = x
-
+        # Compute conditioning vectors
+        combined_latent = torch.cat([latent_source, latent_target], dim=-1)
+        input_cond = self.input_cond_proj(combined_latent)  # (B, D)
+        output_cond = self.output_cond_proj(combined_latent)  # (B, D)
         
-        else:
-            raise ValueError(f"Unknown conditioning method: {self.condition_method}")
+        # Time embedding
+        time_embed = transformer_timestep_embedding(t, self.hidden_size)  # (B, D)
+
+        # Get token embeddings
+        embeddings = self.esm.embeddings(input_ids)  # (B, L, D)
+        
+        # INPUT-LEVEL CONDITIONING: add conditioning + time to embeddings BEFORE transformer
+        # This ensures all transformer layers process the conditioned representations
+        embeddings = embeddings + input_cond.unsqueeze(1).to(embeddings.dtype)
+        embeddings = embeddings + time_embed.unsqueeze(1).to(embeddings.dtype)
+        
+        # Create extended attention mask for encoder (ESM expects specific format)
+        extended_attention_mask = self.esm.get_extended_attention_mask(
+            attention_mask, input_ids.shape, input_ids.device
+        )
+        
+        # Run through transformer encoder
+        encoder_outputs = self.esm.encoder(
+            embeddings,
+            attention_mask=extended_attention_mask,
+            return_dict=True,
+        )
+        hidden_states = encoder_outputs.last_hidden_state  # (B, L, D)
+
+        # OUTPUT-LEVEL CONDITIONING: add conditioning after transformer
+        hidden_states = hidden_states + output_cond.unsqueeze(1).to(hidden_states.dtype)
+        
         # Project to vocabulary logits
         logits = self.lm_head(hidden_states)  # (B, L, V)
         return logits
@@ -167,13 +121,8 @@ class ESM2_DFM_Generator(nn.Module):
         latent_dim: int = 32,
         condition_dim: int = 256,
         freeze_esm2: bool = False,
-        condition_method: str = "additive",
         temperature: float = 1.0,
-        seq_length: Optional[int] = 1000,
-        sample_dt: float = 0.1,
-        num_condition_layers: int = 1,
-        use_delta_token: bool = True,
-        gate_method: str = "time_linear",
+        sample_dt: float = 0.05,
     ):
         super().__init__()
 
@@ -186,10 +135,6 @@ class ESM2_DFM_Generator(nn.Module):
             config=self.config,
             latent_dim=latent_dim,
             condition_dim=condition_dim,
-            condition_method=condition_method,
-            num_condition_layers=num_condition_layers,
-            use_delta_token=use_delta_token,
-            gate_method=gate_method,
         )
 
         # Precision setup removed; model runs in default dtype
@@ -205,112 +150,73 @@ class ESM2_DFM_Generator(nn.Module):
             for param in self.model.lm_head.parameters():
                 param.requires_grad = True
             # Conditioning modules remain trainable
-            modules_to_keep = [
-                getattr(self.model, "condition_proj", None),
-                getattr(self.model, "latent_proj", None),
-                getattr(self.model, "cross_attn_layers", None),
-                getattr(self.model, "mem_ln", None),
-                getattr(self.model, "cross_attn_scales", None),
-                getattr(self.model, "cross_ff_scales", None),
-            ]
-            for mod in modules_to_keep:
-                if mod is None:
-                    continue
-                for param in mod.parameters():
-                    param.requires_grad = True
+            for param in self.model.input_cond_proj.parameters():
+                param.requires_grad = True
+            for param in self.model.output_cond_proj.parameters():
+                param.requires_grad = True
 
         # Special tokens and AA vocabulary subset (for constraints)
         self.mask_token = self.tokenizer.mask_token
         self.mask_token_id = self.tokenizer.mask_token_id
         self.bos_id = self.tokenizer.cls_token_id
         self.eos_id = self.tokenizer.eos_token_id
+        self.pad_id = self.tokenizer.pad_token_id
 
         aa_tokens = [
             "A", "C", "D", "E", "F", "G", "H", "I", "K", "L",
             "M", "N", "P", "Q", "R", "S", "T", "V", "W", "Y",
         ]
         self.aa_ids = [self.tokenizer.convert_tokens_to_ids(a) for a in aa_tokens]
+        # Valid token ids for variable-length generation: AA tokens + EOS + PAD
+        self.valid_ids = self.aa_ids + [self.eos_id, self.pad_id]
 
         self.temperature = temperature
-        self.seq_length = seq_length
         self.sample_dt = sample_dt
 
-        # TODO: make sure X token ID is really correct.
-        # Token id for ambiguous residue 'X' to optionally ignore in loss
-        try:
-            self.x_id = self.tokenizer.convert_tokens_to_ids('X')
-        except Exception:
-            self.x_id = None
-    # TODO: I scanned the dataset and since there is no padding, we should generally be fine. But I think this code is a little shaky when it comes to handling padding.
-    # TODO: make sure the attention mask of the dataset is actually correct (I think it should basically be all 1s).
     def loss(self, x_source, x_target, latent_source: torch.Tensor, latent_target: Optional[torch.Tensor]) -> torch.Tensor:
 
         input_ids_source = x_source["esm_input_ids"]
-        attention_mask_source = x_source["esm_attention_mask"]
         input_ids_target = x_target["esm_input_ids"]
-        attention_mask_target = x_target["esm_attention_mask"]
 
         # If target latent is None, use source latent (source-only conditioning)
         if latent_target is None:
             latent_target = latent_source
 
-        # TODO: why does the ESM-DFM model do all this reshaping work, while the Progen2 code doesn't?
         if input_ids_source.ndim == 3:
             B, S, L = input_ids_source.shape
             input_ids_source = input_ids_source.view(B * S, L)
-            attention_mask_source = attention_mask_source.view(B * S, L)
             input_ids_target = input_ids_target.view(B * S, L)
-            attention_mask_target = attention_mask_target.view(B * S, L)
-            # TODO: make sure reshaping is correct here. You should just print out the shapes of the inputs this function receives at some point.
             latent_source = latent_source.unsqueeze(1).repeat(1, S, 1).view(B * S, -1)
             latent_target = latent_target.unsqueeze(1).repeat(1, S, 1).view(B * S, -1)
 
         device = input_ids_target.device
         B, L = input_ids_target.shape
 
-        # Sample times and build x_t by mixing source/target across all valid positions
-        # Following the discrete flow-matching interpolation: x_t = where(Bernoulli(t), x_1, x_0)
+        # Sample times and build x_t by mixing source/target across ALL positions
+        # For variable-length: PAD tokens are treated as regular tokens, model learns insertions/deletions
         t = torch.rand((B,), device=device)
 
-        # Valid (non-padded) positions
-        if attention_mask_source is not None and attention_mask_target is not None:
-            valid_mask = (attention_mask_source > 0) & (attention_mask_target > 0)
-        elif attention_mask_target is not None:
-            valid_mask = (attention_mask_target > 0)
-        elif attention_mask_source is not None:
-            valid_mask = (attention_mask_source > 0)
-        else:
-            valid_mask = torch.ones((B, L), dtype=torch.bool, device=device)
-
+        # Bernoulli interpolation on ALL positions (including padding)
         bern = torch.rand((B, L), device=device) < t[:, None]
-        xt = torch.where(valid_mask, torch.where(bern, input_ids_target, input_ids_source), input_ids_target)
+        xt = torch.where(bern, input_ids_target, input_ids_source)
 
-        # Enforce BOS/EOS tokens at boundaries
+        # Only enforce BOS at position 0 (EOS position varies with sequence length)
         if self.bos_id is not None:
             xt[:, 0] = self.bos_id
-        if self.eos_id is not None:
-            xt[:, -1] = self.eos_id
 
-        # Removed latent dtype alignment to model parameters
-
-        # Forward through conditioned ESM
-        attn_mask_xt = valid_mask.to(dtype=torch.long)
-        logits = self.model(input_ids=xt,
-            attention_mask=attn_mask_xt,
+        # Use full attention mask (all positions are valid, including padding tokens)
+        attention_mask = torch.ones((B, L), dtype=torch.long, device=device)
+        logits = self.model(
+            input_ids=xt,
+            attention_mask=attention_mask,
             t=t,
             latent_source=latent_source,
-            latent_target=latent_target)
+            latent_target=latent_target,
+        )
 
-        # Cross-entropy to target tokens x1; ignore padded target positions
+        # Compute loss on ALL positions (model learns to predict padding for deletions)
         labels = input_ids_target.clone()
-        if attention_mask_target is not None:
-            labels[attention_mask_target == 0] = -100
-            
-        # Ignore ambiguous 'X' residues in target
-        labels[labels == self.x_id] = -100
-        
-        # TODO: why are we transposing here?
-        loss = F.cross_entropy(logits.transpose(1, 2), labels, ignore_index=-100, reduction='mean')
+        loss = F.cross_entropy(logits.transpose(1, 2), labels, reduction='mean')
 
         return loss
 
@@ -318,16 +224,17 @@ class ESM2_DFM_Generator(nn.Module):
     def sample(self, x_source, latent_source: torch.Tensor, latent_target: torch.Tensor, num_samples: int = 1, return_texts: bool = False):
         """Mutational sampling starting from source sequences with discrete flow steps.
 
-        Mirrors Progen2Generator.sample signature and return shape:
-        - Returns [batch_size, num_samples, seq_len] token ids for ESM vocabulary.
-        - Optionally returns decoded strings.
+        Supports variable-length generation: EOS and PAD are valid tokens that the model
+        can predict at any position to control output length.
+
+        Returns [batch_size, num_samples, seq_len] token ids for ESM vocabulary.
+        Optionally returns decoded strings.
         """
 
         self.model.eval()
         device = latent_source.device
 
         src_ids_all = x_source["esm_input_ids"]
-        src_mask_all = x_source["esm_attention_mask"]
 
         # Flatten set dim if present for starting point selection per sample
         if src_ids_all.ndim == 3:
@@ -335,32 +242,25 @@ class ESM2_DFM_Generator(nn.Module):
         else:
             raise ValueError(f"src_ids_all.ndim == {src_ids_all.ndim}, expected 3")
 
-        def select_source_for_sample(sample_idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-            # TODO: make sure both cases are correct.
+        def select_source_for_sample(sample_idx: int) -> torch.Tensor:
             set_idx = sample_idx % S
-            return src_ids_all[:, set_idx, :].to(device), src_mask_all[:, set_idx, :].to(device)
+            return src_ids_all[:, set_idx, :].to(device)
 
         results = []
         texts_all = []
 
         for s in range(num_samples):
-            xt, attention_mask = select_source_for_sample(s)
-            # Enforce BOS/EOS presence if tokenizer uses them
+            xt = select_source_for_sample(s)
+            
+            # Only enforce BOS at position 0 (EOS position varies)
             if self.bos_id is not None:
                 xt[:, 0] = self.bos_id
-            if self.eos_id is not None:
-                xt[:, -1] = self.eos_id
-                # TODO: why are we setting this here explicitly?
-                attention_mask[:, -1] = 1
 
-            # Enforce expected sequence length
-            expected_len = self.seq_length
-            if xt.size(1) != expected_len:
-                raise ValueError(f"Source sequence length {xt.size(1)} does not match expected seq_length {expected_len}")
+            # Use full attention mask (all positions valid, model decides EOS/PAD placement)
+            attention_mask = torch.ones((B, L), dtype=torch.long, device=device)
 
             # Discrete flow stepping from t=0 to 1 using mixture update
             t = 0.0
-            # TODO: you might want to implement a check at the end of the loop to ensure that there are no t = 1 effects (although I think that is just specific for mask-based DFM).
             while t < 1.0 - 1e-6:
                 logits = self.model(
                     input_ids=xt,
@@ -370,24 +270,20 @@ class ESM2_DFM_Generator(nn.Module):
                     latent_target=latent_target,
                 )
                 
-                # TODO: should we just remove temperature scaling here?
                 # Temperature scaling
                 logits = logits / max(self.temperature, 1e-8)
 
-                # Constrain vocabulary to AA tokens at inner positions, BOS/EOS at ends by masking logits
+                # Constrain vocabulary: BOS only at position 0, valid_ids (AA+EOS+PAD) elsewhere
                 mask_logits = torch.full_like(logits, -float('inf'))
-                mask_logits[:, 1:-1, self.aa_ids] = 0.0
+                # Position 0: only BOS allowed
                 if self.bos_id is not None:
-                    mask_logits[:, 0, :] = -float('inf')
                     mask_logits[:, 0, self.bos_id] = 0.0
-                if self.eos_id is not None:
-                    mask_logits[:, -1, :] = -float('inf')
-                    mask_logits[:, -1, self.eos_id] = 0.0
+                # All other positions: AA tokens + EOS + PAD allowed
+                mask_logits[:, 1:, self.valid_ids] = 0.0
 
                 p1 = F.softmax(logits + mask_logits, dim=-1)  # (B, L, V)
 
                 # Mixture update: probs = one_hot(xt) + h * (p1 - one_hot(xt)) / (1 - t)
-                # with h = min(self.sample_dt, 1 - t)
                 h = min(self.sample_dt, 1.0 - t)
                 denom = max(1.0 - t, 1e-8)
 
@@ -401,11 +297,9 @@ class ESM2_DFM_Generator(nn.Module):
                 # Sample next xt
                 xt = torch.distributions.Categorical(probs=step_probs).sample()
 
-                # Enforce BOS/EOS tokens at boundaries after sampling
+                # Enforce BOS at position 0 after sampling
                 if self.bos_id is not None:
                     xt[:, 0] = self.bos_id
-                if self.eos_id is not None:
-                    xt[:, -1] = self.eos_id
 
                 t += h
 

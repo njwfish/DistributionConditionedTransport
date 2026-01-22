@@ -78,8 +78,8 @@ class TimeAwareEsmForFlow(EsmForMaskedLM):
         # Time embedding
         time_embed = transformer_timestep_embedding(t, self.hidden_size)  # (B, D)
 
-        # Get token embeddings
-        embeddings = self.esm.embeddings(input_ids)  # (B, L, D)
+        # Get token embeddings (ESM embeddings requires attention_mask)
+        embeddings = self.esm.embeddings(input_ids, attention_mask=attention_mask)  # (B, L, D)
         
         # INPUT-LEVEL CONDITIONING: add conditioning + time to embeddings BEFORE transformer
         # This ensures all transformer layers process the conditioned representations

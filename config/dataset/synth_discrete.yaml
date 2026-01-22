@@ -15,9 +15,12 @@ progen_name: ${experiment.progen2_model_name}
 
 # Data storage
 data_dir: 'data/synth_discrete'
-data_file: "synth_discrete_tokenized_data.pt"
+data_file: "synth_discrete_tokenized_data_variable_length.pt"
 
 # Reproducibility
 seed: ${seed}
 tokenize: false
 test_split: 0.25
+
+min_repeats: 1
+max_repeats: 3

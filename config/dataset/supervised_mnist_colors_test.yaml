@@ -1,0 +1,13 @@
+# @package _global_.dataset
+# Test split for supervised MNIST Colors - uses FULL support for generalization testing
+# Training uses restricted color range [0.2, 0.8], test uses full [0, 1]
+_target_: datasets.mnist_colors.SupervisedMNISTColorsDataset
+n_sets: 50000
+set_size: ${experiment.set_size}
+data_shape: [3, 28, 28]
+seed: ${seed}
+# Full color support (same as unsupervised mnist_colors) - tests generalization
+color_min: 0.0
+color_max: 1.0
+# Color shift transformation (same as training)
+color_shift: [0.1, 0.1, 0.1]

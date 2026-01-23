@@ -1,0 +1,21 @@
+# @package _global_.experiment
+# Base supervised MNIST colors experiment - generator must be specified separately
+# Matches mnist_colors_base params exactly but uses supervised dataset and source_only loss
+
+name: supervised_mnist_colors_exp
+description: "Supervised MNIST colors experiment with color shift transformation"
+
+# Override defaults - NO generator specified (set via command line)
+defaults:
+  - /dataset: supervised_mnist_colors
+  - /encoder: conv_gnn
+  - /training: default
+  - /scheduler: none  # ConstantLR - keeps learning rate fixed
+  - /loss: default_source_only
+
+# Experiment-specific parameters (matching mnist_colors_base exactly)
+latent_dim: 64
+hidden_dim: 128
+set_size: 64
+batch_size: 32  # Smaller batch size for image data
+lr: 2e-4

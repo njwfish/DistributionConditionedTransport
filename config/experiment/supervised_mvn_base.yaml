@@ -1,0 +1,21 @@
+# @package _global_.experiment
+# Base supervised MVN experiment - generator must be specified separately
+# Matches mvn_base params exactly but uses supervised dataset and source_only loss
+
+name: supervised_mvn_exp
+description: "Supervised MVN experiment with linear transformation Y = Ax + b"
+
+# Override defaults - NO generator or model specified here (set via command line)
+defaults:
+  - /dataset: supervised_mvn
+  - /encoder: gnn
+  - /training: default
+  - /scheduler: none  # ConstantLR - keeps learning rate fixed
+  - /loss: default_source_only
+
+# Experiment-specific parameters (matching mvn_base exactly)
+latent_dim: 16
+hidden_dim: 64
+set_size: 100
+batch_size: 256
+lr: 2e-4

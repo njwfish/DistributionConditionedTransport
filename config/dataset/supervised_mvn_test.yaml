@@ -1,0 +1,15 @@
+# @package _global_.dataset
+# Test split for supervised MVN - uses FULL support for generalization testing
+# Training uses restricted support [0, 2.5], test uses full [0, 5]
+_target_: datasets.supervised_datasets.SupervisedMVNDataset
+n_sets: 50000
+set_size: ${experiment.set_size}
+data_shape: [2]
+seed: ${seed}
+# Full mean support (same as unsupervised mvn) - tests generalization
+prior_mu: [0, 5]
+prior_cov_df: 10
+prior_cov_scale: 1
+# Linear transformation parameters (same as training)
+transform_scale: 1.0
+bias_scale: 1.0

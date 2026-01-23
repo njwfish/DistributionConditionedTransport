@@ -348,3 +348,82 @@ def create_fashion_mnist_colors_dataset(
         seed=seed,
         **kwargs
     )
+
+
+class SupervisedMNISTColorsDataset(MNISTColorsDataset):
+    """Supervised dataset for MNIST colors with a simple color shift.
+
+    Inherits from MNISTColorsDataset but overrides __getitem__ to create a
+    deterministic relationship: target_color = source_color + shift (mod 1).
+    The color support is restricted to a smaller range, and target samples
+    are shuffled to create unpaired but distributionally related data.
+    """
+
+    def __init__(
+            self,
+            color_min: float = 0.2,
+            color_max: float = 0.8,
+            color_shift: Tuple[float, float, float] = (0.1, 0.1, 0.1),
+            *args,
+            **kwargs
+        ):
+        """
+        Args:
+            color_min: Minimum value for color channels (restricted support)
+            color_max: Maximum value for color channels (restricted support)
+            color_shift: RGB shift to apply for target colors
+            *args, **kwargs: Passed to MNISTColorsDataset
+        """
+        super().__init__(*args, **kwargs)
+
+        self.color_min = color_min
+        self.color_max = color_max
+        self.color_shift = torch.tensor(color_shift)
+
+        # Re-generate colors with restricted support
+        if kwargs.get('seed') is not None:
+            np.random.seed(kwargs['seed'])
+            torch.manual_seed(kwargs['seed'])
+
+        n_unique = self.n_unique_sets if hasattr(self, 'n_unique_sets') and self.n_unique_sets is not None else self.n_sets
+
+        # Generate colors in restricted range [color_min, color_max]
+        self.colors = color_min + (color_max - color_min) * torch.rand(n_unique, 3)
+
+        # If n_unique_sets is set, repeat the colors
+        n_unique_sets = kwargs.get('n_unique_sets')
+        if n_unique_sets is not None:
+            self.colors = self.colors[:n_unique_sets].repeat(self.n_sets // n_unique_sets, 1)
+
+    def __getitem__(self, idx):
+        """Get a pair of source and target samples with shifted colors."""
+        # Select class (same for source and target in supervised setting)
+        if self.digit_class is not None:
+            digit_class = self.digit_class
+        else:
+            digit_class = np.random.randint(0, 10)
+
+        # Get source color
+        source_color = self.colors[idx]
+
+        # Compute target color with shift (wrap around using modulo)
+        target_color = torch.fmod(source_color + self.color_shift, 1.0)
+
+        # Sample images from the same class for both source and target
+        source_images = self._sample_class_images(digit_class)
+        target_images = self._sample_class_images(digit_class)
+
+        # Apply colors
+        source_samples = self._apply_color_transform(source_images, source_color)
+        target_samples = self._apply_color_transform(target_images, target_color)
+
+        # Shuffle target samples
+        perm = torch.randperm(target_samples.size(0))
+        target_samples = target_samples[perm]
+
+        return {
+            'source_samples': source_samples,
+            'target_samples': target_samples,
+            'source_idx': self.set_idx[idx],
+            'target_idx': self.set_idx[idx],  # Same idx since target is derived from source
+        }

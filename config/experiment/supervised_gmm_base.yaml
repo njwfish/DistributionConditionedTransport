@@ -1,0 +1,21 @@
+# @package _global_.experiment
+# Base supervised GMM experiment - generator must be specified separately
+# Matches gmm_base params exactly but uses supervised dataset and source_only loss
+
+name: supervised_gmm_exp
+description: "Supervised GMM experiment with linear transformation Y = Ax + b"
+
+# Override defaults - NO generator or model specified here (set via command line)
+defaults:
+  - /dataset: supervised_gmm
+  - /encoder: gnn
+  - /training: default
+  - /scheduler: none  # ConstantLR - keeps learning rate fixed
+  - /loss: default_source_only
+
+# Experiment-specific parameters (matching gmm_base exactly)
+latent_dim: 128
+hidden_dim: 256
+set_size: 1000
+batch_size: 256
+lr: 2e-4

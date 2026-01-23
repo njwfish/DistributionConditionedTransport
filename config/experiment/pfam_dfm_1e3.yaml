@@ -13,7 +13,7 @@ defaults:
   - /loss: default
   - /predictor: default
   - /sampling: default
-  - /training: default1000
+  - /training: default2000
 
 # Predictor settings
 use_predicted_latent: false
@@ -44,8 +44,8 @@ lr: 2e-5
 max_length: 64
 max_pfams: 1000
 max_fam_length: 64
-data_file: "pfam_tokenized_data_l64_1e3_small.pt"
-eval_data_file: "eval_pfam_tokenized_data_l64_1e3_small.pt"
+data_file: "pfam_tokenized_data_l64_full.pt"
+eval_data_file: "eval_pfam_tokenized_data_l64_full.pt"
 base_dir: "/orcd/data/omarabu/001/gokul/DistributionEmbeddings"
 
 # ESM settings (encoder and generator)
@@ -62,4 +62,4 @@ condition_method: "additive"
 temperature: 1.0
 
 # Tokenization
-tokenize: true
+tokenize: false

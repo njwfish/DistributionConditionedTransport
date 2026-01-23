@@ -26,13 +26,14 @@ class PfamDataset(Dataset):
                 seed: Optional[int] = 212121,
                 tokenize: bool = False,
                 start_line: int = 0,
-                lines_to_read: int = 10**12,
+                lines_to_read: int = 10**13,
                 max_seqs_per_fam: int = 16,
                 max_fam_length: int = 32,
                 max_pfams: Optional[int] = None,
                 test_split: float = 0.25,
                 base_dir: Optional[str] = None,
-                data_shape: Optional[list] = None,):
+                data_shape: Optional[list] = None,
+                is_eval: bool = False,):
         
         if seed is not None:
             random.seed(seed)
@@ -65,15 +66,26 @@ class PfamDataset(Dataset):
         if not os.path.exists(self.tokenized_data_file) or tokenize:
             print('tokenizing')
             print('tokenized data file:', self.tokenized_data_file)
-            self._tokenize_data(start_line=start_line, lines_to_read=lines_to_read, max_pfams=max_pfams, test_split=test_split)
-        self.data = torch.load(self.tokenized_data_file)
+            self._tokenize_data(start_line=start_line, lines_to_read=lines_to_read, test_split=test_split)
+        
+        # Load the appropriate split
+        if is_eval:
+            data_file_to_load = self._get_eval_data_file()
+        else:
+            data_file_to_load = self.tokenized_data_file
+        
+        self.data = torch.load(data_file_to_load)
+        
+        # Subset to first max_pfams families (consistent ordering from tokenization)
+        if max_pfams is not None and max_pfams < len(self.data):
+            self.data = self.data[:max_pfams]
+            logger.info(f"Subsetted to first {max_pfams} families from {data_file_to_load}")
 
 
-    def _tokenize_data(self, start_line=0, lines_to_read=10**10, max_pfams=None, test_split=0.25):
+    def _tokenize_data(self, start_line=0, lines_to_read=10**10, test_split=0.25):
         f = gzip.open(os.path.join(self.base_dir, self.data_dir, self.raw_data_file), 'rt')
         d = {}
         i = 0
-        validated_count = 0  # Count of families confirmed to have enough sequences
         current_fam = None   # Family currently being read
 
         logger.info(f'building pfam dict from line {start_line} to line {start_line + lines_to_read}')
@@ -96,12 +108,7 @@ class PfamDataset(Dataset):
                     # Check if family has enough sequences, not too many, and first sequence is not too long
                     if self.set_size <= len(d[current_fam]) < 1000:
                         first_seq_length = len(d[current_fam][0]) if d[current_fam] else 0
-                        if first_seq_length <= self.max_fam_length:
-                            validated_count += 1
-                            # Only stop when we have enough VALIDATED families
-                            if max_pfams is not None and validated_count >= max_pfams:
-                                break
-                        else:
+                        if first_seq_length > self.max_fam_length:
                             logger.info(f"Removing family {current_fam}: first sequence too long ({first_seq_length} > {self.max_fam_length})")
                             del d[current_fam]
                     elif len(d[current_fam]) >= 1000:

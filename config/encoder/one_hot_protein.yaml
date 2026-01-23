@@ -1,0 +1,4 @@
+# @package _global_.encoder
+_target_: encoder.protein_encoders.ProteinOneHotEncoder
+in_dim: ${dataset.data_shape[0]}
+latent_dim: ${experiment.latent_dim}

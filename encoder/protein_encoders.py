@@ -62,3 +62,12 @@ class ProteinSetEncoder(nn.Module):
         lat = self.dist(feats)
         lat = normalize_latent(lat)
         return lat
+    
+class ProteinOneHotEncoder(nn.Module):
+    def __init__(self, in_dim, latent_dim):
+        super().__init__()
+        self.latent_dim = latent_dim
+
+    def forward(self, samples):
+        idx = samples['idx']
+        return torch.nn.functional.one_hot(idx.long(), num_classes=self.latent_dim).to(torch.float32)

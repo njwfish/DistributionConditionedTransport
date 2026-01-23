@@ -4,6 +4,8 @@ _target_: datasets.pfams.PfamDataset
 # Data directory
 data_dir: 'data/pfam'
 
+data_shape: [0, 0]
+
 # Tokenized data filename (from experiment config)
 data_file: ${experiment.data_file}
 raw_data_file: 'Pfam-A.fasta.gz'
@@ -18,11 +20,10 @@ progen_name: 'hugohrban/progen2-small'
 
 # Sequence settings
 max_length: ${experiment.max_length}
+max_fam_length: ${experiment.max_fam_length}
 
 # Reproducibility
 seed: ${seed}
 
-# Data loading settings
-tokenize: false
-max_seqs_per_fam: 2048
+tokenize: ${experiment.tokenize}
 max_pfams: ${experiment.max_pfams}

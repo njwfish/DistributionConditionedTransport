@@ -1,19 +1,19 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: synth_discrete_esm_dfm
-description: "Synthetic discrete k-mer dataset with ESM2 DFM generator"
+name: pfam_esm_dfm
+description: "Pfam dataset with ESM2 DFM generator, 1e4 pfams"
 
 # Override defaults from config.yaml
 defaults:
-  - /dataset: synth_discrete
+  - /dataset: pfam
   - /encoder: esm
   - /generator: esm_dfm
   - /scheduler: cosine
   - /loss: default
   - /predictor: default
   - /sampling: default
-  - /training: default
+  - /training: default1000
 
 # Predictor settings
 use_predicted_latent: false
@@ -41,6 +41,13 @@ batch_size: 1
 set_size: 16
 lr: 2e-5
 
+max_length: 64
+max_pfams: 10000
+max_fam_length: 64
+data_file: "pfam_tokenized_data_l64_1e4_small.pt"
+eval_data_file: "eval_pfam_tokenized_data_l64_1e4_small.pt"
+base_dir: "/orcd/data/omarabu/001/gokul/DistributionEmbeddings"
+
 # ESM settings (encoder and generator)
 esm_model_name: 'facebook/esm2_t6_8M_UR50D'
 freeze_esm2: false
@@ -49,11 +56,10 @@ freeze_esm2: false
 progen2_model_name: 'hugohrban/progen2-small'
 
 # Generator-specific settings
-seq_length: 16
-max_length: 16
+seq_length: 128
 condition_dim: 32
 condition_method: "additive"
 temperature: 1.0
 
 # Tokenization
-tokenize: false
+tokenize: true

@@ -22,16 +22,17 @@ class PfamDataset(Dataset):
                 set_size: int = 16,
                 esm_name: str = 'facebook/esm2_t6_8M_UR50D',
                 progen_name: str = 'hugohrban/progen2-small',
-                max_length: int = 512,
+                max_length: int = 32,
                 seed: Optional[int] = 212121,
                 tokenize: bool = False,
                 start_line: int = 0,
                 lines_to_read: int = 10**12,
                 max_seqs_per_fam: int = 16,
-                max_fam_size: int = 100,
+                max_fam_length: int = 32,
                 max_pfams: Optional[int] = None,
                 test_split: float = 0.25,
-                base_dir: Optional[str] = None):
+                base_dir: Optional[str] = None,
+                data_shape: Optional[list] = None,):
         
         if seed is not None:
             random.seed(seed)
@@ -44,7 +45,7 @@ class PfamDataset(Dataset):
         self.set_size = set_size
         self.max_length = max_length
         self.max_seqs_per_fam = max_seqs_per_fam
-        self.max_fam_size = max_fam_size
+        self.max_fam_length = max_fam_length
         self.esm_tokenizer = AutoTokenizer.from_pretrained(esm_name, trust_remote_code=True)
         self.progen_tokenizer = AutoTokenizer.from_pretrained(progen_name, trust_remote_code=True)
 
@@ -62,6 +63,8 @@ class PfamDataset(Dataset):
         self.tokenized_data_file = os.path.join(self.base_dir, self.data_dir, self.data_file)
 
         if not os.path.exists(self.tokenized_data_file) or tokenize:
+            print('tokenizing')
+            print('tokenized data file:', self.tokenized_data_file)
             self._tokenize_data(start_line=start_line, lines_to_read=lines_to_read, max_pfams=max_pfams, test_split=test_split)
         self.data = torch.load(self.tokenized_data_file)
 
@@ -90,13 +93,22 @@ class PfamDataset(Dataset):
                 
                 # When we encounter a new family, validate the previous one
                 if current_fam is not None and current_fam != new_fam:
-                    if len(d[current_fam]) >= self.set_size and len(d[current_fam]) <= self.max_fam_size:
-                        validated_count += 1
-                        # Only stop when we have enough VALIDATED families
-                        if max_pfams is not None and validated_count >= max_pfams:
-                            break
+                    # Check if family has enough sequences, not too many, and first sequence is not too long
+                    if self.set_size <= len(d[current_fam]) < 1000:
+                        first_seq_length = len(d[current_fam][0]) if d[current_fam] else 0
+                        if first_seq_length <= self.max_fam_length:
+                            validated_count += 1
+                            # Only stop when we have enough VALIDATED families
+                            if max_pfams is not None and validated_count >= max_pfams:
+                                break
+                        else:
+                            logger.info(f"Removing family {current_fam}: first sequence too long ({first_seq_length} > {self.max_fam_length})")
+                            del d[current_fam]
+                    elif len(d[current_fam]) >= 1000:
+                        logger.info(f"Removing family {current_fam}: too many sequences ({len(d[current_fam])} >= 1000)")
+                        del d[current_fam]
                     else:
-                        logger.info(f"Removing family {current_fam}: only {len(d[current_fam])} sequences (should be between {self.set_size} and {self.max_fam_size})")
+                        logger.info(f"Removing family {current_fam}: only {len(d[current_fam])} sequences (< set_size={self.set_size})")
                         del d[current_fam]
                 
                 # Start collecting the new family (if we haven't seen it before)
@@ -110,9 +122,15 @@ class PfamDataset(Dataset):
             i += 1
 
         # Validate the last family (wasn't validated in the loop if we hit the line limit)
-        if current_fam is not None and current_fam in d and len(d[current_fam]) < self.set_size:
-            logger.info(f"Removing family {current_fam}: only {len(d[current_fam])} sequences (< set_size={self.set_size})")
-            del d[current_fam]
+        if current_fam is not None and current_fam in d:
+            if len(d[current_fam]) < self.set_size:
+                logger.info(f"Removing family {current_fam}: only {len(d[current_fam])} sequences (< set_size={self.set_size})")
+                del d[current_fam]
+            else:
+                first_seq_length = len(d[current_fam][0]) if d[current_fam] else 0
+                if first_seq_length > self.max_fam_length:
+                    logger.info(f"Removing family {current_fam}: first sequence too long ({first_seq_length} > {self.max_fam_length})")
+                    del d[current_fam]
 
         f.close()
 
@@ -296,6 +314,7 @@ class PfamDataset(Dataset):
                 'progen_attention_mask': progen_attention_mask_source,
                 'pfam': item_source['pfam'],
                 'raw_texts': [item_source['raw_texts'][i] for i in source_subset_indices],
+                'idx' : source_idx
             },
             'target_samples' : {
                 'esm_input_ids': esm_input_ids_target,
@@ -304,6 +323,7 @@ class PfamDataset(Dataset):
                 'progen_attention_mask': progen_attention_mask_target,
                 'pfam': item_target['pfam'],
                 'raw_texts': [item_target['raw_texts'][i] for i in target_subset_indices],
+                'idx' : target_idx
             }, 
             'source_idx': source_idx, 
             'target_idx': target_idx, 

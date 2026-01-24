@@ -47,7 +47,6 @@ class MLPPredictor(nn.Module):
             return output.cpu().numpy()
 
 
-# TODO: metrics should also be moved into a utils file. Maybe find where the losses are usually.
 def wasserstein(
     x0: torch.Tensor,
     x1: torch.Tensor,

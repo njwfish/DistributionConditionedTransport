@@ -1,0 +1,22 @@
+# @package _global_.experiment
+# Base GMM experiment with EmbeddingEncoder - generator must be specified separately
+
+name: crosstissue_onehot_energy
+description: "Cross tissue atlas"
+
+# Override defaults - uses embedding encoder instead of GNN
+defaults:
+  - /dataset: crosstissue
+  - /encoder: embedding
+  - /model: noise_mlp
+  - /generator: energy
+  - /scheduler: none
+  - /training: default5000
+  - /loss: multimarginal
+
+# Experiment-specific parameters
+latent_dim: 16
+hidden_dim: 256
+set_size: 128
+batch_size: 256
+lr: 2e-4

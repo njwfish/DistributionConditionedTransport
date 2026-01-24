@@ -351,7 +351,7 @@ for predictor_loss_weight in predictor_loss_weights:
         plot_seed = 0
         all_mmd = []
         all_emd = []
-        tgt_latent_mode = "use_predictor" # alternatively: "mfm", "ideal"
+        tgt_latent_mode = "ideal" # alternatively: "mfm", "ideal"
         
         print(f"=" * 60)
         print(f"Predictor loss weight: {predictor_loss_weight}")

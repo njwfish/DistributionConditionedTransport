@@ -1,6 +1,9 @@
 """
 Predictor training utilities that match the loss function used during training.
 Supports both cosine similarity loss and MSE loss with ridge regularization.
+
+Note: All predictors normalize their output during inference to match the 
+encoder's normalized latent space.
 """
 
 import numpy as np
@@ -8,6 +11,13 @@ import torch
 import torch.nn as nn
 from typing import List, Tuple, Optional, Literal
 from sklearn.linear_model import Ridge
+
+
+def _normalize_numpy(arr: np.ndarray, eps: float = 1e-12) -> np.ndarray:
+    """Normalize numpy array along last dimension to unit norm."""
+    norms = np.linalg.norm(arr, axis=-1, keepdims=True)
+    norms = np.maximum(norms, eps)
+    return arr / norms
 
 
 def build_latent_transition_dataset(
@@ -77,11 +87,12 @@ class LinearPredictorCosine(nn.Module):
         return self.linear(x)
     
     def predict(self, x: np.ndarray) -> np.ndarray:
-        """Scikit-learn style predict interface."""
+        """Scikit-learn style predict interface. Returns normalized latents."""
         self.eval()
         with torch.no_grad():
             x_tensor = torch.tensor(x, dtype=torch.float32, device=next(self.parameters()).device)
-            return self.forward(x_tensor).cpu().numpy()
+            output = self.forward(x_tensor).cpu().numpy()
+            return _normalize_numpy(output)
     
     def compute_loss(self, pred: torch.Tensor, target: torch.Tensor, ridge_alpha: float = 0.0) -> torch.Tensor:
         """Compute cosine loss with optional L2 regularization."""
@@ -107,11 +118,12 @@ class LinearPredictorMSE(nn.Module):
         return self.linear(x)
     
     def predict(self, x: np.ndarray) -> np.ndarray:
-        """Scikit-learn style predict interface."""
+        """Scikit-learn style predict interface. Returns normalized latents."""
         self.eval()
         with torch.no_grad():
             x_tensor = torch.tensor(x, dtype=torch.float32, device=next(self.parameters()).device)
-            return self.forward(x_tensor).cpu().numpy()
+            output = self.forward(x_tensor).cpu().numpy()
+            return _normalize_numpy(output)
     
     def compute_loss(self, pred: torch.Tensor, target: torch.Tensor, ridge_alpha: float = 0.0) -> torch.Tensor:
         """Compute MSE loss with optional L2 regularization."""
@@ -172,12 +184,30 @@ def train_linear_predictor_cosine(
     return model
 
 
+class NormalizedRidgeWrapper:
+    """
+    Wrapper for sklearn Ridge that normalizes predictions to unit norm.
+    """
+    
+    def __init__(self, ridge_model: Ridge):
+        self._model = ridge_model
+    
+    def predict(self, x: np.ndarray) -> np.ndarray:
+        """Predict and normalize output to unit norm."""
+        output = self._model.predict(x)
+        return _normalize_numpy(output)
+    
+    def __getattr__(self, name):
+        """Delegate other attributes to the underlying Ridge model."""
+        return getattr(self._model, name)
+
+
 def train_linear_predictor_mse(
     X: np.ndarray,
     Y: np.ndarray,
     ridge_alpha: float = 1e-3,
     seed: int = 0,
-) -> Ridge:
+) -> NormalizedRidgeWrapper:
     """
     Train a linear predictor using MSE loss with L2 regularization.
     Uses sklearn's Ridge for closed-form solution.
@@ -189,10 +219,10 @@ def train_linear_predictor_mse(
         seed: Random seed
         
     Returns:
-        Trained sklearn Ridge model
+        Wrapped sklearn Ridge model with normalized predictions
     """
     model = Ridge(alpha=ridge_alpha, random_state=seed).fit(X, Y)
-    return model
+    return NormalizedRidgeWrapper(model)
 
 
 def get_matched_predictor(

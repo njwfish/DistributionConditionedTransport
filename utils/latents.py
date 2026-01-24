@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 from typing import Optional
 
 
@@ -19,6 +20,22 @@ def normalize_latent(latent: torch.Tensor, eps: float = 1e-12) -> torch.Tensor:
     denom = torch.norm(latent, dim=-1, keepdim=True).clamp_min(eps)
     return latent / denom
 
+
+def normalize_latent_np(latent: np.ndarray, eps: float = 1e-12) -> np.ndarray:
+    """
+    Normalize a batch of latent vectors (numpy version).
+
+    Args:
+        latent: Array shaped [..., latent_dim]
+        eps: Small constant for numerical stability
+
+    Returns:
+        Array with the same shape as `latent`, where each vector along the last
+        dimension has unit norm.
+    """
+    denom = np.linalg.norm(latent, axis=-1, keepdims=True)
+    denom = np.clip(denom, a_min=eps, a_max=None)
+    return latent / denom
 
 
 def expand_latent_to_batch(latent: Optional[torch.Tensor], reference_batch: torch.Tensor) -> Optional[torch.Tensor]:

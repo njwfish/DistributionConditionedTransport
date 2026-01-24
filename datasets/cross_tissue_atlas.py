@@ -80,7 +80,7 @@ class CrossTissueDataset(Dataset):
             # Sample with replacement if not enough cells
             selected_idxs = np.random.choice(idxs, self.set_size, replace=True)
         
-        return torch.tensor(self.feats[selected_idxs], dtype=torch.float32)
+        return torch.tensor(self.feats[selected_idxs], dtype=torch.float32), selected_idxs
 
     def __getitem__(self, idx):
         # Get source donor
@@ -90,11 +90,14 @@ class CrossTissueDataset(Dataset):
         target_idx = np.random.randint(0, self.n_donors)
         target_donor = self.valid_donors[target_idx]
         
+        source_samples, source_adata_indices = self._sample_donor(source_donor)
+        target_samples, target_adata_indices = self._sample_donor(target_donor)
+        
         return {
-            'source_samples': self._sample_donor(source_donor),
-            'target_samples': self._sample_donor(target_donor),
-            'source_metadata': {'donor_id': source_donor},
-            'target_metadata': {'donor_id': target_donor},
+            'source_samples': source_samples,
+            'target_samples': target_samples,
+            'source_metadata': {'donor_id': source_donor, 'adata_indices': source_adata_indices},
+            'target_metadata': {'donor_id': target_donor, 'adata_indices': target_adata_indices},
             'source_idx': idx,
             'target_idx': target_idx
         }

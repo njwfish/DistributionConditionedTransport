@@ -10,14 +10,14 @@ defaults:
   - /encoder: gnn
   - /model: noise_mlp
   - /generator: energy
-  - /scheduler: none
+  - /scheduler: cosine
   - /training: default5000
   - /loss: default
 
 # Experiment-specific parameters
 latent_dim: 128
 hidden_dim: 256
-set_size: 128
+set_size: 512
 batch_size: 256
 lr: 2e-4
 

@@ -52,15 +52,6 @@ def main(cfg: DictConfig):
         wandb.run.summary["config_hash"] = config_hash
     
     try:
-        # Initialize CUDA early to avoid multiprocessing issues with DataLoader workers
-        # This must happen BEFORE creating the DataLoader with num_workers > 0
-        if torch.cuda.is_available():
-            torch.cuda.init()
-            device = torch.device('cuda')
-            logger.info(f"Using CUDA device: {torch.cuda.get_device_name(0)}")
-        else:
-            raise RuntimeError("CUDA is not available")
-        
         # Create the dataset
         dataset = hydra.utils.instantiate(cfg.dataset)
 
@@ -86,20 +77,16 @@ def main(cfg: DictConfig):
                     coupling = None
 
         # Base dataloader kwargs
-        # Use 'spawn' multiprocessing context to avoid CUDA fork issues on Linux
         base_dataloader_kwargs = {
             'batch_size': cfg.experiment.batch_size,
+            'prefetch_factor': 2,
             'num_workers': num_workers,
-            'pin_memory': torch.cuda.is_available(),
+            'pin_memory': True,
             'persistent_workers': True if num_workers > 0 else False,
             'collate_fn': coupling,
             'worker_init_fn': dataloader_seed_worker,
             'generator': make_torch_generator(int(cfg.seed) if hasattr(cfg, 'seed') else None),
         }
-        # Only add these options when using multiprocessing (num_workers > 0)
-        if num_workers > 0:
-            base_dataloader_kwargs['prefetch_factor'] = 2
-            base_dataloader_kwargs['multiprocessing_context'] = 'spawn'
         
         sampling_config = cfg.sampling
 
@@ -169,7 +156,8 @@ def main(cfg: DictConfig):
         # Create trainer
         trainer = hydra.utils.instantiate(cfg.training)
         
-        # Move models to device (CUDA was initialized earlier before DataLoader creation)
+        # GPU Transfer Check
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         encoder = encoder.to(device)
         generator = generator.to(device)
         

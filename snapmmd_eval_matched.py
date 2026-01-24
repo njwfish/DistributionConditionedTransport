@@ -401,9 +401,9 @@ for predictor_loss_weight in predictor_loss_weights:
             print(f"Seed {j}: MMD={mmd:.6f}, EMD={emd:.6f}")
             all_mmd.append(mmd)
             all_emd.append(emd)
-            if j == plot_seed:
-                print(f"Forecast shape: {forecast.shape}")
-                plot_forecast(cfg, data, forecast)
+            #if j == plot_seed:
+            #    print(f"Forecast shape: {forecast.shape}")
+            #    plot_forecast(cfg, data, forecast)
         
 
         all_mmd = np.array(all_mmd)

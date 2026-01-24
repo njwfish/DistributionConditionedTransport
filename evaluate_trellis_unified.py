@@ -6,10 +6,12 @@ Supports all training configurations:
 - run_trellis_a2a.sh (a2a variant)
 - run_trellis_conditioned.sh (conditioned encoder)
 - run_trellis_conditioned_a2a.sh (conditioned encoder + a2a)
+- run_trellis_mfm.sh (source-only MFM variant - no target latent)
 
 Key features:
-1. Automatic detection of model type (a2a vs standard, conditioned vs non-conditioned)
+1. Automatic detection of model type (a2a vs standard, conditioned vs non-conditioned, source-only)
 2. Support for different predictor types: ridge, mlp, conditioned_ridge, conditioned_mlp
+   (Note: predictors are NOT used for source-only models since they don't use target latent)
 3. Proper normalization of predicted latents before passing to generator
 4. W1 subsampling for faster computation
 5. Flexible experiment filtering via config keywords
@@ -23,6 +25,9 @@ Usage examples:
     
     # Conditioned model with conditioned predictor
     python evaluate_trellis_unified.py --experiment_name trellis_conditioned --use_predictor --predictor_type conditioned_mlp
+    
+    # Source-only MFM model (no predictor needed/used)
+    python evaluate_trellis_unified.py --experiment_name trellis_mfm_gnn --split_name replicas-1
 """
 
 import os
@@ -262,6 +267,7 @@ def compute_all_metrics(
         pred_w1 = pred
         target_w1 = target
         
+        # TODO: is this subsampling necessary?
         if pred.shape[0] > max_samples_w1:
             indices = torch.randperm(pred.shape[0])[:max_samples_w1]
             pred_w1 = pred[indices]
@@ -620,7 +626,7 @@ def load_experiment(experiment_dir: str, device: torch.device, load_train_data: 
     Load the trained model, config, and instantiate the components.
     
     Returns:
-        encoder, generator, test_samples, config, train_samples (or None), is_conditioned_encoder, is_a2a
+        encoder, generator, test_samples, config, train_samples (or None), is_conditioned_encoder, is_a2a, is_source_only
     """
     # Load config
     config_path = os.path.join(experiment_dir, "config.yaml")
@@ -650,6 +656,12 @@ def load_experiment(experiment_dir: str, device: torch.device, load_train_data: 
     dataset_target = resolved_cfg.get("dataset", {}).get("_target_", "")
     is_a2a = "a2a" in dataset_target.lower()
     
+    # Detect source-only model (MFM variant that doesn't use target latent)
+    # Check model config for source_only flag, or check loss type
+    model_source_only = resolved_cfg.get("model", {}).get("source_only", False)
+    loss_target = resolved_cfg.get("loss", {}).get("_target_", "")
+    is_source_only = model_source_only or "source_only" in loss_target.lower()
+    
     if is_conditioned_encoder:
         print(f"Detected CONDITIONED encoder (encoder.in_dim={encoder_in_dim})")
     else:
@@ -659,6 +671,10 @@ def load_experiment(experiment_dir: str, device: torch.device, load_train_data: 
         print(f"Detected A2A dataset: {dataset_target}")
     else:
         print(f"Detected standard dataset: {dataset_target}")
+    
+    if is_source_only:
+        print(f"Detected SOURCE-ONLY model (no target latent used)")
+        print(f"  model.source_only={model_source_only}, loss={loss_target}")
     
     # Instantiate datasets
     train_samples = None
@@ -699,7 +715,7 @@ def load_experiment(experiment_dir: str, device: torch.device, load_train_data: 
     generator.eval()
     print("Loaded generator")
     
-    return encoder, generator, test_samples, cfg, train_samples, is_conditioned_encoder, is_a2a
+    return encoder, generator, test_samples, cfg, train_samples, is_conditioned_encoder, is_a2a, is_source_only
 
 
 def evaluate_sample(
@@ -715,6 +731,7 @@ def evaluate_sample(
     wasserstein_only: bool = False,
     max_samples_w1: Optional[int] = None,
     normalize_predicted_latent: bool = True,
+    is_source_only: bool = False,
 ):
     """
     Evaluate the model on a single sample using precomputed latents.
@@ -732,6 +749,7 @@ def evaluate_sample(
         wasserstein_only: If True, only compute W1 and W2
         max_samples_w1: If provided, subsample for W1 computation
         normalize_predicted_latent: If True, normalize predicted latent before passing to generator
+        is_source_only: If True, model doesn't use target latent (pass None to generator)
     """
     # Convert to tensors
     x0_tensor = torch.tensor(x0, dtype=torch.float32, device=device)
@@ -748,8 +766,11 @@ def evaluate_sample(
     
     source_latent_tensor = torch.tensor(source_latent, dtype=torch.float32, device=device)
     
-    # Get target latent: either from predictor or use precomputed
-    if predictor is not None:
+    # For source-only models, target_latent is not used
+    if is_source_only:
+        target_latent_tensor = None
+    elif predictor is not None:
+        # Get target latent from predictor
         # Determine predictor type and get prediction
         if isinstance(predictor, (ConditionedMLPPredictor, ConditionedRidgePredictor)):
             if treat_cond is None:
@@ -769,14 +790,15 @@ def evaluate_sample(
         
         target_latent_tensor = torch.tensor(predicted_target_latent, dtype=torch.float32, device=device)
     else:
+        # Use precomputed (oracle) target latent
         target_latent_tensor = torch.tensor(target_latent, dtype=torch.float32, device=device)
     
     with torch.no_grad():
-        # Generate x1_pred from x0 using target latent
+        # Generate x1_pred from x0 using source latent (and target latent if not source-only)
         x1_pred = generator.sample(
             x0_tensor,              # [N, dim] - source samples
             source_latent_tensor,   # [1, latent_dim]
-            target_latent_tensor,   # [1, latent_dim]
+            target_latent_tensor,   # [1, latent_dim] or None for source-only
         )
         
         # Reshape: generator returns [num_sets, num_samples, dim], we want [num_samples, dim]
@@ -824,7 +846,9 @@ def find_experiment_dir(
     if seed is not None:
         filters.append(f"seed={seed}")
     if selective_pairing_mode is not None:
-        filters.append(f"selective_pairing_mode={selective_pairing_mode}")
+        # Handle "null" or "none" string to mean actual None value
+        display_value = selective_pairing_mode if selective_pairing_mode.lower() not in ("null", "none") else "None"
+        filters.append(f"selective_pairing_mode={display_value}")
     if experiment_name is not None:
         filters.append(f"experiment_name={experiment_name}")
     if num_epochs is not None:
@@ -870,7 +894,11 @@ def find_experiment_dir(
             
             if selective_pairing_mode is not None and match:
                 cfg_pairing_mode = cfg.get("experiment", {}).get("selective_pairing_mode")
-                if cfg_pairing_mode != selective_pairing_mode:
+                # Handle "null" or "none" string to mean actual None value
+                if selective_pairing_mode.lower() in ("null", "none"):
+                    if cfg_pairing_mode is not None:
+                        match = False
+                elif cfg_pairing_mode != selective_pairing_mode:
                     match = False
             
             if experiment_name is not None and match:
@@ -931,7 +959,7 @@ def main():
         "--selective_pairing_mode",
         type=str,
         default=None,
-        help="Selective pairing mode to search for"
+        help="Selective pairing mode to search for. Use 'null' or 'none' to find experiments where selective_pairing_mode was None/null"
     )
     parser.add_argument(
         "--experiment_name",
@@ -1056,10 +1084,26 @@ def main():
     device = torch.device(args.device)
     print(f"Using device: {device}")
     
-    # Load experiment
-    encoder, generator, test_samples, cfg, train_samples, is_conditioned_encoder, is_a2a = load_experiment(
-        args.experiment_dir, device, load_train_data=args.use_predictor
+    # First load experiment without training data to check if source-only
+    encoder, generator, test_samples, cfg, _, is_conditioned_encoder, is_a2a, is_source_only = load_experiment(
+        args.experiment_dir, device, load_train_data=False
     )
+    
+    # For source-only models, predictors are not applicable
+    if is_source_only and args.use_predictor:
+        print("\n" + "=" * 80)
+        print("WARNING: --use_predictor was specified but this is a SOURCE-ONLY model.")
+        print("Source-only models do not use target latent, so predictors are not applicable.")
+        print("Ignoring --use_predictor flag.")
+        print("=" * 80)
+        args.use_predictor = False
+    
+    # Now load training data if needed for predictor
+    train_samples = None
+    if args.use_predictor:
+        _, _, _, _, train_samples, _, _, _ = load_experiment(
+            args.experiment_dir, device, load_train_data=True
+        )
     
     # Determine if predictor type is conditioned
     is_conditioned_predictor = args.predictor_type in ["conditioned_ridge", "conditioned_mlp"]
@@ -1129,13 +1173,17 @@ def main():
             print(f"\nUsing {args.predictor_type} predictor: G(x0, E(x0), P(E(x0), treat_cond))")
         else:
             print(f"\nUsing {args.predictor_type} predictor: G(x0, E(x0), P(E(x0)))")
+    elif is_source_only:
+        print(f"\nUsing source-only mode: G(x0, E(x0)) - no target latent")
     else:
         print(f"\nUsing oracle target: G(x0, E(x0), E(x1))")
     
     # Evaluate
     print("\n" + "=" * 80)
     print("EVALUATION RESULTS")
-    if args.use_predictor:
+    if is_source_only:
+        print("Mode: SOURCE-ONLY (no target latent used)")
+    elif args.use_predictor:
         print(f"Mode: Using {args.predictor_type.upper()} predictor as target latent")
         if not args.no_normalize_predicted_latent:
             print("  Predicted latents will be normalized before generation")
@@ -1176,6 +1224,7 @@ def main():
             wasserstein_only=args.wasserstein_only,
             max_samples_w1=max_samples_w1,
             normalize_predicted_latent=not args.no_normalize_predicted_latent,
+            is_source_only=is_source_only,
         )
         
         model = results['model']

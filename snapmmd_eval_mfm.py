@@ -284,7 +284,8 @@ def plot_forecast(cfg, data, forecast):
 
 
 
-outputs_dir = "outputs_01_19_2025"
+#outputs_dir = "outputs_gom_looks_great_but_pbmc_buggy_01_20_2026"
+outputs_dir = "outputs"
 
 ckpt_dir_ref = None
 for ckpt_dir in os.listdir(outputs_dir):

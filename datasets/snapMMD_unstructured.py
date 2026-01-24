@@ -8,7 +8,6 @@ import scipy as sp
 import os
 import hydra
 from hydra.core.global_hydra import GlobalHydra
-import ot
 
 class SnapMMDUnified(Dataset):
     """Unified dataset for all SnapMMD datasets (GoM, LV, PBMC, Repressilator)."""
@@ -51,7 +50,6 @@ class SnapMMDUnified(Dataset):
             testing_method: str = "forecast",
             seed: Optional[int] = None,
             set_size: int = 32,
-            ot_coupling: bool = False,
             **kwargs,  # absorb any extra keyword args without failing
             ):
         """
@@ -73,7 +71,6 @@ class SnapMMDUnified(Dataset):
             np.random.seed(seed)
         
         self.testing_method = testing_method
-        self.ot_coupling = ot_coupling
         # TODO: hmmm, maybe I interpreted set_size slightly wrong. Is it supposed to be a subset of the whole population at a given time point or just the size of the population?
         self.set_size = set_size
         
@@ -123,26 +120,6 @@ class SnapMMDUnified(Dataset):
             
             source_samples = source_samples[subset_indices]
             target_samples = target_samples[subset_indices]
-
-            if self.ot_coupling:
-                # NOTE: converted to numpy to avoid CUDA issues.  
-                # Compute OT coupling using POT with NumPy backend to avoid CUDA init in DataLoader workers
-                source_np = source_samples.cpu().numpy()
-                target_np = target_samples.cpu().numpy()
-                cost = ot.dist(source_np, target_np, metric="sqeuclidean")
-                G = ot.emd([], [], cost)
-                # G = ot.sinkhorn([], [], cost, 1e-1)
-                # G = ot.bregman.empirical_sinkhorn(src, tgt, 1e-1)
-
-                # use all elements from ot plan
-                # TODO: is random shuffling needed here?
-                choices = np.arange(G.shape[0] * G.shape[1])
-                idx0, idx1 = np.divmod(choices, G.shape[1])
-
-                # OT paired samples
-                source_samples = source_samples[idx0]
-                target_samples = target_samples[idx1]
-            
             
             return {
                 'source_samples': source_samples,

@@ -15,7 +15,6 @@ defaults:
   - /predictor: default
   - /sampling: stratified_weighted
 
-ot_coupling: false
 
 # predictor parameters
 predictor_loss_weight: 1

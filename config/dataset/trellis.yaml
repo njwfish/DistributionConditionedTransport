@@ -5,6 +5,4 @@ split_name: ${experiment.split_name}
 set_size: ${experiment.set_size}
 split_mode: "train"
 
-ot_coupling: ${experiment.ot_coupling}
-
 data_shape: [43]

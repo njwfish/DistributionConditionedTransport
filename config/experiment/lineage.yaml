@@ -15,7 +15,6 @@ defaults:
   - /predictor: default  # use unified predictor
   - /sampling: default
 
-ot_coupling: false
 
 # predictor parameters
 use_predicted_latent: false

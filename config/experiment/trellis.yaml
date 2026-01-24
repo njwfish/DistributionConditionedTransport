@@ -16,7 +16,6 @@ defaults:
   - /loss: default
   - /sampling: default
 
-ot_coupling: false
 
 # predictor parameters
 predictor_loss_weight: 0.0
@@ -27,8 +26,8 @@ num_samples: 100
 selective_pairing_mode: null
 
 # Experiment-specific parameters
-latent_dim: 64
-hidden_dim: 128
+latent_dim: 128
+hidden_dim: 256
 set_size: 32
 batch_size: 4
 lr: 2e-4

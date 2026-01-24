@@ -15,7 +15,6 @@ defaults:
   - /predictor: default_mse
   - /sampling: default
 
-ot_coupling: false
 
 # predictor parameters
 predictor_loss_weight: 1

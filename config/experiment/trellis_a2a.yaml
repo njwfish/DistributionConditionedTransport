@@ -13,19 +13,13 @@ defaults:
   - /model: diffusion_mlp
   - /generator: flow_matching
   - /training: default10000
-  - /loss: predictor
-  - /predictor: default
-  - /sampling: stratified_trellis
-
-ot_coupling: true
+  - /loss: default
+  - /sampling: default
+  - /coupling: emd
 
 # predictor parameters
-predictor_loss_weight: 0.1
-train_predictor_posthoc: false
-
-predictor_model_type: "ridge"
-predictor_model_args:
-  ridge_alpha: 1e-3
+predictor_loss_weight: 0.0
+train_predictor_posthoc: true
 
 # sampling parameters
 num_samples: 100

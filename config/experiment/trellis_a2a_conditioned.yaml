@@ -15,8 +15,7 @@ defaults:
   - /training: default10000
   - /loss: default_conditioned
   - /sampling: default
-
-ot_coupling: true
+  - /coupling: emd
 
 # predictor parameters
 predictor_loss_weight: 0.0
@@ -27,7 +26,7 @@ num_samples: 100
 selective_pairing_mode: null
 
 # Experiment-specific parameters
-latent_dim: 256
+latent_dim: 128
 hidden_dim: 256
 set_size: 32
 batch_size: 4

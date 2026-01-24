@@ -14,7 +14,6 @@ defaults:
   - /loss: default_source_only
   - /sampling: default
 
-ot_coupling: false
 
 # predictor parameters
 predictor_loss_weight: 0.0

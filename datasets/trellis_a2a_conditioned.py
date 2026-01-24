@@ -21,7 +21,6 @@ import scipy as sp
 import os
 import hydra
 from hydra.core.global_hydra import GlobalHydra
-import ot
 import time
 import pickle
 
@@ -36,7 +35,6 @@ class trellis_dataset_conditioned(Dataset):
         split_name='pdo21',
         set_size=32,
         seed=0,
-        ot_coupling: bool = False,
         **kwargs,
     ):
         
@@ -89,7 +87,6 @@ class trellis_dataset_conditioned(Dataset):
         self.control = control  # identify x0
         self.treatment = treatment
         self.cell_type = cell_type
-        self.ot_coupling = ot_coupling
         self.split_name = split_name
 
         self.split_train = self.__filter_control__(split_train)
@@ -302,27 +299,6 @@ class trellis_dataset_conditioned(Dataset):
         cell_cond_source = cell_cond_source[source_subset_indices]
         cell_cond_target = cell_cond_target[target_subset_indices]
         treat_cond = treat_cond[source_subset_indices]
-        
-        if self.ot_coupling:
-            # NOTE: converted to numpy to avoid CUDA issues.  
-            # Compute OT coupling using POT with NumPy backend to avoid CUDA init in DataLoader workers
-            source_np = source_samples.cpu().numpy()
-            target_np = target_samples.cpu().numpy()
-            cost = ot.dist(source_np, target_np, metric="sqeuclidean")
-            G = ot.emd([], [], cost)
-
-            # use all elements from ot plan
-            choices = np.arange(G.shape[0] * G.shape[1])
-            idx0, idx1 = np.divmod(choices, G.shape[1])
-
-            # OT paired samples
-            source_samples = source_samples[idx0]
-            target_samples = target_samples[idx1]
-            
-            # Also reindex the conditioning to match OT coupling
-            cell_cond_source = cell_cond_source[idx0]
-            cell_cond_target = cell_cond_target[idx1]
-            treat_cond = treat_cond[idx0]
         
         return {
             'source_samples': source_samples,

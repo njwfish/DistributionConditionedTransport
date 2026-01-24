@@ -3,6 +3,5 @@ _target_: datasets.trellis_a2a.trellis_dataset
 
 split_name: ${experiment.split_name}
 set_size: ${experiment.set_size}
-ot_coupling: ${experiment.ot_coupling}
 # TODO: needs to be changed to 45 if we include the one-hot cell type during encoding.
 data_shape: [43]

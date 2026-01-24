@@ -1,0 +1,4 @@
+# @package _global_.coupling
+_target_: coupling.ot.OTCollate
+ot_type: emd
+ot_params: {}

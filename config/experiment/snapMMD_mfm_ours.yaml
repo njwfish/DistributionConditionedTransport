@@ -14,7 +14,6 @@ defaults:
   - /loss: default_source_only
   - /sampling: default
 
-ot_coupling: false
 
 train_predictor_posthoc: true
 

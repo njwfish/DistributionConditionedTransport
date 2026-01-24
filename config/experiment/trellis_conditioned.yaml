@@ -16,7 +16,6 @@ defaults:
   - /loss: default_conditioned
   - /sampling: default
 
-ot_coupling: false
 
 # predictor parameters
 predictor_loss_weight: 0.0

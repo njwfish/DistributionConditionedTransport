@@ -224,64 +224,61 @@ def train_mlp_predictor(
 
 
 # TODO: config loading should also be done in a separate file to unify across evals
-def load_experiment(
-    experiment_dir: str, 
-    device: torch.device, 
-    load_train_data: bool = False,
-    is_a2a: bool = False,
-):
-    """
-    Load the trained model, config, and instantiate the components.
-    
-    Returns:
-        encoder, generator, test_samples, config, train_samples (or None), is_source_only
-    """
-    # Load config
+def load_config(experiment_dir: str):
+    """Load and resolve the experiment config."""
     config_path = os.path.join(experiment_dir, "config.yaml")
     cfg = OmegaConf.load(config_path)
     print(f"Loaded config from {config_path}")
+    
+    # Resolve config references
+    resolved_cfg = OmegaConf.to_container(cfg, resolve=True)
+    resolved_cfg = OmegaConf.create(resolved_cfg)
+    
+    return resolved_cfg
+
+
+def is_source_only_model(cfg) -> bool:
+    """Detect if the model is source-only (MFM variant that doesn't use target latent)."""
+    model_source_only = cfg.get("model", {}).get("source_only", False)
+    loss_target = cfg.get("loss", {}).get("_target_", "")
+    return model_source_only or "source_only" in loss_target.lower()
+
+
+def load_experiment(
+    experiment_dir: str, 
+    device: torch.device,
+):
+    """
+    Load the trained model and instantiate the components.
+    
+    Returns:
+        encoder, generator, dataset, cfg
+    """
+    cfg = load_config(experiment_dir)
     
     # Load checkpoint
     checkpoint_path = os.path.join(experiment_dir, "best_model.pt")
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     print(f"Loaded checkpoint from {checkpoint_path} (epoch {checkpoint.get('epoch', 'unknown')})")
     
-    # Resolve config references
-    resolved_cfg = OmegaConf.to_container(cfg, resolve=True)
-    resolved_cfg = OmegaConf.create(resolved_cfg)
-    
-    # Detect source-only model (MFM variant that doesn't use target latent)
-    model_source_only = resolved_cfg.get("model", {}).get("source_only", False)
-    loss_target = resolved_cfg.get("loss", {}).get("_target_", "")
-    is_source_only = model_source_only or "source_only" in loss_target.lower()
-    
-    if is_source_only:
-        print(f"Detected SOURCE-ONLY model (no target latent used)")
-    
-    # Instantiate datasets
-    train_samples = None
-    test_samples = None
-    
-
-    dataset = hydra.utils.instantiate(resolved_cfg.dataset)
-    train_samples = dataset.samples_train 
-    test_samples = dataset.samples_test
+    # Instantiate dataset
+    dataset = hydra.utils.instantiate(cfg.dataset)
 
     # Instantiate encoder
-    encoder = hydra.utils.instantiate(resolved_cfg.encoder)
+    encoder = hydra.utils.instantiate(cfg.encoder)
     encoder.load_state_dict(checkpoint['encoder_state_dict'])
     encoder.to(device)
     encoder.eval()
     print("Loaded encoder")
     
     # Instantiate generator
-    generator = hydra.utils.instantiate(resolved_cfg.generator)
+    generator = hydra.utils.instantiate(cfg.generator)
     generator.load_state_dict(checkpoint['generator_state_dict'])
     generator.to(device)
     generator.eval()
     print("Loaded generator")
     
-    return encoder, generator, test_samples, cfg, train_samples, is_source_only
+    return encoder, generator, dataset, cfg
 
 
 def evaluate_sample(
@@ -439,12 +436,6 @@ def main():
         help="Max samples for W1 computation. Set to 0 to disable subsampling."
     )
     parser.add_argument(
-        "--device",
-        type=str,
-        default="cuda" if torch.cuda.is_available() else "cpu",
-        help="Device to run evaluation on"
-    )
-    parser.add_argument(
         "--use_predictor",
         action="store_true",
         help="Use a predictor P to predict target latent from source latent"
@@ -456,16 +447,7 @@ def main():
         default="ridge",
         help="Type of predictor: 'ridge' or 'mlp'"
     )
-    parser.add_argument(
-        "--no_normalize_predicted_latent",
-        action="store_true",
-        help="Disable normalization of predicted latent before passing to generator"
-    )
-    parser.add_argument(
-        "--a2a",
-        action="store_true",
-        help="Whether this is an a2a-style dataset (has internal train/test split)"
-    )
+
     args = parser.parse_args()
     
     # Determine experiment directory
@@ -480,29 +462,21 @@ def main():
     
     print(f"\nUsing experiment directory: {args.experiment_dir}")
     
-    device = torch.device(args.device)
-    print(f"Using device: {device}")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # First load experiment without training data to check if source-only
-    encoder, generator, test_samples, cfg, _, is_source_only = load_experiment(
-        args.experiment_dir, 
-        device, 
-        load_train_data=False,
-        is_a2a=args.a2a,
-    )
+    # Load experiment
+    encoder, generator, dataset, cfg = load_experiment(args.experiment_dir, device)
+    
+    # Check model type
+    is_source_only = is_source_only_model(cfg)
+    if is_source_only:
+        print("Detected SOURCE-ONLY model (no target latent used)")
     
     if is_source_only and args.use_predictor:
         raise ValueError("Source-only models do not use target latent, so predictors are not applicable.")
     
-    # Now load training data if needed for predictor
-    train_samples = None
-    if args.use_predictor:
-        _, _, _, _, train_samples, _ = load_experiment(
-            args.experiment_dir, 
-            device, 
-            load_train_data=True,
-            is_a2a=args.a2a,
-        )
+    test_samples = dataset.samples_test
+    train_samples = dataset.samples_train
     
     # Compute and cache latents
     print("\n" + "=" * 80)
@@ -538,8 +512,6 @@ def main():
         print("Mode: SOURCE-ONLY (no target latent used)")
     elif args.use_predictor:
         print(f"Mode: Using {args.predictor_type.upper()} predictor as target latent")
-        if not args.no_normalize_predicted_latent:
-            print("  Predicted latents will be normalized before generation")
     else:
         print("Mode: Using oracle E(x1) as target latent")
 
@@ -570,7 +542,7 @@ def main():
             predictor=predictor,
             compute_baseline=args.compute_baseline,
             max_samples_w1=max_samples_w1,
-            normalize_predicted_latent=not args.no_normalize_predicted_latent,
+            normalize_predicted_latent=True,
             is_source_only=is_source_only,
         )
         

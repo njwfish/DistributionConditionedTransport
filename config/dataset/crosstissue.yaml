@@ -1,0 +1,8 @@
+# @package _global_.dataset
+_target_: datasets.cross_tissue_atlas.CrossTissueDataset
+set_size: ${experiment.set_size}
+split: train
+data_shape: [50] 
+seed: ${seed}
+root: /orcd/data/omarabu/001/gokul/CoupledDistributionEmbeddings/data
+n_unique_sets: 16

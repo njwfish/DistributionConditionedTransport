@@ -89,22 +89,21 @@ class trellis_dataset(Dataset):
 
     def construct_data(self):
         # Process train split
-        self.samples_train, _, _, _, _, _, _, _ = self.select_experiments(self.split_train)
+        self.samples_train = self.select_experiments(self.split_train)
         
         # Process test split
-        self.samples_test, _, _, _, _, _, _, _ = self.select_experiments(self.split_test)
+        self.samples_test = self.select_experiments(self.split_test)
         
         self.n_train = len(self.samples_train)
         self.n_test = len(self.samples_test)
 
     def select_experiments(self, split):
-        samples_tmp, cultures, sources, targets, cell_conds_source, cell_conds_target, treat_conds, patients = [], [], [], [], [], [], [], []
+        samples_tmp = []
 
         for i in range(len(split)):
             if self.split_name == "replicas-1" or self.split_name == "replicas-2":
                 exp = split[i]
                 pdo_num = -1 # no pdo number meta data in these splits
-
             else:
                 exp_patient = split[i]
 
@@ -144,14 +143,16 @@ class trellis_dataset(Dataset):
                     # get cell type one-hot encoding for x0 populations
                     x0_cell_pdos_idx = range(0, len(x0_pdos_idx))
                     x0_cell_fibs_idx = range(len(x0_pdos_idx), len(x0_idx))
+                    cond_cell_x0 = np.zeros((x0.shape[0], len(self.cell_type)))
+                    cond_cell_x0[x0_cell_pdos_idx, 0] = 1
+                    cond_cell_x0[x0_cell_fibs_idx, 1] = 1
+
+                    # get cell type one-hot encoding for x1 populations
                     x1_cell_pdos_idx = range(0, len(x1_pdos_idx))
                     x1_cell_fibs_idx = range(len(x1_pdos_idx), len(x1_idx))
-                    cond_cell_source = np.zeros((x0.shape[0], len(self.cell_type)))
-                    cond_cell_source[x0_cell_pdos_idx, 0] = 1
-                    cond_cell_source[x0_cell_fibs_idx, 1] = 1
-                    cond_cell_target = np.zeros((x1.shape[0], len(self.cell_type)))
-                    cond_cell_target[x1_cell_pdos_idx, 0] = 1
-                    cond_cell_target[x1_cell_fibs_idx, 1] = 1
+                    cond_cell_x1 = np.zeros((x1.shape[0], len(self.cell_type)))
+                    cond_cell_x1[x1_cell_pdos_idx, 0] = 1
+                    cond_cell_x1[x1_cell_fibs_idx, 1] = 1
 
                     # get treatment one-hot encoding
                     treat_idx = self.treatment.index(t)
@@ -165,27 +166,18 @@ class trellis_dataset(Dataset):
                             culture,
                             x0,
                             x1,
-                            cond_cell_source,
-                            cond_cell_target,
+                            cond_cell_x0,
+                            cond_cell_x1,
                             cond_treat,
                             str(pdo_num),
                         )
                     )
 
-                    patients.append(str(pdo_num))
-                    cultures.append(culture)
-                    targets.append(x1)
-                    cell_conds_source.append(cond_cell_source)
-                    cell_conds_target.append(cond_cell_target)
-                    treat_conds.append(cond_treat)
-            sources.append(x0)
-
-        return samples_tmp, cultures, sources, targets, cell_conds_source, cell_conds_target, treat_conds, patients
+        return samples_tmp
 
     def __filter_control__(self, split):
         split_lst = []
         for ls in split:
-            #keyset = set(ls.keys())
             if self.has_empty_element(ls):
                 continue
             split_lst.append(ls)
@@ -204,26 +196,27 @@ class trellis_dataset(Dataset):
                         return True
         return False  # Return False if no empty dictionary is found after checking all items
 
-
     def __len__(self):
         n = len(self.samples_train)
-        return n**2
+        return n ** 2
 
     def __getitem__(self, idx):
-        
         n = len(self.samples_train)
-        i = idx // n
-        j = idx % n
+        source_idx = idx // n
+        target_idx = idx % n
         
-        source_idx, target_idx = i, j
-        culture, x0, _, cell_cond_source, _, treat_cond, patient = self.samples_train[source_idx]
-        _, _, x1, _, cell_cond_target, _, _ = self.samples_train[target_idx]
+        # Source: x0 from source sample
+        culture, x0, _, cell_cond_x0, _, treat_cond, patient = self.samples_train[source_idx]
+        # Target: x1 from target sample
+        _, _, x1, _, cell_cond_x1, _, _ = self.samples_train[target_idx]
         
         source_samples = torch.tensor(x0, dtype=torch.float)
         target_samples = torch.tensor(x1, dtype=torch.float)
+        
+        # Convert conditioning to tensors
+        cell_cond_source = torch.tensor(cell_cond_x0, dtype=torch.float)
+        cell_cond_target = torch.tensor(cell_cond_x1, dtype=torch.float)
         treat_cond = torch.tensor(treat_cond, dtype=torch.float)
-        cell_cond_source = torch.tensor(cell_cond_source, dtype=torch.float)
-        cell_cond_target = torch.tensor(cell_cond_target, dtype=torch.float)
         
         source_subset_indices = np.random.choice(source_samples.shape[0], size=self.set_size, replace=False)
         target_subset_indices = np.random.choice(target_samples.shape[0], size=self.set_size, replace=False)
@@ -231,9 +224,10 @@ class trellis_dataset(Dataset):
         source_samples = source_samples[source_subset_indices]
         target_samples = target_samples[target_subset_indices]
         
-        treat_cond = treat_cond[source_subset_indices]
+        # Subsample conditioning to match subsampled cells
         cell_cond_source = cell_cond_source[source_subset_indices]
         cell_cond_target = cell_cond_target[target_subset_indices]
+        treat_cond = treat_cond[source_subset_indices]
         
         return {
             'source_samples': source_samples,
@@ -243,7 +237,5 @@ class trellis_dataset(Dataset):
             'treat_cond': treat_cond,
             'patient': patient,
             'culture': culture,
-            'source_idx': source_idx,
-            'target_idx': target_idx,
-            'train_predictor_bool': self.get_train_predictor_bool(source_idx, target_idx)  
-            }
+            'train_predictor_bool': self.get_train_predictor_bool(source_idx, target_idx)
+        }

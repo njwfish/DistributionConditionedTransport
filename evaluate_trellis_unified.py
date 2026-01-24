@@ -91,35 +91,6 @@ def compute_all_metrics(
     
     return {'W1': wasserstein(pred, target, power=1)}
 
-
-# ============================================================================
-# Dataset Utilities
-# ============================================================================
-
-# TODO: actually modify the dataset classes such that we don't need to do the case distinction here.
-def unpack_sample(sample):
-    """
-    Unpack a sample tuple, handling both old (6-element) and new (7-element) formats.
-    
-    Old format (a2a non-conditioned): (culture, x0, x1, cell_cond, treat_cond, patient)
-    New format (standard and a2a_conditioned): (culture, x0, x1, cell_cond_source, cell_cond_target, treat_cond, patient)
-    
-    Returns:
-        (culture, x0, x1, cell_cond_source, cell_cond_target, treat_cond, patient)
-    """
-    if len(sample) == 6:
-        # Old format: single cell_cond for both source and target
-        culture, x0, x1, cell_cond, treat_cond, patient = sample
-        return culture, x0, x1, cell_cond, cell_cond, treat_cond, patient
-    elif len(sample) == 7:
-        # New format: separate cell_cond_source and cell_cond_target
-        culture, x0, x1, cell_cond_source, cell_cond_target, treat_cond, patient = sample
-        return culture, x0, x1, cell_cond_source, cell_cond_target, treat_cond, patient
-    else:
-        raise ValueError(f"Unexpected sample format with {len(sample)} elements")
-
-
-
 # ============================================================================
 # Latent Caching and Predictor Training
 # ============================================================================
@@ -146,7 +117,7 @@ def compute_and_cache_latents(
     encoder.eval()
     with torch.no_grad():
         for i, sample in enumerate(samples):
-            culture, x0, x1, cell_cond_source, cell_cond_target, treat_cond, patient = unpack_sample(sample)
+            culture, x0, x1, cell_cond_source, cell_cond_target, treat_cond, patient = sample
             
             x0_tensor = torch.tensor(x0, dtype=torch.float32, device=device).unsqueeze(0)
             x1_tensor = torch.tensor(x1, dtype=torch.float32, device=device).unsqueeze(0)
@@ -252,9 +223,6 @@ def train_mlp_predictor(
     return predictor
 
 
-# ============================================================================
-# Main Evaluation Logic
-# ============================================================================
 # TODO: config loading should also be done in a separate file to unify across evals
 def load_experiment(
     experiment_dir: str, 
@@ -523,14 +491,8 @@ def main():
         is_a2a=args.a2a,
     )
     
-    # For source-only models, predictors are not applicable
     if is_source_only and args.use_predictor:
-        print("\n" + "=" * 80)
-        print("WARNING: --use_predictor was specified but this is a SOURCE-ONLY model.")
-        print("Source-only models do not use target latent, so predictors are not applicable.")
-        print("Ignoring --use_predictor flag.")
-        print("=" * 80)
-        args.use_predictor = False
+        raise ValueError("Source-only models do not use target latent, so predictors are not applicable.")
     
     # Now load training data if needed for predictor
     train_samples = None
@@ -592,7 +554,7 @@ def main():
     all_baseline_metrics = {name: [] for name in metric_names} if args.compute_baseline else None
     
     for i, sample in enumerate(test_samples):
-        culture, x0, x1, cell_cond_source, cell_cond_target, treat_cond, patient = unpack_sample(sample)
+        culture, x0, x1, cell_cond_source, cell_cond_target, treat_cond, patient = sample
         
         source_latent = test_source_latents[i:i+1]
         target_latent = test_target_latents[i:i+1]

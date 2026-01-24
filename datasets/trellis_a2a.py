@@ -109,10 +109,10 @@ class trellis_dataset(Dataset):
 
     def construct_data(self):
         # Process train split
-        self.samples_train, _, _, _, _, _, _ = self.select_experiments(self.split_train)
+        self.samples_train = self.select_experiments(self.split_train)
         
         # Process test split
-        self.samples_test, _, _, _, _, _, _ = self.select_experiments(self.split_test)
+        self.samples_test = self.select_experiments(self.split_test)
         
         # Compute total number of x populations for indexing
         # From train: x0 and x1 for each sample = 2 * n_train
@@ -122,7 +122,7 @@ class trellis_dataset(Dataset):
         self.total_x_populations = 2 * self.n_train + self.n_test
 
     def select_experiments(self, split):
-        samples_tmp, cultures, sources, targets, cell_conds, treat_conds, patients = [], [], [], [], [], [], []
+        samples_tmp = []
 
         for i in range(len(split)):
             if self.split_name == "replicas-1" or self.split_name == "replicas-2":
@@ -197,14 +197,7 @@ class trellis_dataset(Dataset):
                         )
                     )
 
-                    patients.append(str(pdo_num))
-                    cultures.append(culture)
-                    targets.append(x1)
-                    cell_conds.append(cond_cell_x0)
-                    treat_conds.append(cond_treat)
-            sources.append(x0)
-
-        return samples_tmp, cultures, sources, targets, cell_conds, treat_conds, patients
+        return samples_tmp
 
     def __filter_control__(self, split):
         split_lst = []

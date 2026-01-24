@@ -384,6 +384,8 @@ for predictor_loss_weight in predictor_loss_weights:
                     lr=1e-2,
                     verbose=False
                 )
+            else:
+                predictor = None
 
             forecast = generate_cde_forecast(cfg, data, encoder, generator, predictor=predictor, two_step=two_step, tgt_latent_mode=tgt_latent_mode)
             mmd, emd = compute_scores(cfg, data, forecast)

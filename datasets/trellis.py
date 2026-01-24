@@ -20,7 +20,6 @@ class trellis_dataset(Dataset):
         culture=["PDO", "PDOF", "F"],
         cell_type=["PDOs", "Fibs"],
         split_name='pdo21',
-        split_mode="train",
         set_size=32,
         seed=0,
         **kwargs,
@@ -67,8 +66,9 @@ class trellis_dataset(Dataset):
         data_path = os.path.join(base_dir, data_path)
         self.data = np.load(data_path)[:, :-1]
 
-        # TODO: for the replica splits (I don't think for the patient splits) there is also a val part of the split that we can use.
-        split=self.data_splits[split_mode]
+        # Load both train and test splits
+        split_train = self.data_splits["train"]
+        split_test = self.data_splits["test"]
         
         self.set_size = set_size
         self.control = control  # identify x0
@@ -76,34 +76,37 @@ class trellis_dataset(Dataset):
         self.cell_type = cell_type
         self.split_name = split_name
 
-        self.split = self.__filter_control__(split)
+        self.split_train = self.__filter_control__(split_train)
+        self.split_test = self.__filter_control__(split_test)
 
         # construct dataset
         start = time.time()
         self.construct_data()
         end = time.time()
 
-    # TODO: make sure that there is no weird behavior here.
     def get_train_predictor_bool(self, source_idx, target_idx):
         return (target_idx == source_idx)
 
     def construct_data(self):
-        self.samples_tmp, self.culture, self.x0, self.x1, self.cell_conds_source, self.cell_conds_target, self.treat_conds, self.patients = self.select_experiments()
+        # Process train split
+        self.samples_train, _, _, _, _, _, _, _ = self.select_experiments(self.split_train)
+        
+        # Process test split
+        self.samples_test, _, _, _, _, _, _, _ = self.select_experiments(self.split_test)
+        
+        self.n_train = len(self.samples_train)
+        self.n_test = len(self.samples_test)
 
-        self.samples = self.samples_tmp
-
-    def select_experiments(self):
+    def select_experiments(self, split):
         samples_tmp, cultures, sources, targets, cell_conds_source, cell_conds_target, treat_conds, patients = [], [], [], [], [], [], [], []
 
-        for i in range(len(self.split)):
-            #exp = self.split[i]
-
+        for i in range(len(split)):
             if self.split_name == "replicas-1" or self.split_name == "replicas-2":
-                exp = self.split[i]
+                exp = split[i]
                 pdo_num = -1 # no pdo number meta data in these splits
 
             else:
-                exp_patient = self.split[i]
+                exp_patient = split[i]
 
                 pdo_num = exp_patient.keys()
                 assert len(pdo_num) == 1, "More than one pdo number!"
@@ -177,7 +180,6 @@ class trellis_dataset(Dataset):
                     treat_conds.append(cond_treat)
             sources.append(x0)
 
-        self.num_samples = len(samples_tmp)
         return samples_tmp, cultures, sources, targets, cell_conds_source, cell_conds_target, treat_conds, patients
 
     def __filter_control__(self, split):
@@ -204,18 +206,18 @@ class trellis_dataset(Dataset):
 
 
     def __len__(self):
-        n = len(self.samples)
+        n = len(self.samples_train)
         return n**2
 
     def __getitem__(self, idx):
         
-        n = len(self.samples)
+        n = len(self.samples_train)
         i = idx // n
         j = idx % n
         
         source_idx, target_idx = i, j
-        culture, x0, _, cell_cond_source, _, treat_cond, patient = self.samples[source_idx]
-        _, _, x1, _, cell_cond_target, _, _ = self.samples[target_idx]
+        culture, x0, _, cell_cond_source, _, treat_cond, patient = self.samples_train[source_idx]
+        _, _, x1, _, cell_cond_target, _, _ = self.samples_train[target_idx]
         
         source_samples = torch.tensor(x0, dtype=torch.float)
         target_samples = torch.tensor(x1, dtype=torch.float)
@@ -232,18 +234,6 @@ class trellis_dataset(Dataset):
         treat_cond = treat_cond[source_subset_indices]
         cell_cond_source = cell_cond_source[source_subset_indices]
         cell_cond_target = cell_cond_target[target_subset_indices]
-
-        #print("--------------------------------")
-        #print(type(x0), type(x1), type(cell_cond), type(treat_cond), type(patient), type(culture), type(idx))
-        #
-        #print("source_samples.shape: ", source_samples.shape)
-        #print("target_samples.shape: ", target_samples.shape)
-        #print("x1.shape: ", x1.shape)
-        #print("cell_cond.shape: ", cell_cond.shape)
-        #print("treat_cond.shape: ", treat_cond.shape)
-        #print("patient: ", patient)
-        #print("culture: ", culture)
-        #print("idx: ", idx)
         
         return {
             'source_samples': source_samples,

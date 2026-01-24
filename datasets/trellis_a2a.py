@@ -1,3 +1,16 @@
+"""
+Trellis A2A dataset with conditioning information (cell_cond and treat_cond).
+
+This is a modified version of trellis_a2a.py that returns:
+- cell_cond_source: 2-dimensional one-hot encoding of cell type for source samples
+- cell_cond_target: 2-dimensional one-hot encoding of cell type for target samples  
+- treat_cond: 11-dimensional one-hot encoding of treatment condition
+
+These conditioning vectors can be used to:
+1. Concatenate cell_cond with input features for the encoder (43 -> 45 dimensions)
+2. Concatenate treat_cond with source latent for the predictor (latent_dim -> latent_dim + 11)
+"""
+
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -154,9 +167,16 @@ class trellis_dataset(Dataset):
                     # get cell type one-hot encoding for x0 populations
                     x0_cell_pdos_idx = range(0, len(x0_pdos_idx))
                     x0_cell_fibs_idx = range(len(x0_pdos_idx), len(x0_idx))
-                    cond_cell = np.zeros((x0.shape[0], len(self.cell_type)))
-                    cond_cell[x0_cell_pdos_idx, 0] = 1
-                    cond_cell[x0_cell_fibs_idx, 1] = 1
+                    cond_cell_x0 = np.zeros((x0.shape[0], len(self.cell_type)))
+                    cond_cell_x0[x0_cell_pdos_idx, 0] = 1
+                    cond_cell_x0[x0_cell_fibs_idx, 1] = 1
+
+                    # get cell type one-hot encoding for x1 populations
+                    x1_cell_pdos_idx = range(0, len(x1_pdos_idx))
+                    x1_cell_fibs_idx = range(len(x1_pdos_idx), len(x1_idx))
+                    cond_cell_x1 = np.zeros((x1.shape[0], len(self.cell_type)))
+                    cond_cell_x1[x1_cell_pdos_idx, 0] = 1
+                    cond_cell_x1[x1_cell_fibs_idx, 1] = 1
 
                     # get treatment one-hot encoding
                     treat_idx = self.treatment.index(t)
@@ -170,7 +190,8 @@ class trellis_dataset(Dataset):
                             culture,
                             x0,
                             x1,
-                            cond_cell,
+                            cond_cell_x0,
+                            cond_cell_x1,
                             cond_treat,
                             str(pdo_num),
                         )
@@ -179,7 +200,7 @@ class trellis_dataset(Dataset):
                     patients.append(str(pdo_num))
                     cultures.append(culture)
                     targets.append(x1)
-                    cell_conds.append(cond_cell)
+                    cell_conds.append(cond_cell_x0)
                     treat_conds.append(cond_treat)
             sources.append(x0)
 
@@ -223,14 +244,17 @@ class trellis_dataset(Dataset):
             # From train data
             sample_idx = flat_idx // 2
             is_x0 = (flat_idx % 2 == 0)
-            culture, x0, x1, cell_cond, treat_cond, patient = self.samples_train[sample_idx]
+            culture, x0, x1, cell_cond_x0, cell_cond_x1, treat_cond, patient = self.samples_train[sample_idx]
             x = x0 if is_x0 else x1
+            cell_cond = cell_cond_x0 if is_x0 else cell_cond_x1
+            # treat_cond is only used when source_is_x0 (i.e., train_predictor_bool cases),
+            # so we always return it with x0's shape
             return x, cell_cond, treat_cond, culture, patient, True, sample_idx, is_x0
         else:
             # From test data (only x0)
             test_sample_idx = flat_idx - 2 * self.n_train
-            culture, x0, x1, cell_cond, treat_cond, patient = self.samples_test[test_sample_idx]
-            return x0, cell_cond, treat_cond, culture, patient, False, test_sample_idx, True
+            culture, x0, x1, cell_cond_x0, cell_cond_x1, treat_cond, patient = self.samples_test[test_sample_idx]
+            return x0, cell_cond_x0, treat_cond, culture, patient, False, test_sample_idx, True
 
     def __len__(self):
         # Total pairs = (total x populations)^2
@@ -248,15 +272,16 @@ class trellis_dataset(Dataset):
             source_is_train, source_sample_idx, source_is_x0 = self._flat_idx_to_x_info(source_flat_idx)
         
         # Get target info
-        target_x, target_cell_cond, target_treat_cond, target_culture, target_patient, \
+        target_x, target_cell_cond, _, _, _, \
             target_is_train, target_sample_idx, target_is_x0 = self._flat_idx_to_x_info(target_flat_idx)
         
         source_samples = torch.tensor(source_x, dtype=torch.float)
         target_samples = torch.tensor(target_x, dtype=torch.float)
         
-        # Use source's conditioning info
+        # Convert conditioning to tensors
+        cell_cond_source = torch.tensor(source_cell_cond, dtype=torch.float)
+        cell_cond_target = torch.tensor(target_cell_cond, dtype=torch.float)
         treat_cond = torch.tensor(source_treat_cond, dtype=torch.float)
-        cell_cond = torch.tensor(source_cell_cond, dtype=torch.float)
         
         source_subset_indices = np.random.choice(source_samples.shape[0], size=self.set_size, replace=False)
         target_subset_indices = np.random.choice(target_samples.shape[0], size=self.set_size, replace=False)
@@ -264,11 +289,17 @@ class trellis_dataset(Dataset):
         source_samples = source_samples[source_subset_indices]
         target_samples = target_samples[target_subset_indices]
         
+        # Subsample conditioning to match subsampled cells
+        cell_cond_source = cell_cond_source[source_subset_indices]
+        cell_cond_target = cell_cond_target[target_subset_indices]
+        treat_cond = treat_cond[source_subset_indices]
+        
         return {
             'source_samples': source_samples,
             'target_samples': target_samples,
-            #'cell_cond': cell_cond,
-            #'treat_cond': treat_cond,
+            'cell_cond_source': cell_cond_source,
+            'cell_cond_target': cell_cond_target,
+            'treat_cond': treat_cond,
             'patient': source_patient,
             'culture': source_culture,
             'train_predictor_bool': self.get_train_predictor_bool(

@@ -3,6 +3,5 @@ _target_: datasets.trellis.trellis_dataset
 
 split_name: ${experiment.split_name}
 set_size: ${experiment.set_size}
-split_mode: "train"
 
 data_shape: [43]

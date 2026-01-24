@@ -119,34 +119,6 @@ def unpack_sample(sample):
         raise ValueError(f"Unexpected sample format with {len(sample)} elements")
 
 
-def get_test_samples_from_dataset(dataset, is_a2a: bool):
-    """
-    Get test samples from dataset, handling both standard and a2a dataset structures.
-    
-    Args:
-        dataset: The dataset object
-        is_a2a: Whether this is an a2a-style dataset
-        
-    Returns:
-        List of samples in format: (culture, x0, x1, cell_cond_source, cell_cond_target, treat_cond, patient)
-    """
-    if is_a2a:
-        # A2A datasets have samples_test attribute
-        return dataset.samples_test
-    else:
-        # Standard datasets have samples attribute
-        return dataset.samples
-
-
-def get_train_samples_from_dataset(dataset, is_a2a: bool):
-    """
-    Get training samples from dataset, handling both standard and a2a dataset structures.
-    """
-    if is_a2a:
-        return dataset.samples_train
-    else:
-        return dataset.samples
-
 
 # ============================================================================
 # Latent Caching and Predictor Training

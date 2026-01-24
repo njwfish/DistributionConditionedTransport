@@ -109,10 +109,10 @@ class trellis_dataset_conditioned(Dataset):
 
     def construct_data(self):
         # Process train split
-        self.samples_train, _, _, _, _, _, _ = self.select_experiments(self.split_train)
+        self.samples_train = self.select_experiments(self.split_train)
         
         # Process test split
-        self.samples_test, _, _, _, _, _, _ = self.select_experiments(self.split_test)
+        self.samples_test = self.select_experiments(self.split_test)
         
         # Compute total number of x populations for indexing
         # From train: x0 and x1 for each sample = 2 * n_train
@@ -122,7 +122,7 @@ class trellis_dataset_conditioned(Dataset):
         self.total_x_populations = 2 * self.n_train + self.n_test
 
     def select_experiments(self, split):
-        samples_tmp, cultures, sources, targets, cell_conds, treat_conds, patients = [], [], [], [], [], [], []
+        samples_tmp = []
 
         for i in range(len(split)):
             if self.split_name == "replicas-1" or self.split_name == "replicas-2":
@@ -197,14 +197,7 @@ class trellis_dataset_conditioned(Dataset):
                         )
                     )
 
-                    patients.append(str(pdo_num))
-                    cultures.append(culture)
-                    targets.append(x1)
-                    cell_conds.append(cond_cell_x0)
-                    treat_conds.append(cond_treat)
-            sources.append(x0)
-
-        return samples_tmp, cultures, sources, targets, cell_conds, treat_conds, patients
+        return samples_tmp
 
     def __filter_control__(self, split):
         split_lst = []
@@ -247,15 +240,9 @@ class trellis_dataset_conditioned(Dataset):
             culture, x0, x1, cell_cond_x0, cell_cond_x1, treat_cond, patient = self.samples_train[sample_idx]
             x = x0 if is_x0 else x1
             cell_cond = cell_cond_x0 if is_x0 else cell_cond_x1
-            # treat_cond is stored with x0's shape, so expand to correct size if using x1
-            # (the treat_cond value is the same for all cells, just needs correct size)
-            # TODO: fix this, this is quite hacky.
-            if is_x0:
-                treat_cond_out = treat_cond
-            else:
-                # Expand treat_cond to match x1's size (take one row and tile)
-                treat_cond_out = np.tile(treat_cond[0:1], (x1.shape[0], 1))
-            return x, cell_cond, treat_cond_out, culture, patient, True, sample_idx, is_x0
+            # treat_cond is only used when source_is_x0 (i.e., train_predictor_bool cases),
+            # so we always return it with x0's shape
+            return x, cell_cond, treat_cond, culture, patient, True, sample_idx, is_x0
         else:
             # From test data (only x0)
             test_sample_idx = flat_idx - 2 * self.n_train
@@ -278,7 +265,7 @@ class trellis_dataset_conditioned(Dataset):
             source_is_train, source_sample_idx, source_is_x0 = self._flat_idx_to_x_info(source_flat_idx)
         
         # Get target info
-        target_x, target_cell_cond, target_treat_cond, target_culture, target_patient, \
+        target_x, target_cell_cond, _, _, _, \
             target_is_train, target_sample_idx, target_is_x0 = self._flat_idx_to_x_info(target_flat_idx)
         
         source_samples = torch.tensor(source_x, dtype=torch.float)

@@ -107,6 +107,21 @@ class OTCollate(nn.Module):
             processed_sample = sample.copy()
             processed_sample['source_samples'] = x_source_sampled
             processed_sample['target_samples'] = x_target_sampled
+            
+            # Reindex any conditioning tensors that have the same first dimension as source/target
+            # These need to be aligned with the OT-coupled samples
+            for key in sample.keys():
+                if key in ['source_samples', 'target_samples']:
+                    continue  # Already handled above
+                val = sample[key]
+                if isinstance(val, torch.Tensor) and val.dim() >= 1:
+                    if val.shape[0] == set_size:
+                        # Check if this is a source-side or target-side tensor based on naming
+                        if 'source' in key or key in ['treat_cond']:
+                            processed_sample[key] = val[idx0]
+                        elif 'target' in key:
+                            processed_sample[key] = val[idx1]
+            
             processed_samples.append(processed_sample)
         
         # Apply default PyTorch collation to batch the processed samples

@@ -14,7 +14,7 @@ defaults:
   - /loss: predictor
   - /predictor: default
   - /sampling: default
-
+  - /coupling: emd
 
 # predictor parameters
 predictor_loss_weight: 1

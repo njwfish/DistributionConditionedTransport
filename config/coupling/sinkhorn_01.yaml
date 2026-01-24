@@ -1,0 +1,6 @@
+# @package _global_.coupling
+_target_: coupling.ot.OTCollate
+ot_type: sinkhorn
+ot_params:
+  reg: 1.0
+replace: true

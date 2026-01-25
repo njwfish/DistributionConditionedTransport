@@ -1,6 +1,8 @@
 import os
 import sys
 import argparse
+import hashlib
+import json
 import numpy as np
 import torch
 import torch.nn as nn
@@ -15,6 +17,71 @@ from utils.experiment_utils import (
     find_experiment_dir,
 )
 from generator.losses import wasserstein, mmd
+
+# ============================================================================
+# Checkpointing Utilities
+# ============================================================================
+
+CHECKPOINT_DIR = "trellis_running_eval"
+
+
+def compute_args_hash(args: argparse.Namespace) -> str:
+    """
+    Compute a deterministic hash of the relevant arguments.
+    
+    This hash is used to uniquely identify a run configuration, so that
+    different runs don't get mixed up when checkpointing.
+    """
+    # Extract relevant arguments that affect the evaluation results
+    args_dict = {
+        'experiment_dir': args.experiment_dir,
+        'match': sorted(args.match) if args.match else [],
+        'outputs_dir': args.outputs_dir,
+        'compute_baseline': args.compute_baseline,
+        'metric': args.metric,
+        'use_predictor': args.use_predictor,
+        'cross_validate': args.cross_validate,
+        'predict_delta': args.predict_delta,
+        'predictor_loss': args.predictor_loss,
+    }
+    
+    # Create a deterministic JSON string and hash it
+    args_json = json.dumps(args_dict, sort_keys=True)
+    return hashlib.md5(args_json.encode()).hexdigest()[:12]
+
+
+def get_checkpoint_path(args_hash: str) -> str:
+    """Get the checkpoint file path for a given args hash."""
+    os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+    return os.path.join(CHECKPOINT_DIR, f"checkpoint_{args_hash}.json")
+
+
+def load_checkpoint(checkpoint_path: str) -> dict:
+    """
+    Load checkpoint from file if it exists.
+    
+    Returns:
+        Dictionary with 'completed_indices', 'model_metrics', 'baseline_metrics', 
+        'sample_info', or empty dict if no checkpoint exists.
+    """
+    if os.path.exists(checkpoint_path):
+        with open(checkpoint_path, 'r') as f:
+            checkpoint = json.load(f)
+        print(f"Loaded checkpoint from {checkpoint_path}")
+        print(f"  {len(checkpoint.get('completed_indices', []))} samples already completed")
+        return checkpoint
+    return {
+        'completed_indices': [],
+        'model_metrics': {},
+        'baseline_metrics': {},
+        'sample_info': {},
+    }
+
+
+def save_checkpoint(checkpoint_path: str, checkpoint: dict):
+    """Save checkpoint to file."""
+    with open(checkpoint_path, 'w') as f:
+        json.dump(checkpoint, f, indent=2)
 
 
 def is_conditioned_encoder(cfg) -> bool:
@@ -377,6 +444,12 @@ def main():
     
     print(f"\nUsing experiment directory: {args.experiment_dir}")
     
+    # Setup checkpointing
+    args_hash = compute_args_hash(args)
+    checkpoint_path = get_checkpoint_path(args_hash)
+    checkpoint = load_checkpoint(checkpoint_path)
+    print(f"Checkpoint file: {checkpoint_path}")
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # Load experiment
@@ -450,17 +523,33 @@ def main():
     print(f"Metric: {metric_name}")
     print("=" * 80)
     
+    # Determine which samples still need to be computed
+    completed_indices = set(checkpoint.get('completed_indices', []))
+    remaining_indices = [i for i in range(len(test_samples)) if i not in completed_indices]
+    
+    if completed_indices:
+        print(f"\nResuming from checkpoint: {len(completed_indices)} samples already done, {len(remaining_indices)} remaining")
+    
+    # Build running lists from checkpoint data
     all_model_metrics = []
     all_baseline_metrics = [] if args.compute_baseline else None
     
-    for i, sample in enumerate(test_samples):
+    # Add previously completed results (in order)
+    for i in range(len(test_samples)):
+        if i in completed_indices:
+            all_model_metrics.append(checkpoint['model_metrics'][str(i)])
+            if args.compute_baseline:
+                all_baseline_metrics.append(checkpoint['baseline_metrics'][str(i)])
+    
+    for i in remaining_indices:
+        sample = test_samples[i]
         culture, x0, x1, cell_cond_source, cell_cond_target, treat_cond, patient = sample
         
         source_latent = test_source_latents[i:i+1]
         target_latent = test_target_latents[i:i+1]
         sample_treat_cond = test_treat_conds[i:i+1]  # Already extracted first row during compute_latents
         
-        print(f"\nSample {i + 1}/{len(test_samples)}:")
+        print(f"\nSample {i + 1}/{len(test_samples)} (computing):")
         print(f"  Culture: {culture}, Patient: {patient}")
         print(f"  x0 shape: {x0.shape}, x1 shape: {x1.shape}")
         
@@ -477,12 +566,23 @@ def main():
         model_metric = results['model_metric']
         all_model_metrics.append(model_metric)
         
-        # Compute running averages
-        running_model_mean = np.mean(all_model_metrics)
+        # Save to checkpoint
+        checkpoint['completed_indices'].append(i)
+        checkpoint['model_metrics'][str(i)] = float(model_metric)
+        checkpoint['sample_info'][str(i)] = {'culture': culture, 'patient': patient}
         
         if args.compute_baseline:
             baseline_metric = results['baseline_metric']
             all_baseline_metrics.append(baseline_metric)
+            checkpoint['baseline_metrics'][str(i)] = float(baseline_metric)
+        
+        # Save checkpoint after each sample
+        save_checkpoint(checkpoint_path, checkpoint)
+        
+        # Compute running averages (over all completed samples so far)
+        running_model_mean = np.mean(all_model_metrics)
+        
+        if args.compute_baseline:
             running_baseline_mean = np.mean(all_baseline_metrics)
             print(f"  {metric_name:<6} Model: {model_metric:>12.6f}  Baseline: {baseline_metric:>12.6f}")
             print(f"  {'Avg':<6} Model: {running_model_mean:>12.6f}  Baseline: {running_baseline_mean:>12.6f}")
@@ -490,22 +590,37 @@ def main():
             print(f"  {metric_name:<6} Model: {model_metric:>12.6f}")
             print(f"  {'Avg':<6} Model: {running_model_mean:>12.6f}")
     
+    # Gather final results in proper order from checkpoint
+    final_model_metrics = []
+    final_baseline_metrics = [] if args.compute_baseline else None
+    
+    for i in range(len(test_samples)):
+        if str(i) in checkpoint['model_metrics']:
+            final_model_metrics.append(checkpoint['model_metrics'][str(i)])
+            if args.compute_baseline:
+                final_baseline_metrics.append(checkpoint['baseline_metrics'][str(i)])
+    
     # Print final summary table
     print("\n" + "=" * 80)
     print("FINAL RESULTS (mean +/- std)")
+    print(f"Checkpoint: {checkpoint_path}")
+    print(f"Total samples evaluated: {len(final_model_metrics)}/{len(test_samples)}")
     print("=" * 80)
     
-    model_mean = np.mean(all_model_metrics)
-    model_std = np.std(all_model_metrics)
-    model_str = f"{model_mean:.4f} +/- {model_std:.4f}"
-    
-    if args.compute_baseline:
-        baseline_mean = np.mean(all_baseline_metrics)
-        baseline_std = np.std(all_baseline_metrics)
-        baseline_str = f"{baseline_mean:.4f} +/- {baseline_std:.4f}"
-        print(f"{metric_name:<6} Model: {model_str:>20}  Baseline: {baseline_str:>20}")
+    if len(final_model_metrics) == 0:
+        print("No samples evaluated yet.")
     else:
-        print(f"{metric_name:<6} Model: {model_str:>20}")
+        model_mean = np.mean(final_model_metrics)
+        model_std = np.std(final_model_metrics)
+        model_str = f"{model_mean:.4f} +/- {model_std:.4f}"
+        
+        if args.compute_baseline:
+            baseline_mean = np.mean(final_baseline_metrics)
+            baseline_std = np.std(final_baseline_metrics)
+            baseline_str = f"{baseline_mean:.4f} +/- {baseline_std:.4f}"
+            print(f"{metric_name:<6} Model: {model_str:>20}  Baseline: {baseline_str:>20}")
+        else:
+            print(f"{metric_name:<6} Model: {model_str:>20}")
 
 
 if __name__ == "__main__":

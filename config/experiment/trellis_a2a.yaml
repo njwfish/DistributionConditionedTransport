@@ -15,7 +15,7 @@ defaults:
   - /training: default10000
   - /loss: default
   - /sampling: default
-  - /coupling: sinkhorn_01
+  #- /coupling: sinkhorn_01
 
 # predictor parameters
 predictor_loss_weight: 0.0

@@ -7,7 +7,7 @@ import torch.nn as nn
 from typing import Literal
 
 from utils.latents import normalize_latent, normalize_latent_np
-from utils.predictor import LinearPredictor
+from utils.predictor import LinearPredictor, cross_validate_predictor
 from utils.experiment_utils import (
     load_config,
     load_experiment,
@@ -128,6 +128,9 @@ def train_linear_predictor(
     num_epochs: int = 1000,
     lr: float = 1e-2,
     verbose: bool = True,
+    cross_validate: bool = False,
+    predict_delta: bool = False,
+    loss_type: str = "mse",
 ) -> LinearPredictor:
     """
     Train a linear predictor to map source latents (conditioned on treatment) to target latents.
@@ -144,6 +147,9 @@ def train_linear_predictor(
         num_epochs: Number of training epochs
         lr: Learning rate
         verbose: Whether to print training progress
+        cross_validate: Whether to use cross-validation to find optimal hyperparameters
+        predict_delta: Whether to predict (target - source) instead of target directly
+        loss_type: Loss function for training ("mse" or "cosine")
     
     Returns:
         Trained LinearPredictor
@@ -152,26 +158,57 @@ def train_linear_predictor(
     # This conditions the predictor on the treatment
     source_latents_conditioned = np.concatenate([source_latents, treat_conds], axis=1)
     
-    print(f"Training linear predictor...")
+    # Determine prediction target
+    if predict_delta:
+        prediction_target = target_latents - source_latents
+        print(f"Training linear predictor (DELTA mode: predicting target - source)...")
+    else:
+        prediction_target = target_latents
+        print(f"Training linear predictor...")
+    
     print(f"  Source latents shape: {source_latents.shape}")
     print(f"  Treatment conditions shape: {treat_conds.shape}")
-    print(f"  Conditioned input shape: {source_latents_conditioned.shape} -> {target_latents.shape}")
-    print(f"  ridge_alpha={ridge_alpha}, lr={lr}, epochs={num_epochs}")
+    print(f"  Conditioned input shape: {source_latents_conditioned.shape} -> {prediction_target.shape}")
     
     input_dim = source_latents_conditioned.shape[1]
-    output_dim = target_latents.shape[1]
+    output_dim = prediction_target.shape[1]
+    
+    # Cross-validation for hyperparameter tuning
+    if cross_validate:
+        print(f"  Running cross-validation to find optimal hyperparameters...")
+        param_grid = {
+            'ridge_alpha': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0],
+        }
+        cv_results = cross_validate_predictor(
+            source_latents_conditioned,
+            prediction_target,
+            loss_type=loss_type,
+            param_grid=param_grid,
+            n_folds=5,
+            num_epochs=num_epochs,
+            lr=lr,
+            device=device,
+            verbose=verbose,
+        )
+        ridge_alpha = cv_results['best_params']['ridge_alpha']
+        print(f"  Cross-validation complete. Best ridge_alpha: {ridge_alpha}")
+    
+    print(f"  loss_type={loss_type}, ridge_alpha={ridge_alpha}, lr={lr}, epochs={num_epochs}")
     
     predictor = LinearPredictor(input_dim, output_dim)
     predictor.fit(
         source_latents_conditioned,
-        target_latents,
-        loss_type="cosine",
+        prediction_target,
+        loss_type=loss_type,
         ridge_alpha=ridge_alpha,
         num_epochs=num_epochs,
         lr=lr,
         device=device,
         verbose=verbose,
     )
+    
+    # Store metadata for inference
+    predictor.predict_delta = predict_delta
     
     return predictor
 
@@ -225,7 +262,14 @@ def evaluate_sample(
         # Concatenate source latent with treatment condition for the predictor
         # The predictor was trained with this conditioning
         source_latent_conditioned = np.concatenate([source_latent, treat_cond], axis=1)
-        predicted_target_latent = predictor.predict(source_latent_conditioned)
+        predicted = predictor.predict(source_latent_conditioned)
+        
+        # If predictor was trained in delta mode, add the predicted delta to source
+        if getattr(predictor, 'predict_delta', False):
+            predicted_target_latent = source_latent + predicted
+        else:
+            predicted_target_latent = predicted
+        
         if normalize_predicted_latent:
             predicted_target_latent = normalize_latent_np(predicted_target_latent)
         target_latent_tensor = torch.tensor(predicted_target_latent, dtype=torch.float32, device=device)
@@ -301,6 +345,23 @@ def main():
         action="store_true",
         help="Use a predictor P to predict target latent from source latent"
     )
+    parser.add_argument(
+        "--cross_validate",
+        action="store_true",
+        help="Use cross-validation to find optimal predictor hyperparameters (ridge_alpha)"
+    )
+    parser.add_argument(
+        "--predict_delta",
+        action="store_true",
+        help="Train predictor to predict (target_latent - source_latent) instead of target_latent directly"
+    )
+    parser.add_argument(
+        "--predictor_loss",
+        type=str,
+        choices=["mse", "cosine"],
+        required=True,
+        help="Loss function for predictor training: 'mse' or 'cosine' (default: mse)"
+    )
 
     args = parser.parse_args()
     
@@ -328,6 +389,9 @@ def main():
     
     if is_source_only and args.use_predictor:
         raise ValueError("Source-only models do not use target latent, so predictors are not applicable.")
+    
+    if (args.cross_validate or args.predict_delta) and not args.use_predictor:
+        print("WARNING: --cross_validate and --predict_delta have no effect without --use_predictor")
     
     # Check if encoder uses cell_cond conditioning
     use_cell_cond = is_conditioned_encoder(cfg)
@@ -359,7 +423,11 @@ def main():
         
         # Train predictor with source latents conditioned on treatment
         predictor = train_linear_predictor(
-            train_source_latents, train_target_latents, train_treat_conds, device=device
+            train_source_latents, train_target_latents, train_treat_conds, 
+            device=device,
+            cross_validate=args.cross_validate,
+            predict_delta=args.predict_delta,
+            loss_type=args.predictor_loss,
         )
     
     # Evaluate
@@ -368,7 +436,13 @@ def main():
     if is_source_only:
         print("Mode: SOURCE-ONLY (no target latent used)")
     elif args.use_predictor:
-        print("Mode: Using LINEAR predictor as target latent")
+        mode_str = "Mode: Using LINEAR predictor as target latent"
+        mode_str += f" (loss={args.predictor_loss})"
+        if args.predict_delta:
+            mode_str += " (DELTA prediction)"
+        if args.cross_validate:
+            mode_str += " (cross-validated)"
+        print(mode_str)
     else:
         print("Mode: Using oracle E(x1) as target latent")
     
@@ -403,12 +477,18 @@ def main():
         model_metric = results['model_metric']
         all_model_metrics.append(model_metric)
         
+        # Compute running averages
+        running_model_mean = np.mean(all_model_metrics)
+        
         if args.compute_baseline:
             baseline_metric = results['baseline_metric']
             all_baseline_metrics.append(baseline_metric)
+            running_baseline_mean = np.mean(all_baseline_metrics)
             print(f"  {metric_name:<6} Model: {model_metric:>12.6f}  Baseline: {baseline_metric:>12.6f}")
+            print(f"  {'Avg':<6} Model: {running_model_mean:>12.6f}  Baseline: {running_baseline_mean:>12.6f}")
         else:
             print(f"  {metric_name:<6} Model: {model_metric:>12.6f}")
+            print(f"  {'Avg':<6} Model: {running_model_mean:>12.6f}")
     
     # Print final summary table
     print("\n" + "=" * 80)

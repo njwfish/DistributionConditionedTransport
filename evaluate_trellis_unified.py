@@ -17,6 +17,7 @@ from utils.experiment_utils import (
 from generator.losses import wasserstein, mmd
 
 
+# SUPER IMPORTANT TODO 's: condition on cell_cond and on drug treatment.
 def compute_metric(
     pred: torch.Tensor, 
     target: torch.Tensor, 

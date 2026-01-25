@@ -4,6 +4,7 @@ import json
 import yaml
 import torch
 import logging
+import hydra
 from utils.hash_utils import hash_config, find_matching_output_dir
 from omegaconf import OmegaConf, DictConfig, ListConfig
 from typing import Dict, Any, Union, List, Optional, Tuple
@@ -410,4 +411,132 @@ def create_metrics_file(experiment_dir: str, metrics: Dict[str, Any]) -> bool:
         return True
     except Exception as e:
         logger.error(f"Error creating metrics file {metrics_path}: {e}")
-        return False 
+        return False
+
+
+def load_config(experiment_dir: str) -> DictConfig:
+    """Load and resolve the experiment config."""
+    config_path = os.path.join(experiment_dir, "config.yaml")
+    cfg = OmegaConf.load(config_path)
+    print(f"Loaded config from {config_path}")
+    
+    # Resolve config references
+    resolved_cfg = OmegaConf.to_container(cfg, resolve=True)
+    resolved_cfg = OmegaConf.create(resolved_cfg)
+    
+    return resolved_cfg
+
+
+def is_source_only_model(cfg: Union[Dict[str, Any], DictConfig]) -> bool:
+    """Detect if the model is source-only (MFM variant that doesn't use target latent)."""
+    model_source_only = cfg.get("model", {}).get("source_only", False)
+    loss_target = cfg.get("loss", {}).get("_target_", "")
+    return model_source_only or "source_only" in loss_target.lower()
+
+
+def load_experiment(
+    experiment_dir: str, 
+    device: torch.device,
+) -> Tuple[torch.nn.Module, torch.nn.Module, Any, DictConfig]:
+    """
+    Load the trained model and instantiate the components.
+    
+    Args:
+        experiment_dir: Path to the experiment directory
+        device: Device to load the model on
+    
+    Returns:
+        encoder, generator, dataset, cfg
+    """
+    cfg = load_config(experiment_dir)
+    
+    # Load checkpoint
+    checkpoint_path = os.path.join(experiment_dir, "best_model.pt")
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+    print(f"Loaded checkpoint from {checkpoint_path} (epoch {checkpoint.get('epoch', 'unknown')})")
+    
+    # Instantiate dataset
+    dataset = hydra.utils.instantiate(cfg.dataset)
+
+    # Instantiate encoder
+    encoder = hydra.utils.instantiate(cfg.encoder)
+    encoder.load_state_dict(checkpoint['encoder_state_dict'])
+    encoder.to(device)
+    encoder.eval()
+    print("Loaded encoder")
+    
+    # Instantiate generator
+    generator = hydra.utils.instantiate(cfg.generator)
+    generator.load_state_dict(checkpoint['generator_state_dict'])
+    generator.to(device)
+    generator.eval()
+    print("Loaded generator")
+    
+    return encoder, generator, dataset, cfg
+
+
+def find_experiment_dir(
+    outputs_dir: str = "outputs",
+    match_criteria: Optional[Dict[str, str]] = None,
+) -> str:
+    """
+    Search through directories in outputs_dir to find the experiment matching the given criteria.
+    Keys use dot notation for nested access (e.g., 'experiment.split_name', 'seed').
+    Use 'null' as value to match None.
+    
+    Args:
+        outputs_dir: Directory containing experiment outputs
+        match_criteria: Dictionary of key=value pairs to match against config
+        
+    Returns:
+        Path to the matching experiment directory
+        
+    Raises:
+        ValueError: If no matching experiment is found
+    """
+    print(f"Searching for experiment with: {match_criteria}")
+    print(f"Looking in: {outputs_dir}")
+    
+    matching_dirs = []
+    
+    for dirname in os.listdir(outputs_dir):
+        dir_path = os.path.join(outputs_dir, dirname)
+        
+        if not os.path.isdir(dir_path):
+            continue
+        
+        config_path = os.path.join(dir_path, "config.yaml")
+        if not os.path.exists(config_path):
+            continue
+        
+        try:
+            cfg = OmegaConf.load(config_path)
+            
+            match = True
+            for key_path, target_value in match_criteria.items():
+                cfg_value = OmegaConf.select(cfg, key_path)
+                # Handle null/none string to match None
+                if target_value.lower() in ("null", "none"):
+                    if cfg_value is not None:
+                        match = False
+                        break
+                elif str(cfg_value) != target_value:
+                    match = False
+                    break
+            
+            if match:
+                matching_dirs.append(dir_path)
+                print(f"  Found match: {dirname}")
+                    
+        except Exception as e:
+            continue
+    
+    if len(matching_dirs) == 0:
+        raise ValueError(f"No experiment found matching: {match_criteria}")
+    
+    if len(matching_dirs) > 1:
+        print(f"Warning: Multiple matching directories found, using the first one:")
+        for d in matching_dirs:
+            print(f"  - {d}")
+    
+    return matching_dirs[0]

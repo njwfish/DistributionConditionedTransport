@@ -5,46 +5,18 @@ import math
 import numpy as np
 import torch
 import torch.nn as nn
-import hydra
-from omegaconf import OmegaConf
-from typing import Optional, List, Union
+from typing import Optional
 import ot as pot
 from functools import partial
-from sklearn.linear_model import Ridge
 
 from utils.latents import normalize_latent, normalize_latent_np
-
-
-# TODO: this predictor model stuff needs to be moved and unified across the codebase.
-class MLPPredictor(nn.Module):
-    """MLP predictor to map source latents to target latents."""
-    
-    def __init__(self, latent_dim: int, hidden_dim: int = 128, num_layers: int = 2):
-        super().__init__()
-        
-        layers = []
-        in_dim = latent_dim
-        
-        for i in range(num_layers):
-            layers.append(nn.Linear(in_dim, hidden_dim))
-            layers.append(nn.ReLU())
-            in_dim = hidden_dim
-        
-        layers.append(nn.Linear(hidden_dim, latent_dim))
-        
-        self.network = nn.Sequential(*layers)
-        self.latent_dim = latent_dim
-    
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.network(x)
-    
-    def predict(self, x: np.ndarray) -> np.ndarray:
-        """Sklearn-compatible predict method for numpy arrays."""
-        self.eval()
-        with torch.no_grad():
-            x_tensor = torch.tensor(x, dtype=torch.float32, device=next(self.parameters()).device)
-            output = self.forward(x_tensor)
-            return output.cpu().numpy()
+from utils.predictor import LinearPredictor
+from utils.experiment_utils import (
+    load_config,
+    load_experiment,
+    is_source_only_model,
+    find_experiment_dir,
+)
 
 
 def wasserstein(
@@ -142,142 +114,36 @@ def compute_and_cache_latents(
     return source_latents, target_latents, treat_conds
 
 
-def train_ridge_predictor(
-    source_latents: np.ndarray,
-    target_latents: np.ndarray,
-    alpha: float = 1.0,
-) -> Ridge:
-    """Train a ridge regression predictor to map source latents to target latents."""
-    print(f"Training ridge regression predictor (alpha={alpha})...")
-    print(f"  Training data shape: {source_latents.shape} -> {target_latents.shape}")
-    
-    predictor = Ridge(alpha=alpha)
-    predictor.fit(source_latents, target_latents)
-    
-    return predictor
-
-
-def train_mlp_predictor(
+def train_linear_predictor(
     source_latents: np.ndarray,
     target_latents: np.ndarray,
     device: torch.device,
-    hidden_dim: int = 128,
-    num_layers: int = 2,
-    lr: float = 1e-3,
+    ridge_alpha: float = 1e-3,
     num_epochs: int = 1000,
-    batch_size: int = 32,
-) -> MLPPredictor:
-    """Train an MLP predictor to map source latents to target latents."""
-    latent_dim = source_latents.shape[1]
-    num_samples = source_latents.shape[0]
-    
-    print(f"Training MLP predictor...")
+    lr: float = 1e-2,
+    verbose: bool = True,
+) -> LinearPredictor:
+    """Train a linear predictor to map source latents to target latents."""
+    print(f"Training linear predictor...")
     print(f"  Training data shape: {source_latents.shape} -> {target_latents.shape}")
-    print(f"  Architecture: {latent_dim} -> {num_layers}x{hidden_dim} -> {latent_dim}")
-    print(f"  lr={lr}, epochs={num_epochs}, batch_size={batch_size}")
+    print(f"  ridge_alpha={ridge_alpha}, lr={lr}, epochs={num_epochs}")
     
-    predictor = MLPPredictor(latent_dim, hidden_dim, num_layers).to(device)
+    input_dim = source_latents.shape[1]
+    output_dim = target_latents.shape[1]
     
-    source_tensor = torch.tensor(source_latents, dtype=torch.float32, device=device)
-    target_tensor = torch.tensor(target_latents, dtype=torch.float32, device=device)
-    
-    optimizer = torch.optim.Adam(predictor.parameters(), lr=lr)
-    criterion = nn.MSELoss()
-    
-    predictor.train()
-    
-    for epoch in range(num_epochs):
-        perm = torch.randperm(num_samples)
-        source_shuffled = source_tensor[perm]
-        target_shuffled = target_tensor[perm]
-        
-        epoch_loss = 0.0
-        num_batches = 0
-        
-        for i in range(0, num_samples, batch_size):
-            batch_source = source_shuffled[i:i+batch_size]
-            batch_target = target_shuffled[i:i+batch_size]
-            
-            optimizer.zero_grad()
-            pred = predictor(batch_source)
-            loss = criterion(pred, batch_target)
-            loss.backward()
-            optimizer.step()
-            
-            epoch_loss += loss.item()
-            num_batches += 1
-        
-        avg_loss = epoch_loss / num_batches
-        
-        if (epoch + 1) % 100 == 0 or epoch == 0:
-            print(f"  Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.6f}")
-    
-    predictor.eval()
-    with torch.no_grad():
-        pred = predictor(source_tensor)
-        final_loss = criterion(pred, target_tensor).item()
-    
-    print(f"  Final MSE: {final_loss:.6f}")
+    predictor = LinearPredictor(input_dim, output_dim)
+    predictor.fit(
+        source_latents,
+        target_latents,
+        loss_type="mse",
+        ridge_alpha=ridge_alpha,
+        num_epochs=num_epochs,
+        lr=lr,
+        device=device,
+        verbose=verbose,
+    )
     
     return predictor
-
-
-# TODO: config loading should also be done in a separate file to unify across evals
-def load_config(experiment_dir: str):
-    """Load and resolve the experiment config."""
-    config_path = os.path.join(experiment_dir, "config.yaml")
-    cfg = OmegaConf.load(config_path)
-    print(f"Loaded config from {config_path}")
-    
-    # Resolve config references
-    resolved_cfg = OmegaConf.to_container(cfg, resolve=True)
-    resolved_cfg = OmegaConf.create(resolved_cfg)
-    
-    return resolved_cfg
-
-
-def is_source_only_model(cfg) -> bool:
-    """Detect if the model is source-only (MFM variant that doesn't use target latent)."""
-    model_source_only = cfg.get("model", {}).get("source_only", False)
-    loss_target = cfg.get("loss", {}).get("_target_", "")
-    return model_source_only or "source_only" in loss_target.lower()
-
-
-def load_experiment(
-    experiment_dir: str, 
-    device: torch.device,
-):
-    """
-    Load the trained model and instantiate the components.
-    
-    Returns:
-        encoder, generator, dataset, cfg
-    """
-    cfg = load_config(experiment_dir)
-    
-    # Load checkpoint
-    checkpoint_path = os.path.join(experiment_dir, "best_model.pt")
-    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    print(f"Loaded checkpoint from {checkpoint_path} (epoch {checkpoint.get('epoch', 'unknown')})")
-    
-    # Instantiate dataset
-    dataset = hydra.utils.instantiate(cfg.dataset)
-
-    # Instantiate encoder
-    encoder = hydra.utils.instantiate(cfg.encoder)
-    encoder.load_state_dict(checkpoint['encoder_state_dict'])
-    encoder.to(device)
-    encoder.eval()
-    print("Loaded encoder")
-    
-    # Instantiate generator
-    generator = hydra.utils.instantiate(cfg.generator)
-    generator.load_state_dict(checkpoint['generator_state_dict'])
-    generator.to(device)
-    generator.eval()
-    print("Loaded generator")
-    
-    return encoder, generator, dataset, cfg
 
 
 def evaluate_sample(
@@ -306,7 +172,7 @@ def evaluate_sample(
     if is_source_only:
         target_latent_tensor = None
     elif predictor is not None:
-        # predictor is either Ridge (sklearn) or MLPPredictor - both have .predict()
+        # predictor is LinearPredictor with .predict() method
         predicted_target_latent = predictor.predict(source_latent)
         if normalize_predicted_latent:
             predicted_target_latent = normalize_latent_np(predicted_target_latent)
@@ -337,63 +203,6 @@ def evaluate_sample(
         result['baseline'] = baseline_metrics
     
     return result
-
-# TODO: this should also be a utils function.
-def find_experiment_dir(
-    outputs_dir: str = "outputs",
-    match_criteria: Optional[dict] = None,
-) -> str:
-    """
-    Search through directories in outputs_dir to find the experiment matching the given criteria.
-    Keys use dot notation for nested access (e.g., 'experiment.split_name', 'seed').
-    Use 'null' as value to match None.
-    """
-    print(f"Searching for experiment with: {match_criteria}")
-    print(f"Looking in: {outputs_dir}")
-    
-    matching_dirs = []
-    
-    for dirname in os.listdir(outputs_dir):
-        dir_path = os.path.join(outputs_dir, dirname)
-        
-        if not os.path.isdir(dir_path):
-            continue
-        
-        config_path = os.path.join(dir_path, "config.yaml")
-        if not os.path.exists(config_path):
-            continue
-        
-        try:
-            cfg = OmegaConf.load(config_path)
-            
-            match = True
-            for key_path, target_value in match_criteria.items():
-                cfg_value = OmegaConf.select(cfg, key_path)
-                # Handle null/none string to match None
-                if target_value.lower() in ("null", "none"):
-                    if cfg_value is not None:
-                        match = False
-                        break
-                elif str(cfg_value) != target_value:
-                    match = False
-                    break
-            
-            if match:
-                matching_dirs.append(dir_path)
-                print(f"  Found match: {dirname}")
-                    
-        except Exception as e:
-            continue
-    
-    if len(matching_dirs) == 0:
-        raise ValueError(f"No experiment found matching: {match_criteria}")
-    
-    if len(matching_dirs) > 1:
-        print(f"Warning: Multiple matching directories found, using the first one:")
-        for d in matching_dirs:
-            print(f"  - {d}")
-    
-    return matching_dirs[0]
 
 
 def main():
@@ -438,13 +247,6 @@ def main():
         "--use_predictor",
         action="store_true",
         help="Use a predictor P to predict target latent from source latent"
-    )
-    parser.add_argument(
-        "--predictor_type",
-        type=str,
-        choices=["ridge", "mlp"],
-        default="ridge",
-        help="Type of predictor: 'ridge' or 'mlp'"
     )
 
     args = parser.parse_args()
@@ -491,7 +293,7 @@ def main():
     predictor = None
     if args.use_predictor:
         print("\n" + "=" * 80)
-        print(f"TRAINING PREDICTOR ({args.predictor_type.upper()})")
+        print("TRAINING LINEAR PREDICTOR")
         print("=" * 80)
         
         train_cache_path = get_latent_cache_path(args.experiment_dir, "train")
@@ -499,10 +301,7 @@ def main():
             encoder, train_samples, device, train_cache_path, split_name="train"
         )
         
-        if args.predictor_type == "ridge":
-            predictor = train_ridge_predictor(train_source_latents, train_target_latents)
-        else:  # mlp
-            predictor = train_mlp_predictor(train_source_latents, train_target_latents, device=device)
+        predictor = train_linear_predictor(train_source_latents, train_target_latents, device=device)
     
     # Evaluate
     print("\n" + "=" * 80)
@@ -510,7 +309,7 @@ def main():
     if is_source_only:
         print("Mode: SOURCE-ONLY (no target latent used)")
     elif args.use_predictor:
-        print(f"Mode: Using {args.predictor_type.upper()} predictor as target latent")
+        print("Mode: Using LINEAR predictor as target latent")
     else:
         print("Mode: Using oracle E(x1) as target latent")
 

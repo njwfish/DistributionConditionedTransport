@@ -165,7 +165,7 @@ def train_linear_predictor(
     predictor.fit(
         source_latents_conditioned,
         target_latents,
-        loss_type="mse",
+        loss_type="cosine",
         ridge_alpha=ridge_alpha,
         num_epochs=num_epochs,
         lr=lr,

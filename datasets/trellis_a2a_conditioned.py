@@ -1,16 +1,3 @@
-"""
-Trellis A2A dataset with conditioning information (cell_cond and treat_cond).
-
-This is a modified version of trellis_a2a.py that returns:
-- cell_cond_source: 2-dimensional one-hot encoding of cell type for source samples
-- cell_cond_target: 2-dimensional one-hot encoding of cell type for target samples  
-- treat_cond: 11-dimensional one-hot encoding of treatment condition
-
-These conditioning vectors can be used to:
-1. Concatenate cell_cond with input features for the encoder (43 -> 45 dimensions)
-2. Concatenate treat_cond with source latent for the predictor (latent_dim -> latent_dim + 11)
-"""
-
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -274,7 +261,6 @@ class trellis_dataset_conditioned(Dataset):
         # Convert conditioning to tensors
         cell_cond_source = torch.tensor(source_cell_cond, dtype=torch.float)
         cell_cond_target = torch.tensor(target_cell_cond, dtype=torch.float)
-        treat_cond = torch.tensor(source_treat_cond, dtype=torch.float)
         
         source_subset_indices = np.random.choice(source_samples.shape[0], size=self.set_size, replace=False)
         target_subset_indices = np.random.choice(target_samples.shape[0], size=self.set_size, replace=False)
@@ -285,7 +271,20 @@ class trellis_dataset_conditioned(Dataset):
         # Subsample conditioning to match subsampled cells
         cell_cond_source = cell_cond_source[source_subset_indices]
         cell_cond_target = cell_cond_target[target_subset_indices]
-        treat_cond = treat_cond[source_subset_indices]
+        
+        # Determine if this is a train predictor case (x0 -> x1 from same sample)
+        train_predictor_bool = self.get_train_predictor_bool(
+            source_is_train, source_sample_idx, source_is_x0,
+            target_is_train, target_sample_idx, target_is_x0
+        )
+        
+        # treat_cond is only meaningful when train_predictor_bool is True
+        # In all other cases, use zeros to indicate it's not applicable
+        if train_predictor_bool:
+            treat_cond = torch.tensor(source_treat_cond, dtype=torch.float)
+            treat_cond = treat_cond[source_subset_indices]
+        else:
+            treat_cond = torch.zeros(self.set_size, len(self.treatment), dtype=torch.float)
         
         return {
             'source_samples': source_samples,
@@ -295,8 +294,5 @@ class trellis_dataset_conditioned(Dataset):
             'treat_cond': treat_cond,
             'patient': source_patient,
             'culture': source_culture,
-            'train_predictor_bool': self.get_train_predictor_bool(
-                source_is_train, source_sample_idx, source_is_x0,
-                target_is_train, target_sample_idx, target_is_x0
-            )
+            'train_predictor_bool': train_predictor_bool
         }

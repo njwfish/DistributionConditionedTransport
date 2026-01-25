@@ -251,7 +251,7 @@ def train_linear_predictor(
             prediction_target,
             loss_type=loss_type,
             param_grid=param_grid,
-            n_folds=5,
+            n_folds=10,
             num_epochs=num_epochs,
             lr=lr,
             device=device,

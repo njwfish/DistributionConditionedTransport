@@ -1,13 +1,3 @@
-"""
-Evaluation script for snapMMD models with matched predictor loss.
-
-This script evaluates models trained via run_snapMMD.sh by fitting a linear predictor
-with exactly the same loss function (cosine or MSE) and regularization weight 
-that was used during training.
-
-The predictor loss_type and ridge_alpha are read from the saved config.
-"""
-
 import os
 import argparse
 from typing import Any, Dict
@@ -19,7 +9,7 @@ from sklearn.decomposition import PCA
 
 from utils.snapMMD import MMDLoss, RBF
 from utils.seed import seed_everything
-from utils.predictor_training_matched import (
+from utils.predictor import (
     get_matched_predictor, 
     get_predictor_config_from_checkpoint
 )
@@ -29,8 +19,6 @@ import hydra
 from omegaconf import OmegaConf
 
 from TrajectoryNet.optimal_transport.emd import earth_mover_distance
-
-
 
 # Set random seed for reproducibility
 RANDOM_SEED = 42
@@ -308,12 +296,28 @@ def plot_forecast(cfg, data, forecast):
 # Parse command line arguments
 parser = argparse.ArgumentParser(description="Evaluate snapMMD models with matched predictor loss")
 parser.add_argument("--two_step", type=lambda x: x.lower() in ('true', '1', 'yes'), 
-                    default=False, help="Use two-step prediction (default: True)")
+                    default=False, help="Use two-step prediction (default: False)")
 parser.add_argument("--ckpt_prefix", type=str, default="snapMMD_gnn_P", 
-                    help="Checkpoint directory prefix to search for (default: snapMMD_G)")
+                    help="Checkpoint directory prefix to search for (default: snapMMD_gnn_P)")
 parser.add_argument("--outputs_dir", type=str, default="outputs",
                     help="Directory containing model outputs (default: outputs)")
+parser.add_argument("--residual_mode", type=lambda x: x.lower() in ('true', '1', 'yes'),
+                    default=False, 
+                    help="If True, predictor learns (target - source) residual and adds to source (default: False)")
+parser.add_argument("--use_cv", type=lambda x: x.lower() in ('true', '1', 'yes'),
+                    default=False,
+                    help="If True, use cross-validation to find optimal predictor hyperparameters (default: False)")
+parser.add_argument("--n_cv_folds", type=int, default=5,
+                    help="Number of cross-validation folds (default: 5)")
+parser.add_argument("--cv_ridge_alphas", type=str, default="1e-5,1e-4,1e-3,1e-2,1e-1,1.0",
+                    help="Comma-separated ridge alpha values for CV grid search (default: 1e-5,1e-4,1e-3,1e-2,1e-1,1.0)")
 args = parser.parse_args()
+
+# Parse CV ridge alphas
+cv_param_grid = None
+if args.use_cv:
+    cv_ridge_alphas = [float(x.strip()) for x in args.cv_ridge_alphas.split(',')]
+    cv_param_grid = {'ridge_alpha': cv_ridge_alphas}
 
 # Training hyperparameter combinations to evaluate
 # These match the original snapmmd_eval_strat.py
@@ -324,8 +328,14 @@ selective_pairing_modes = [None, "single_step"]
 outputs_dir = args.outputs_dir
 ckpt_prefix = args.ckpt_prefix
 two_step = args.two_step
+residual_mode = args.residual_mode
+use_cv = args.use_cv
+n_cv_folds = args.n_cv_folds
 
 print(f"Configuration: two_step={two_step}, ckpt_prefix={ckpt_prefix}, outputs_dir={outputs_dir}")
+print(f"Predictor options: residual_mode={residual_mode}, use_cv={use_cv}, n_cv_folds={n_cv_folds}")
+if use_cv:
+    print(f"CV param grid: {cv_param_grid}")
 
 for predictor_loss_weight in predictor_loss_weights:
     for selective_pairing_mode in selective_pairing_modes:
@@ -370,6 +380,7 @@ for predictor_loss_weight in predictor_loss_weights:
                 
                 if j == 0:
                     print(f"Using matched predictor: loss_type={loss_type}, ridge_alpha={ridge_alpha}")
+                    print(f"Residual mode: {residual_mode}, Use CV: {use_cv}")
                 
                 # Train predictor with matched loss function (feeds all data at once)
                 predictor = get_matched_predictor(
@@ -380,9 +391,13 @@ for predictor_loss_weight in predictor_loss_weights:
                     device=device, 
                     seed=42, 
                     two_step=two_step,
+                    residual_mode=residual_mode,
                     num_epochs=1000,
                     lr=1e-2,
-                    verbose=False
+                    verbose=(j == 0 and use_cv),  # Only show CV verbose output for first seed
+                    use_cv=use_cv,
+                    cv_param_grid=cv_param_grid,
+                    n_cv_folds=n_cv_folds,
                 )
             else:
                 predictor = None

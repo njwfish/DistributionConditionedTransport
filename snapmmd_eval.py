@@ -1,6 +1,6 @@
 import os
 import argparse
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import torch
@@ -9,11 +9,7 @@ from sklearn.decomposition import PCA
 
 from utils.snapMMD import MMDLoss, RBF
 from utils.seed import seed_everything
-from utils.predictor import (
-    get_matched_predictor, 
-    get_predictor_config_from_checkpoint
-)
-from utils.latents import normalize_latent
+from utils.predictor import LinearPredictor, cross_validate_predictor
 
 import hydra
 from omegaconf import OmegaConf
@@ -58,6 +54,89 @@ DATASET_CONFIGS: Dict[str, Dict[str, Any]] = {
         'requires_pca': True,
     },
 }
+
+
+def normalize_latent(x: np.ndarray, eps: float = 1e-12) -> np.ndarray:
+    """Normalize to unit norm along last dimension."""
+    norms = np.linalg.norm(x, axis=-1, keepdims=True)
+    return x / np.maximum(norms, eps)
+
+
+def build_latent_dataset(
+    encoder: torch.nn.Module,
+    data: dict,
+    two_step: bool = False,
+    residual_mode: bool = False,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Build (X, Y) dataset of latent transitions for predictor training.
+    
+    Args:
+        encoder: Trained encoder model
+        data: Dataset with 'Xs' key
+        two_step: If True, X = concat(lat_t, lat_t+1), Y = lat_t+2
+        residual_mode: If True, Y = (target - source) instead of target
+    
+    Returns:
+        (X, Y) numpy arrays for predictor training
+    """
+    encoder.eval()
+    Xs = data['Xs']
+    
+    # Encode all timepoints (excluding held-out last)
+    latents: List[np.ndarray] = []
+    with torch.no_grad():
+        for X_np in Xs[:-1]:
+            X_t = torch.tensor(X_np, dtype=torch.float32, device=device).unsqueeze(0)
+            lat = encoder(X_t).squeeze(0).cpu().numpy()
+            latents.append(lat)
+    
+    # Build pairs
+    X_list, Y_list = [], []
+    
+    if not two_step:
+        for t in range(len(latents) - 1):
+            src, tgt = latents[t], latents[t + 1]
+            X_list.append(src)
+            Y_list.append(tgt - src if residual_mode else tgt)
+    else:
+        for t in range(len(latents) - 2):
+            src1, src2, tgt = latents[t], latents[t + 1], latents[t + 2]
+            X_list.append(np.concatenate([src1, src2], axis=-1))
+            Y_list.append(tgt - src2 if residual_mode else tgt)
+    
+    return np.vstack(X_list), np.vstack(Y_list)
+
+
+def predict_target_latent(
+    predictor: LinearPredictor,
+    src_latent: np.ndarray,
+    two_step: bool = False,
+    residual_mode: bool = False,
+) -> np.ndarray:
+    """
+    Get target latent prediction, handling residual mode and normalization.
+    
+    Args:
+        predictor: Trained predictor
+        src_latent: Source latent(s). For two_step, this is concat(lat_t, lat_t+1)
+        two_step: Whether using two-step mode
+        residual_mode: If True, add prediction to source and normalize
+    
+    Returns:
+        Normalized target latent prediction
+    """
+    pred = predictor.predict(src_latent)
+    
+    if residual_mode:
+        # Extract the "current" source to add residual to
+        if two_step:
+            src = src_latent[..., src_latent.shape[-1] // 2:]  # Second half is lat_t+1
+        else:
+            src = src_latent
+        pred = src + pred
+    
+    return normalize_latent(pred)
 
 
 def load_cfg_and_ckpt(ckpt_dir, outputs_dir="outputs"):
@@ -144,22 +223,21 @@ def find_matching_ckpt_dirs(ckpt_dir, outputs_dir="outputs"):
 
 
 
-def generate_cde_forecast(cfg, data, encoder, generator, predictor=None, two_step=False, tgt_latent_mode="use_predictor"):
+def generate_cde_forecast(
+    cfg, data, encoder, generator, 
+    predictor=None, two_step=False, residual_mode=False, tgt_latent_mode="use_predictor"
+):
     """
     Generate forecast by feeding all data at once into encoder and generator.
-    No subsetting by set_size - uses all samples at each timepoint.
     """
-
     seed_everything(0, deterministic=True)
 
     Xs = data['Xs']
     
-    # Feed all data at each timepoint (no subsetting)
     Xs_third_last = torch.tensor(Xs[-3], dtype=torch.float).to(device)
     Xs_second_last = torch.tensor(Xs[-2], dtype=torch.float).to(device)
     Xs_last = torch.tensor(Xs[-1], dtype=torch.float).to(device)
     
-    # Add batch dimension for encoder (expects [batch, num_samples, features])
     Xs_third_last_batch = Xs_third_last.unsqueeze(0)
     Xs_second_last_batch = Xs_second_last.unsqueeze(0)
     Xs_last_batch = Xs_last.unsqueeze(0)
@@ -167,26 +245,27 @@ def generate_cde_forecast(cfg, data, encoder, generator, predictor=None, two_ste
     if two_step:
         src_latent_1 = encoder(Xs_third_last_batch)
         src_latent_2 = encoder(Xs_second_last_batch)
-        
         src_latent_combined = torch.cat([src_latent_1, src_latent_2], dim=-1)
         src_latent = src_latent_2
     else:
         src_latent = encoder(Xs_second_last_batch)
         src_latent_combined = src_latent
     
-    # TODO: MFM option needs to be inserted here
     if tgt_latent_mode == "use_predictor":
-        tgt_latent = torch.tensor(predictor.predict(src_latent_combined.detach().cpu().numpy()), dtype=torch.float).to(device)
-        tgt_latent = normalize_latent(tgt_latent)  # Normalize predicted latent to match encoder output
+        tgt_np = predict_target_latent(
+            predictor, 
+            src_latent_combined.detach().cpu().numpy(),
+            two_step=two_step,
+            residual_mode=residual_mode,
+        )
+        tgt_latent = torch.tensor(tgt_np, dtype=torch.float).to(device)
     elif tgt_latent_mode == "mfm":
         tgt_latent = None
     elif tgt_latent_mode == "ideal":
-        tgt_latent = encoder(Xs_last_batch)  # Encoder already normalizes output
+        tgt_latent = encoder(Xs_last_batch)
 
-    # Generate samples using all source samples at once
     gen = generator.sample(Xs_second_last, src_latent, tgt_latent)
     
-    # Squeeze out batch dimension if present to get [num_samples, features]
     if gen.dim() == 3:
         gen = gen.squeeze(0)
     
@@ -294,115 +373,116 @@ def plot_forecast(cfg, data, forecast):
     
 
 # Parse command line arguments
-parser = argparse.ArgumentParser(description="Evaluate snapMMD models with matched predictor loss")
+parser = argparse.ArgumentParser(description="Evaluate snapMMD models with predictor")
 parser.add_argument("--two_step", type=lambda x: x.lower() in ('true', '1', 'yes'), 
                     default=False, help="Use two-step prediction (default: False)")
 parser.add_argument("--ckpt_prefix", type=str, default="snapMMD_gnn_P", 
-                    help="Checkpoint directory prefix to search for (default: snapMMD_gnn_P)")
+                    help="Checkpoint directory prefix to search for")
 parser.add_argument("--outputs_dir", type=str, default="outputs",
-                    help="Directory containing model outputs (default: outputs)")
+                    help="Directory containing model outputs")
 parser.add_argument("--residual_mode", type=lambda x: x.lower() in ('true', '1', 'yes'),
                     default=False, 
-                    help="If True, predictor learns (target - source) residual and adds to source (default: False)")
+                    help="Predictor learns (target - source) residual and adds to source")
+parser.add_argument("--loss_type", type=str, default="mse", choices=["mse", "cosine"],
+                    help="Predictor loss type: mse or cosine (default: mse)")
+parser.add_argument("--ridge_alpha", type=float, default=1e-3,
+                    help="Ridge regularization (default: 1e-3)")
+parser.add_argument("--num_epochs", type=int, default=1000,
+                    help="Training epochs for predictor (default: 1000)")
+parser.add_argument("--lr", type=float, default=1e-2,
+                    help="Learning rate for predictor (default: 1e-2)")
 parser.add_argument("--use_cv", type=lambda x: x.lower() in ('true', '1', 'yes'),
-                    default=False,
-                    help="If True, use cross-validation to find optimal predictor hyperparameters (default: False)")
+                    default=False, help="Use cross-validation for hyperparameter tuning")
 parser.add_argument("--n_cv_folds", type=int, default=5,
-                    help="Number of cross-validation folds (default: 5)")
+                    help="Number of CV folds (default: 5)")
 parser.add_argument("--cv_ridge_alphas", type=str, default="1e-5,1e-4,1e-3,1e-2,1e-1,1.0",
-                    help="Comma-separated ridge alpha values for CV grid search (default: 1e-5,1e-4,1e-3,1e-2,1e-1,1.0)")
+                    help="Comma-separated ridge alphas for CV search")
 args = parser.parse_args()
 
-# Parse CV ridge alphas
-cv_param_grid = None
-if args.use_cv:
-    cv_ridge_alphas = [float(x.strip()) for x in args.cv_ridge_alphas.split(',')]
-    cv_param_grid = {'ridge_alpha': cv_ridge_alphas}
-
 # Training hyperparameter combinations to evaluate
-# These match the original snapmmd_eval_strat.py
 predictor_loss_weights = [10, 1, 0.1, 0.01, 0.001, 0.0]
 selective_pairing_modes = [None, "single_step"]
 
-# Use command line arguments
-outputs_dir = args.outputs_dir
-ckpt_prefix = args.ckpt_prefix
-two_step = args.two_step
-residual_mode = args.residual_mode
-use_cv = args.use_cv
-n_cv_folds = args.n_cv_folds
-
-print(f"Configuration: two_step={two_step}, ckpt_prefix={ckpt_prefix}, outputs_dir={outputs_dir}")
-print(f"Predictor options: residual_mode={residual_mode}, use_cv={use_cv}, n_cv_folds={n_cv_folds}")
-if use_cv:
-    print(f"CV param grid: {cv_param_grid}")
+print(f"Configuration: two_step={args.two_step}, ckpt_prefix={args.ckpt_prefix}")
+print(f"Predictor: loss={args.loss_type}, ridge_alpha={args.ridge_alpha}, residual={args.residual_mode}")
+if args.use_cv:
+    print(f"CV enabled: {args.n_cv_folds} folds, alphas={args.cv_ridge_alphas}")
 
 for predictor_loss_weight in predictor_loss_weights:
     for selective_pairing_mode in selective_pairing_modes:
         ckpt_dir_ref = None
-        for ckpt_dir in os.listdir(outputs_dir):
-            if ckpt_dir.startswith(ckpt_prefix):
+        for ckpt_dir in os.listdir(args.outputs_dir):
+            if ckpt_dir.startswith(args.ckpt_prefix):
                 try:
-                    cfg_ref, _ = load_cfg_and_ckpt(ckpt_dir, outputs_dir=outputs_dir)
-                    if cfg_ref['experiment']['predictor_loss_weight'] == predictor_loss_weight and cfg_ref['experiment']['selective_pairing_mode'] == selective_pairing_mode:
+                    cfg_ref, _ = load_cfg_and_ckpt(ckpt_dir, outputs_dir=args.outputs_dir)
+                    if (cfg_ref['experiment']['predictor_loss_weight'] == predictor_loss_weight and 
+                        cfg_ref['experiment']['selective_pairing_mode'] == selective_pairing_mode):
                         ckpt_dir_ref = ckpt_dir
                         break
-                except Exception as e:
-                    # Skip directories that fail to load (e.g., missing config.yaml)
+                except Exception:
                     continue
     
         if ckpt_dir_ref is None:
-            print(f"No matching directory found for predictor_loss_weight={predictor_loss_weight}, selective_pairing_mode={selective_pairing_mode}")
+            print(f"No matching directory found for predictor_loss_weight={predictor_loss_weight}, "
+                  f"selective_pairing_mode={selective_pairing_mode}")
             continue
-            
 
-        matching_dirs = find_matching_ckpt_dirs(ckpt_dir_ref, outputs_dir=outputs_dir)
+        matching_dirs = find_matching_ckpt_dirs(ckpt_dir_ref, outputs_dir=args.outputs_dir)
 
-        plot_seed = 0
         all_mmd = []
         all_emd = []
-        tgt_latent_mode = "ideal" # alternatively: "mfm", "ideal"
+        tgt_latent_mode = "use_predictor"  # alternatives: "mfm", "ideal"
         
-        print(f"=" * 60)
+        print(f"{'=' * 60}")
         print(f"Predictor loss weight: {predictor_loss_weight}")
         print(f"Selective pairing mode: {selective_pairing_mode}")
-        print(f"Two step: {two_step}")
-        print(f"=" * 60)
+        print(f"Two step: {args.two_step}")
+        print(f"{'=' * 60}")
         
         for j, ckpt_dir in enumerate(matching_dirs):
-            cfg, ckpt_path = load_cfg_and_ckpt(ckpt_dir, outputs_dir=outputs_dir)
+            cfg, ckpt_path = load_cfg_and_ckpt(ckpt_dir, outputs_dir=args.outputs_dir)
             encoder, generator = load_models(cfg, ckpt_path)
             data = np.load(DATASET_CONFIGS[cfg.dataset_name]['data_path'])
 
             if tgt_latent_mode == "use_predictor":
-                # Extract predictor loss type and ridge_alpha from the saved config
-                loss_type, ridge_alpha = get_predictor_config_from_checkpoint(cfg)
+                # Build latent dataset
+                X, Y = build_latent_dataset(
+                    encoder, data, 
+                    two_step=args.two_step, 
+                    residual_mode=args.residual_mode
+                )
                 
-                if j == 0:
-                    print(f"Using matched predictor: loss_type={loss_type}, ridge_alpha={ridge_alpha}")
-                    print(f"Residual mode: {residual_mode}, Use CV: {use_cv}")
+                # Determine ridge_alpha (use CV or provided value)
+                ridge_alpha = args.ridge_alpha
+                if args.use_cv:
+                    cv_alphas = [float(x) for x in args.cv_ridge_alphas.split(',')]
+                    cv_result = cross_validate_predictor(
+                        X, Y, loss_type=args.loss_type,
+                        param_grid={'ridge_alpha': cv_alphas},
+                        n_folds=args.n_cv_folds,
+                        num_epochs=args.num_epochs, lr=args.lr,
+                        device=device, verbose=(j == 0)
+                    )
+                    ridge_alpha = cv_result['best_params']['ridge_alpha']
+                    if j == 0:
+                        print(f"CV selected ridge_alpha={ridge_alpha}")
                 
-                # Train predictor with matched loss function (feeds all data at once)
-                predictor = get_matched_predictor(
-                    encoder, 
-                    data, 
-                    loss_type=loss_type,
+                # Train predictor
+                predictor = LinearPredictor(X.shape[1], Y.shape[1])
+                predictor.fit(
+                    X, Y, loss_type=args.loss_type,
                     ridge_alpha=ridge_alpha,
-                    device=device, 
-                    seed=42, 
-                    two_step=two_step,
-                    residual_mode=residual_mode,
-                    num_epochs=1000,
-                    lr=1e-2,
-                    verbose=(j == 0 and use_cv),  # Only show CV verbose output for first seed
-                    use_cv=use_cv,
-                    cv_param_grid=cv_param_grid,
-                    n_cv_folds=n_cv_folds,
+                    num_epochs=args.num_epochs, lr=args.lr,
+                    device=device, verbose=False
                 )
             else:
                 predictor = None
 
-            forecast = generate_cde_forecast(cfg, data, encoder, generator, predictor=predictor, two_step=two_step, tgt_latent_mode=tgt_latent_mode)
+            forecast = generate_cde_forecast(
+                cfg, data, encoder, generator, 
+                predictor=predictor, two_step=args.two_step,
+                residual_mode=args.residual_mode, tgt_latent_mode=tgt_latent_mode
+            )
             mmd, emd = compute_scores(cfg, data, forecast)
             print(f"Seed {j}: MMD={mmd:.6f}, EMD={emd:.6f}")
             all_mmd.append(mmd)

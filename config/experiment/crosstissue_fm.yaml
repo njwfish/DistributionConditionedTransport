@@ -8,10 +8,10 @@ description: "Cross tissue atlas"
 defaults:
   - /dataset: crosstissue
   - /encoder: gnn
-  - /model: noise_mlp
-  - /generator: energy
+  - /model: diffusion_mlp
+  - /generator: flow_matching
   - /scheduler: cosine
-  - /training: default5000
+  - /training: default1000
   - /loss: default
 
 # Experiment-specific parameters

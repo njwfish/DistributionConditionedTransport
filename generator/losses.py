@@ -1,6 +1,41 @@
+import math
 import torch
 import warnings
+import ot as pot
+from functools import partial
 from geomloss import SamplesLoss
+
+
+def wasserstein(X: torch.Tensor, Y: torch.Tensor, p: int = 1) -> float:
+    """
+    Compute Wasserstein distance between two distributions using exact OT.
+    
+    Args:
+        X: (n, d) tensor - samples from distribution P
+        Y: (m, d) tensor - samples from distribution Q
+        p: Power of distance metric (1 for W1, 2 for W2)
+    
+    Returns:
+        Wasserstein distance (scalar)
+    """
+    assert p == 1 or p == 2, "p must be 1 or 2"
+    
+    a, b = pot.unif(X.shape[0]), pot.unif(Y.shape[0])
+    if X.dim() > 2:
+        X = X.reshape(X.shape[0], -1)
+    if Y.dim() > 2:
+        Y = Y.reshape(Y.shape[0], -1)
+    
+    M = torch.cdist(X, Y)
+    if p == 2:
+        M = M ** 2
+    
+    ret = pot.emd2(a, b, M.detach().cpu().numpy(), numItermax=1e7)
+    if p == 2:
+        ret = math.sqrt(ret)
+    
+    return ret
+
 
 def sliced_wasserstein_distance(X1, X2, n_projections=100, p=2):
     """
@@ -69,35 +104,52 @@ def compute_gamma(X: torch.Tensor, Y: torch.Tensor, p = 2) -> float:
     gamma = 1.0 / (2 * sigma ** 2)
     return gamma
 
-def mmd(X, Y, gamma=None, p: int = 2) -> torch.Tensor:
+def mmd(X, Y, gamma=None, p: int = 2, kernel: str = 'energy') -> torch.Tensor:
     """
-    Biased MMD² estimator with RBF kernel (includes diagonal terms)
+    Biased MMD² estimator with selectable kernel (includes diagonal terms)
     Compatible with PyTorch gradients
 
     Args:
         X: (n, d) tensor - samples from distribution P
         Y: (m, d) tensor - samples from distribution Q
-        gamma: RBF kernel bandwidth parameter (1/(2σ²))
+        gamma: RBF kernel bandwidth parameter (1/(2σ²)) - only used for 'rbf' kernel
+        p: Power for distance computation (default: 2 for Euclidean)
+        kernel: Kernel type - 'energy' (default, parameter-free) or 'rbf' (uses gamma)
 
     Returns:
         Scalar tensor containing MMD² (biased)
     """
-    if gamma is None:
-        gamma = compute_gamma(X, Y, p)
-    
-    # Compute pairwise squared distances
-    XX = torch.cdist(X, X, p=p).pow(p)  # (n, n)
-    YY = torch.cdist(Y, Y, p=p).pow(p)  # (m, m)
-    XY = torch.cdist(X, Y, p=p).pow(p)  # (n, m)
+    # Compute pairwise distances
+    XX = torch.cdist(X, X, p=p)  # (n, n)
+    YY = torch.cdist(Y, Y, p=p)  # (m, m)
+    XY = torch.cdist(X, Y, p=p)  # (n, m)
 
-    # Compute RBF kernels
-    K_XX = torch.exp(-gamma * XX)
-    K_YY = torch.exp(-gamma * YY)
-    K_XY = torch.exp(-gamma * XY)
+    if kernel == 'energy':
+        # Energy kernel: K(x, y) = -||x - y||
+        # MMD² = -D_XX.mean() - D_YY.mean() + 2 * D_XY.mean()
+        #      = 2 * D_XY.mean() - D_XX.mean() - D_YY.mean()
+        # This is the energy distance (parameter-free, beta=1)
+        mmd_squared = 2 * XY.mean() - XX.mean() - YY.mean()
+    elif kernel == 'rbf':
+        # RBF (Gaussian) kernel: K(x, y) = exp(-gamma * ||x - y||²)
+        if gamma is None:
+            gamma = compute_gamma(X, Y, p)
 
-    # Compute biased MMD² (includes diagonal terms)
-    mmd_squared = K_XX.mean() + K_YY.mean() - 2 * K_XY.mean()
-    
+        # Square distances for RBF
+        XX_sq = XX.pow(p)
+        YY_sq = YY.pow(p)
+        XY_sq = XY.pow(p)
+
+        # Compute RBF kernels
+        K_XX = torch.exp(-gamma * XX_sq)
+        K_YY = torch.exp(-gamma * YY_sq)
+        K_XY = torch.exp(-gamma * XY_sq)
+
+        # Compute biased MMD² (includes diagonal terms)
+        mmd_squared = K_XX.mean() + K_YY.mean() - 2 * K_XY.mean()
+    else:
+        raise ValueError(f"Unknown kernel type: {kernel}. Use 'energy' or 'rbf'.")
+
     return mmd_squared
 
 

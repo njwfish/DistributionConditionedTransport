@@ -1,13 +1,10 @@
 import os
 import sys
 import argparse
-import math
 import numpy as np
 import torch
 import torch.nn as nn
-from typing import Optional
-import ot as pot
-from functools import partial
+from typing import Literal
 
 from utils.latents import normalize_latent, normalize_latent_np
 from utils.predictor import LinearPredictor
@@ -17,50 +14,30 @@ from utils.experiment_utils import (
     is_source_only_model,
     find_experiment_dir,
 )
+from generator.losses import wasserstein, mmd
 
 
-def wasserstein(
-    x0: torch.Tensor,
-    x1: torch.Tensor,
-    method: Optional[str] = None,
-    reg: float = 0.05,
-    power: int = 2,
-    **kwargs,
-) -> float:
-    assert power == 1 or power == 2
-    if method == "exact" or method is None:
-        ot_fn = pot.emd2
-    elif method == "sinkhorn":
-        ot_fn = partial(pot.sinkhorn2, reg=reg)
-    else:
-        raise ValueError(f"Unknown method: {method}")
-
-    a, b = pot.unif(x0.shape[0]), pot.unif(x1.shape[0])
-    if x0.dim() > 2:
-        x0 = x0.reshape(x0.shape[0], -1)
-    if x1.dim() > 2:
-        x1 = x1.reshape(x1.shape[0], -1)
-    M = torch.cdist(x0, x1)
-    if power == 2:
-        M = M**2
-    ret = ot_fn(a, b, M.detach().cpu().numpy(), numItermax=1e7)
-    if power == 2:
-        ret = math.sqrt(ret)
-    return ret
-
-def compute_all_metrics(
+def compute_metric(
     pred: torch.Tensor, 
     target: torch.Tensor, 
-    max_samples_w1: Optional[int] = None,
-):
-    """Compute W1 distance between two distributions."""
-    if max_samples_w1 is not None:
-        if pred.shape[0] > max_samples_w1:
-            pred = pred[torch.randperm(pred.shape[0])[:max_samples_w1]]
-        if target.shape[0] > max_samples_w1:
-            target = target[torch.randperm(target.shape[0])[:max_samples_w1]]
+    metric: Literal["w1", "mmd"] = "w1",
+) -> float:
+    """Compute distance metric between two distributions.
     
-    return {'W1': wasserstein(pred, target, power=1)}
+    Args:
+        pred: Predicted samples tensor
+        target: Target samples tensor
+        metric: Metric to compute - "w1" (Wasserstein-1) or "mmd" (energy MMD)
+    
+    Returns:
+        Computed metric value
+    """
+    if metric == "w1":
+        return wasserstein(pred, target, p=1)
+    elif metric == "mmd":
+        return mmd(pred, target, kernel='energy').item()
+    else:
+        raise ValueError(f"Unknown metric: {metric}")
 
 # ============================================================================
 # Latent Caching and Predictor Training
@@ -153,9 +130,9 @@ def evaluate_sample(
     source_latent: np.ndarray,
     target_latent: np.ndarray,
     device: torch.device,
+    metric: Literal["w1", "mmd"] = "w1",
     predictor = None,
     compute_baseline: bool = False,
-    max_samples_w1: Optional[int] = None,
     normalize_predicted_latent: bool = True,
     is_source_only: bool = False,
 ):
@@ -163,9 +140,9 @@ def evaluate_sample(
     x0_tensor = torch.tensor(x0, dtype=torch.float32, device=device)
     x1_tensor = torch.tensor(x1, dtype=torch.float32, device=device)
     
-    baseline_metrics = None
+    baseline_metric = None
     if compute_baseline:
-        baseline_metrics = compute_all_metrics(x0_tensor, x1_tensor, max_samples_w1=max_samples_w1)
+        baseline_metric = compute_metric(x0_tensor, x1_tensor, metric=metric)
     
     source_latent_tensor = torch.tensor(source_latent, dtype=torch.float32, device=device)
     
@@ -191,16 +168,16 @@ def evaluate_sample(
         # Reshape: generator returns [num_sets, num_samples, dim], we want [num_samples, dim]
         x1_pred = x1_pred.squeeze(0)  # [N, dim]
     
-    # Compute model metrics
-    model_metrics = compute_all_metrics(x1_pred, x1_tensor, max_samples_w1=max_samples_w1)
+    # Compute model metric
+    model_metric = compute_metric(x1_pred, x1_tensor, metric=metric)
     
     result = {
         'x1_pred': x1_pred.cpu().numpy(),
-        'model': model_metrics,
+        'model_metric': model_metric,
     }
     
     if compute_baseline:
-        result['baseline'] = baseline_metrics
+        result['baseline_metric'] = baseline_metric
     
     return result
 
@@ -238,10 +215,11 @@ def main():
         help="Compute baseline metrics (x0 vs x1)"
     )
     parser.add_argument(
-        "--max_samples_w1",
-        type=int,
-        default=30000,
-        help="Max samples for W1 computation. Set to 0 to disable subsampling."
+        "--metric",
+        type=str,
+        choices=["w1", "mmd"],
+        default="w1",
+        help="Metric to compute: 'w1' (Wasserstein-1) or 'mmd' (energy MMD)"
     )
     parser.add_argument(
         "--use_predictor",
@@ -312,23 +290,19 @@ def main():
         print("Mode: Using LINEAR predictor as target latent")
     else:
         print("Mode: Using oracle E(x1) as target latent")
-
-    max_samples_w1 = args.max_samples_w1 if args.max_samples_w1 > 0 else None
-    if max_samples_w1 is not None:
-        print(f"W1 subsampling: max {max_samples_w1} samples from source/target")
+    
+    metric_name = args.metric.upper()
+    print(f"Metric: {metric_name}")
     print("=" * 80)
     
-    metric_names = ['W1']
-    
-    all_model_metrics = {name: [] for name in metric_names}
-    all_baseline_metrics = {name: [] for name in metric_names} if args.compute_baseline else None
+    all_model_metrics = []
+    all_baseline_metrics = [] if args.compute_baseline else None
     
     for i, sample in enumerate(test_samples):
         culture, x0, x1, cell_cond_source, cell_cond_target, treat_cond, patient = sample
         
         source_latent = test_source_latents[i:i+1]
         target_latent = test_target_latents[i:i+1]
-        sample_treat_cond = test_treat_conds[i:i+1]
         
         print(f"\nSample {i + 1}/{len(test_samples)}:")
         print(f"  Culture: {culture}, Patient: {patient}")
@@ -336,61 +310,40 @@ def main():
         
         # Evaluate
         results = evaluate_sample(
-            generator, x0, x1, source_latent, target_latent, device, 
+            generator, x0, x1, source_latent, target_latent, device,
+            metric=args.metric,
             predictor=predictor,
             compute_baseline=args.compute_baseline,
-            max_samples_w1=max_samples_w1,
             normalize_predicted_latent=True,
             is_source_only=is_source_only,
         )
         
-        model = results['model']
+        model_metric = results['model_metric']
+        all_model_metrics.append(model_metric)
         
         if args.compute_baseline:
-            baseline = results['baseline']
-            print(f"  {'Metric':<6} {'Model (pred vs true)':>20} {'Baseline (x0 vs true)':>22}")
-            print(f"  {'-'*6} {'-'*20} {'-'*22}")
-            for metric_name in metric_names:
-                print(f"  {metric_name:<6} {model[metric_name]:>20.6f} {baseline[metric_name]:>22.6f}")
+            baseline_metric = results['baseline_metric']
+            all_baseline_metrics.append(baseline_metric)
+            print(f"  {metric_name:<6} Model: {model_metric:>12.6f}  Baseline: {baseline_metric:>12.6f}")
         else:
-            print(f"  {'Metric':<6} {'Model (pred vs true)':>20}")
-            print(f"  {'-'*6} {'-'*20}")
-            for metric_name in metric_names:
-                print(f"  {metric_name:<6} {model[metric_name]:>20.6f}")
-        
-        for key in metric_names:
-            all_model_metrics[key].append(model[key])
-            if args.compute_baseline:
-                all_baseline_metrics[key].append(results['baseline'][key])
+            print(f"  {metric_name:<6} Model: {model_metric:>12.6f}")
     
     # Print final summary table
     print("\n" + "=" * 80)
     print("FINAL RESULTS (mean +/- std)")
     print("=" * 80)
     
+    model_mean = np.mean(all_model_metrics)
+    model_std = np.std(all_model_metrics)
+    model_str = f"{model_mean:.4f} +/- {model_std:.4f}"
+    
     if args.compute_baseline:
-        print(f"{'Metric':<6} {'Model (pred vs true)':>25} {'Baseline (x0 vs true)':>25}")
-        print(f"{'-'*6} {'-'*25} {'-'*25}")
-        
-        for metric_name in metric_names:
-            model_mean = np.mean(all_model_metrics[metric_name])
-            model_std = np.std(all_model_metrics[metric_name])
-            baseline_mean = np.mean(all_baseline_metrics[metric_name])
-            baseline_std = np.std(all_baseline_metrics[metric_name])
-            
-            model_str = f"{model_mean:.4f} +/- {model_std:.4f}"
-            baseline_str = f"{baseline_mean:.4f} +/- {baseline_std:.4f}"
-            print(f"{metric_name:<6} {model_str:>25} {baseline_str:>25}")
+        baseline_mean = np.mean(all_baseline_metrics)
+        baseline_std = np.std(all_baseline_metrics)
+        baseline_str = f"{baseline_mean:.4f} +/- {baseline_std:.4f}"
+        print(f"{metric_name:<6} Model: {model_str:>20}  Baseline: {baseline_str:>20}")
     else:
-        print(f"{'Metric':<6} {'Model (pred vs true)':>25}")
-        print(f"{'-'*6} {'-'*25}")
-        
-        for metric_name in metric_names:
-            model_mean = np.mean(all_model_metrics[metric_name])
-            model_std = np.std(all_model_metrics[metric_name])
-            
-            model_str = f"{model_mean:.4f} +/- {model_std:.4f}"
-            print(f"{metric_name:<6} {model_str:>25}")
+        print(f"{metric_name:<6} Model: {model_str:>20}")
 
 
 if __name__ == "__main__":

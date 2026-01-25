@@ -13,7 +13,7 @@ defaults:
   - /training: default5000
   - /loss: default_source_only
   - /sampling: default
-  - /coupling: emd
+  #- /coupling: emd
 
 # predictor parameters
 predictor_loss_weight: 0.0

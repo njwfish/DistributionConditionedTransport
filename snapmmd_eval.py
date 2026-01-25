@@ -380,6 +380,8 @@ parser.add_argument("--ckpt_prefix", type=str, default="snapMMD_gnn_P",
                     help="Checkpoint directory prefix to search for")
 parser.add_argument("--outputs_dir", type=str, default="outputs",
                     help="Directory containing model outputs")
+parser.add_argument("--tgt_latent_mode", type=str, default="use_predictor", choices=["use_predictor", "mfm", "ideal"],
+                    help="Target latent mode: use_predictor, mfm, ideal (default: use_predictor)")
 parser.add_argument("--residual_mode", type=lambda x: x.lower() in ('true', '1', 'yes'),
                     default=False, 
                     help="Predictor learns (target - source) residual and adds to source")
@@ -393,8 +395,8 @@ parser.add_argument("--lr", type=float, default=1e-2,
                     help="Learning rate for predictor (default: 1e-2)")
 parser.add_argument("--use_cv", type=lambda x: x.lower() in ('true', '1', 'yes'),
                     default=False, help="Use cross-validation for hyperparameter tuning")
-parser.add_argument("--n_cv_folds", type=int, default=5,
-                    help="Number of CV folds (default: 5)")
+parser.add_argument("--n_cv_folds", type=int, default=9,
+                    help="Number of CV folds (default: 9)")
 parser.add_argument("--cv_ridge_alphas", type=str, default="1e-5,1e-4,1e-3,1e-2,1e-1,1.0",
                     help="Comma-separated ridge alphas for CV search")
 args = parser.parse_args()
@@ -431,7 +433,7 @@ for predictor_loss_weight in predictor_loss_weights:
 
         all_mmd = []
         all_emd = []
-        tgt_latent_mode = "use_predictor"  # alternatives: "mfm", "ideal"
+        tgt_latent_mode = args.tgt_latent_mode  # alternatives: "mfm", "ideal"
         
         print(f"{'=' * 60}")
         print(f"Predictor loss weight: {predictor_loss_weight}")

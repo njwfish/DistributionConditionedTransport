@@ -18,6 +18,7 @@ class CrossTissueDataset(Dataset):
         seed: Optional[int] = None,
         data_shape: Optional[List[int]] = None,
         n_unique_sets: Optional[int] = None,
+        n_pcs: int = 10
     ):
         if seed is not None:
             np.random.seed(seed)
@@ -29,10 +30,12 @@ class CrossTissueDataset(Dataset):
         self.set_size = set_size
         self.min_cells = min_cells
         self.root = Path(root)
-
+        self.n_pcs = n_pcs
         # Load data
         # print(os.listdir(self.root))
         adata = sc.read(self.root / 'eraslan2022.h5ad')
+
+        adata.obsm['X_pca'] = adata.obsm['X_pca'][:, :self.n_pcs]
         
         # rescale PCs to unit variance zero mean
         adata.obsm['X_pca'] = (adata.obsm['X_pca'] - np.mean(adata.obsm['X_pca'], axis=0)) / np.std(adata.obsm['X_pca'], axis=0)

@@ -40,19 +40,13 @@ def compute_metric(
         raise ValueError(f"Unknown metric: {metric}")
 
 # ============================================================================
-# Latent Caching and Predictor Training
+# Latent Computation and Predictor Training
 # ============================================================================
 
-def get_latent_cache_path(experiment_dir: str, split: str) -> str:
-    """Get the path for caching latents for a given split."""
-    return os.path.join(experiment_dir, f"{split}_latents_cache_unified.pt")
-
-
-def compute_and_cache_latents(
+def compute_latents(
     encoder: torch.nn.Module,
     samples: list,
     device: torch.device,
-    cache_path: str,
     split_name: str = "dataset",
 ) -> tuple:
     """Compute E(x0) and E(x1) for all samples. Returns (source_latents, target_latents, treat_conds)."""
@@ -80,13 +74,6 @@ def compute_and_cache_latents(
     source_latents = np.vstack(source_latents)
     target_latents = np.vstack(target_latents)
     treat_conds = np.vstack(treat_conds)
-    
-    print(f"Saving {split_name} latents to {cache_path}")
-    torch.save({
-        'source_latents': source_latents,
-        'target_latents': target_latents,
-        'treat_conds': treat_conds,
-    }, cache_path)
     
     return source_latents, target_latents, treat_conds
 
@@ -257,14 +244,13 @@ def main():
     test_samples = dataset.samples_test
     train_samples = dataset.samples_train
     
-    # Compute and cache latents
+    # Compute latents
     print("\n" + "=" * 80)
-    print("COMPUTING/LOADING LATENTS")
+    print("COMPUTING LATENTS")
     print("=" * 80)
     
-    test_cache_path = get_latent_cache_path(args.experiment_dir, "test")
-    test_source_latents, test_target_latents, test_treat_conds = compute_and_cache_latents(
-        encoder, test_samples, device, test_cache_path, split_name="test"
+    test_source_latents, test_target_latents, test_treat_conds = compute_latents(
+        encoder, test_samples, device, split_name="test"
     )
     
     # Train predictor if requested
@@ -274,9 +260,8 @@ def main():
         print("TRAINING LINEAR PREDICTOR")
         print("=" * 80)
         
-        train_cache_path = get_latent_cache_path(args.experiment_dir, "train")
-        train_source_latents, train_target_latents, _ = compute_and_cache_latents(
-            encoder, train_samples, device, train_cache_path, split_name="train"
+        train_source_latents, train_target_latents, _ = compute_latents(
+            encoder, train_samples, device, split_name="train"
         )
         
         predictor = train_linear_predictor(train_source_latents, train_target_latents, device=device)

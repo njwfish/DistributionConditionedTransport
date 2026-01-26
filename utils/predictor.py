@@ -1,9 +1,14 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from typing import Literal, Optional, Dict, List, Any
+from typing import Literal, Optional, Dict, List, Any, Union
 from sklearn.model_selection import KFold
+from sklearn.linear_model import Ridge
 from itertools import product
+
+
+# Type alias for all predictor types
+PredictorType = Union["LinearPredictor", "RidgePredictor", "MLPPredictor"]
 
 
 class LinearPredictor(nn.Module):
@@ -82,9 +87,210 @@ class LinearPredictor(nn.Module):
             return self(X_t).cpu().numpy()
 
 
+class RidgePredictor:
+    """
+    Sklearn-based Ridge regression predictor with closed-form solution.
+    
+    This is equivalent to LinearPredictor with MSE loss, but uses sklearn's
+    exact closed-form solution instead of gradient descent. Does not support
+    cosine loss.
+    """
+    
+    def __init__(self, input_dim: int = None, output_dim: int = None):
+        """
+        Initialize the predictor. Dimensions are inferred from data during fit.
+        """
+        self.model = None
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+    
+    def fit(
+        self,
+        X: np.ndarray,
+        Y: np.ndarray,
+        ridge_alpha: float = 1.0,
+        **kwargs,  # Accept but ignore other arguments for compatibility
+    ) -> "RidgePredictor":
+        """
+        Fit the predictor using sklearn's Ridge regression.
+        
+        Args:
+            X: Input features [n_samples, input_dim]
+            Y: Target features [n_samples, output_dim]
+            ridge_alpha: Regularization strength (sklearn's alpha parameter)
+        """
+        self.input_dim = X.shape[1]
+        self.output_dim = Y.shape[1]
+        
+        # Use Ridge regression with multi-output support
+        self.model = Ridge(alpha=ridge_alpha, fit_intercept=True)
+        self.model.fit(X, Y)
+        
+        return self
+    
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        """Predict on numpy array input."""
+        if self.model is None:
+            raise RuntimeError("Model has not been fitted yet. Call fit() first.")
+        return self.model.predict(X)
+
+
+class MLPPredictor(nn.Module):
+    """
+    Simple MLP predictor with dropout and weight decay regularization.
+    
+    Architecture: input -> hidden1 -> ReLU -> Dropout -> hidden2 -> ReLU -> Dropout -> output
+    
+    Designed for small datasets (~1000 samples) with moderate dimensionality (~50).
+    """
+    
+    def __init__(
+        self,
+        input_dim: int,
+        output_dim: int,
+        hidden_dim: int = 128,
+        dropout: float = 0.1,
+    ):
+        super().__init__()
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.hidden_dim = hidden_dim
+        self.dropout_rate = dropout
+        
+        self.network = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, output_dim),
+        )
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.network(x)
+    
+    def fit(
+        self,
+        X: np.ndarray,
+        Y: np.ndarray,
+        loss_type: Literal["mse", "cosine"] = "mse",
+        weight_decay: float = 1e-3,
+        num_epochs: int = 1000,
+        lr: float = 1e-3,
+        device: torch.device = None,
+        verbose: bool = False,
+        **kwargs,  # Accept but ignore other arguments for compatibility
+    ) -> "MLPPredictor":
+        """
+        Fit the MLP predictor to data.
+        
+        Args:
+            X: Input features [n_samples, input_dim]
+            Y: Target features [n_samples, output_dim]
+            loss_type: "mse" or "cosine"
+            weight_decay: L2 regularization weight (Adam weight_decay parameter)
+            num_epochs: Number of training epochs
+            lr: Learning rate
+            device: Device to train on
+            verbose: Print progress
+        """
+        if device is None:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        self.to(device)
+        optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)
+        
+        X_t = torch.tensor(X, dtype=torch.float32, device=device)
+        Y_t = torch.tensor(Y, dtype=torch.float32, device=device)
+        
+        cos_sim = nn.CosineSimilarity(dim=-1)
+        
+        self.train()
+        for epoch in range(num_epochs):
+            optimizer.zero_grad()
+            pred = self(X_t)
+            
+            if loss_type == "cosine":
+                loss = (1 - cos_sim(pred, Y_t)).mean()
+            else:  # mse
+                loss = (pred - Y_t).pow(2).mean()
+            
+            loss.backward()
+            optimizer.step()
+            
+            if verbose and (epoch + 1) % 100 == 0:
+                print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {loss.item():.6f}")
+        
+        self.eval()
+        return self
+    
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        """Predict on numpy array input."""
+        self.eval()
+        device = next(self.parameters()).device
+        with torch.no_grad():
+            X_t = torch.tensor(X, dtype=torch.float32, device=device)
+            return self(X_t).cpu().numpy()
+
+
+def create_predictor(
+    predictor_type: Literal["linear", "ridge", "mlp"],
+    input_dim: int,
+    output_dim: int,
+    **kwargs,
+) -> PredictorType:
+    """
+    Factory function to create a predictor of the specified type.
+    
+    Args:
+        predictor_type: Type of predictor ("linear", "ridge", or "mlp")
+        input_dim: Input dimension
+        output_dim: Output dimension
+        **kwargs: Additional arguments passed to predictor constructor
+    
+    Returns:
+        Predictor instance
+    """
+    if predictor_type == "linear":
+        return LinearPredictor(input_dim, output_dim)
+    elif predictor_type == "ridge":
+        return RidgePredictor(input_dim, output_dim)
+    elif predictor_type == "mlp":
+        hidden_dim = kwargs.get('hidden_dim', 128)
+        dropout = kwargs.get('dropout', 0.1)
+        return MLPPredictor(input_dim, output_dim, hidden_dim=hidden_dim, dropout=dropout)
+    else:
+        raise ValueError(f"Unknown predictor type: {predictor_type}")
+
+
+def get_default_param_grid(predictor_type: Literal["linear", "ridge", "mlp"]) -> Dict[str, List[Any]]:
+    """
+    Get the default parameter grid for cross-validation based on predictor type.
+    
+    Args:
+        predictor_type: Type of predictor
+    
+    Returns:
+        Dictionary of parameter names to lists of values to try
+    """
+    if predictor_type == "linear":
+        return {'ridge_alpha': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0]}
+    elif predictor_type == "ridge":
+        return {'ridge_alpha': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0]}
+    elif predictor_type == "mlp":
+        return {
+            'weight_decay': [1e-5, 1e-4, 1e-3, 1e-2],
+            'dropout': [0.0, 0.1, 0.2, 0.3],
+        }
+    else:
+        raise ValueError(f"Unknown predictor type: {predictor_type}")
+
+
 def cross_validate_predictor(
     X: np.ndarray,
     Y: np.ndarray,
+    predictor_type: Literal["linear", "ridge", "mlp"] = "linear",
     loss_type: Literal["mse", "cosine"] = "mse",
     param_grid: Optional[Dict[str, List[Any]]] = None,
     n_folds: int = 5,
@@ -97,10 +303,27 @@ def cross_validate_predictor(
     """
     Cross-validation to find optimal hyperparameters.
     
-    Returns dict with 'best_params', 'best_score', 'cv_results'.
+    Args:
+        X: Input features [n_samples, input_dim]
+        Y: Target features [n_samples, output_dim]
+        predictor_type: Type of predictor ("linear", "ridge", or "mlp")
+        loss_type: Loss function ("mse" or "cosine"). Note: "ridge" only supports "mse".
+        param_grid: Dictionary of hyperparameter lists to search. If None, uses defaults.
+        n_folds: Number of cross-validation folds
+        num_epochs: Number of training epochs (ignored for "ridge")
+        lr: Learning rate (ignored for "ridge")
+        device: Device for training (ignored for "ridge")
+        seed: Random seed for reproducibility
+        verbose: Print detailed progress
+    
+    Returns:
+        Dict with 'best_params', 'best_score', 'cv_results'.
     """
+    if predictor_type == "ridge" and loss_type == "cosine":
+        raise ValueError("RidgePredictor does not support cosine loss. Use 'linear' or 'mlp' instead.")
+    
     if param_grid is None:
-        param_grid = {'ridge_alpha': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0]}
+        param_grid = get_default_param_grid(predictor_type)
     
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -116,17 +339,42 @@ def cross_validate_predictor(
     
     for params in param_combinations:
         fold_scores = []
-        ridge_alpha = params.get('ridge_alpha', 1e-3)
-        current_lr = params.get('lr', lr)
-        current_epochs = params.get('num_epochs', num_epochs)
         
         for train_idx, val_idx in kf.split(X):
             X_train, X_val = X[train_idx], X[val_idx]
             Y_train, Y_val = Y[train_idx], Y[val_idx]
             
-            model = LinearPredictor(X.shape[1], Y.shape[1])
-            model.fit(X_train, Y_train, loss_type=loss_type, ridge_alpha=ridge_alpha,
-                      num_epochs=current_epochs, lr=current_lr, device=device)
+            # For MLP, separate constructor params (dropout) from fit params (weight_decay)
+            if predictor_type == "mlp":
+                constructor_params = {k: v for k, v in params.items() if k in ['dropout', 'hidden_dim']}
+                fit_params = {k: v for k, v in params.items() if k not in ['dropout', 'hidden_dim']}
+            else:
+                constructor_params = {}
+                fit_params = params
+            
+            # Create model with constructor params
+            model = create_predictor(predictor_type, X.shape[1], Y.shape[1], **constructor_params)
+            
+            if predictor_type == "ridge":
+                model.fit(X_train, Y_train, **fit_params)
+            elif predictor_type == "mlp":
+                model.fit(
+                    X_train, Y_train,
+                    loss_type=loss_type,
+                    num_epochs=num_epochs,
+                    lr=lr,
+                    device=device,
+                    **fit_params
+                )
+            else:  # linear
+                model.fit(
+                    X_train, Y_train,
+                    loss_type=loss_type,
+                    num_epochs=num_epochs,
+                    lr=lr,
+                    device=device,
+                    **fit_params
+                )
             
             # Compute validation loss
             pred = model.predict(X_val)
@@ -159,6 +407,7 @@ def cross_validate_predictor_by_patient(
     X: np.ndarray,
     Y: np.ndarray,
     patient_ids: np.ndarray,
+    predictor_type: Literal["linear", "ridge", "mlp"] = "linear",
     loss_type: Literal["mse", "cosine"] = "mse",
     param_grid: Optional[Dict[str, List[Any]]] = None,
     holdout_fraction: float = 1.0,
@@ -180,24 +429,28 @@ def cross_validate_predictor_by_patient(
         X: Input features [n_samples, input_dim]
         Y: Target features [n_samples, output_dim]
         patient_ids: Patient ID for each sample [n_samples]
-        loss_type: "mse" or "cosine"
-        param_grid: Dictionary of hyperparameter lists to search
+        predictor_type: Type of predictor ("linear", "ridge", or "mlp")
+        loss_type: "mse" or "cosine". Note: "ridge" only supports "mse".
+        param_grid: Dictionary of hyperparameter lists to search. If None, uses defaults.
         holdout_fraction: Fraction of each patient's samples to hold out (0.0-1.0).
                           If 1.0, all samples from the patient are held out.
         folds_per_patient: Number of CV folds per patient. When holdout_fraction < 1.0,
                            different random subsets of the patient's samples are held out
                            for each fold. When holdout_fraction == 1.0, this is effectively 1.
-        num_epochs: Number of training epochs per fold
-        lr: Learning rate
-        device: Device for training
+        num_epochs: Number of training epochs per fold (ignored for "ridge")
+        lr: Learning rate (ignored for "ridge")
+        device: Device for training (ignored for "ridge")
         seed: Random seed for reproducibility
         verbose: Print detailed progress
     
     Returns:
         Dictionary with 'best_params', 'best_score', 'cv_results', 'fold_details'
     """
+    if predictor_type == "ridge" and loss_type == "cosine":
+        raise ValueError("RidgePredictor does not support cosine loss. Use 'linear' or 'mlp' instead.")
+    
     if param_grid is None:
-        param_grid = {'ridge_alpha': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0]}
+        param_grid = get_default_param_grid(predictor_type)
     
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -208,6 +461,7 @@ def cross_validate_predictor_by_patient(
     
     if verbose:
         print(f"Patient-based CV: {n_patients} unique patients")
+        print(f"  Predictor type: {predictor_type}")
         print(f"  Holdout fraction: {holdout_fraction}")
         print(f"  Folds per patient: {folds_per_patient}")
     
@@ -230,9 +484,6 @@ def cross_validate_predictor_by_patient(
     for params in param_combinations:
         fold_scores = []
         fold_details = []
-        ridge_alpha = params.get('ridge_alpha', 1e-3)
-        current_lr = params.get('lr', lr)
-        current_epochs = params.get('num_epochs', num_epochs)
         
         for patient in unique_patients:
             # Get indices for this patient
@@ -268,15 +519,37 @@ def cross_validate_predictor_by_patient(
                 X_train, X_val = X[train_indices], X[val_indices]
                 Y_train, Y_val = Y[train_indices], Y[val_indices]
                 
-                model = LinearPredictor(X.shape[1], Y.shape[1])
-                model.fit(
-                    X_train, Y_train,
-                    loss_type=loss_type,
-                    ridge_alpha=ridge_alpha,
-                    num_epochs=current_epochs,
-                    lr=current_lr,
-                    device=device
-                )
+                # For MLP, separate constructor params (dropout) from fit params (weight_decay)
+                if predictor_type == "mlp":
+                    constructor_params = {k: v for k, v in params.items() if k in ['dropout', 'hidden_dim']}
+                    fit_params = {k: v for k, v in params.items() if k not in ['dropout', 'hidden_dim']}
+                else:
+                    constructor_params = {}
+                    fit_params = params
+                
+                # Create model with constructor params
+                model = create_predictor(predictor_type, X.shape[1], Y.shape[1], **constructor_params)
+                
+                if predictor_type == "ridge":
+                    model.fit(X_train, Y_train, **fit_params)
+                elif predictor_type == "mlp":
+                    model.fit(
+                        X_train, Y_train,
+                        loss_type=loss_type,
+                        num_epochs=num_epochs,
+                        lr=lr,
+                        device=device,
+                        **fit_params
+                    )
+                else:  # linear
+                    model.fit(
+                        X_train, Y_train,
+                        loss_type=loss_type,
+                        num_epochs=num_epochs,
+                        lr=lr,
+                        device=device,
+                        **fit_params
+                    )
                 
                 # Compute validation loss
                 pred = model.predict(X_val)

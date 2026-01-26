@@ -12,6 +12,8 @@ from utils.latents import normalize_latent, normalize_latent_np
 from utils.predictor import (
     LinearPredictor,
     RidgePredictor,
+    KernelRidgePredictor,
+    PLSPredictor,
     MLPPredictor,
     PredictorType,
     create_predictor,
@@ -310,7 +312,7 @@ def train_predictor(
                 predictor_type=predictor_type,
                 loss_type=loss_type,
                 param_grid=param_grid,
-                n_folds=10,
+                n_folds=5,
                 num_epochs=num_epochs,
                 lr=lr,
                 device=device,
@@ -325,6 +327,10 @@ def train_predictor(
             best_params = {'ridge_alpha': ridge_alpha}
         elif predictor_type == "ridge":
             best_params = {'ridge_alpha': ridge_alpha}
+        elif predictor_type == "kernel_ridge":
+            best_params = {'alpha': 1.0, 'gamma': None}
+        elif predictor_type == "pls":
+            best_params = {'n_components': 10}
         elif predictor_type == "mlp":
             best_params = {'weight_decay': 1e-3, 'dropout': 0.1}
     
@@ -341,6 +347,20 @@ def train_predictor(
     
     if predictor_type == "ridge":
         print(f"  ridge_alpha={fit_params.get('ridge_alpha', 1.0)}")
+        predictor.fit(
+            source_latents_conditioned,
+            prediction_target,
+            **fit_params,
+        )
+    elif predictor_type == "kernel_ridge":
+        print(f"  alpha={fit_params.get('alpha', 1.0)}, gamma={fit_params.get('gamma', None)}")
+        predictor.fit(
+            source_latents_conditioned,
+            prediction_target,
+            **fit_params,
+        )
+    elif predictor_type == "pls":
+        print(f"  n_components={fit_params.get('n_components', 10)}")
         predictor.fit(
             source_latents_conditioned,
             prediction_target,
@@ -551,10 +571,12 @@ def main():
     parser.add_argument(
         "--predictor_type",
         type=str,
-        choices=["linear", "ridge", "mlp"],
+        choices=["linear", "ridge", "kernel_ridge", "pls", "mlp"],
         default="linear",
         help="Type of predictor model: 'linear' (gradient descent with cosine/mse loss), "
              "'ridge' (sklearn Ridge regression, exact solution, mse only), "
+             "'kernel_ridge' (sklearn Kernel Ridge with RBF kernel, captures nonlinearities), "
+             "'pls' (Partial Least Squares, good for high-dim with limited samples), "
              "'mlp' (multi-layer perceptron with regularization). Default: linear"
     )
     parser.add_argument(
@@ -606,8 +628,9 @@ def main():
     if args.patient_cv and not args.use_predictor:
         print("WARNING: --patient_cv has no effect without --use_predictor")
     
-    if args.predictor_type == "ridge" and args.predictor_loss == "cosine":
-        raise ValueError("Ridge predictor does not support cosine loss. Use --predictor_type linear or mlp instead.")
+    sklearn_predictors = ["ridge", "kernel_ridge", "pls"]
+    if args.predictor_type in sklearn_predictors and args.predictor_loss == "cosine":
+        raise ValueError(f"{args.predictor_type} predictor does not support cosine loss. Use --predictor_type linear or mlp instead.")
     
     if args.train_on_test:
         print("WARNING: CHEAT MODE enabled - predictor will be trained on train+test data combined!")

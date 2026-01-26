@@ -1,6 +1,41 @@
+import math
 import torch
 import warnings
+import ot as pot
+from functools import partial
 from geomloss import SamplesLoss
+
+
+def wasserstein(X: torch.Tensor, Y: torch.Tensor, p: int = 1) -> float:
+    """
+    Compute Wasserstein distance between two distributions using exact OT.
+    
+    Args:
+        X: (n, d) tensor - samples from distribution P
+        Y: (m, d) tensor - samples from distribution Q
+        p: Power of distance metric (1 for W1, 2 for W2)
+    
+    Returns:
+        Wasserstein distance (scalar)
+    """
+    assert p == 1 or p == 2, "p must be 1 or 2"
+    
+    a, b = pot.unif(X.shape[0]), pot.unif(Y.shape[0])
+    if X.dim() > 2:
+        X = X.reshape(X.shape[0], -1)
+    if Y.dim() > 2:
+        Y = Y.reshape(Y.shape[0], -1)
+    
+    M = torch.cdist(X, Y)
+    if p == 2:
+        M = M ** 2
+    
+    ret = pot.emd2(a, b, M.detach().cpu().numpy(), numItermax=1e7)
+    if p == 2:
+        ret = math.sqrt(ret)
+    
+    return ret
+
 
 def sliced_wasserstein_distance(X1, X2, n_projections=100, p=2):
     """

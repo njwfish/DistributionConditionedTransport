@@ -1,0 +1,11 @@
+# @package _global_.model
+_target_: layers.MLP
+in_dims:
+  - ${dataset.data_shape[0]}
+  - 1
+  - ${experiment.latent_dim}
+  - ${experiment.latent_dim}
+  - 11  # treatment one-hot encoding dimension (11 treatments)
+hidden_dim: ${experiment.hidden_dim}
+out_dim: ${dataset.data_shape[0]}
+layers: 4

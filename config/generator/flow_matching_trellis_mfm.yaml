@@ -1,0 +1,8 @@
+# @package _global_
+defaults:
+  - override /model: diffusion_mlp_trellis_mfm
+
+generator:
+  _target_: generator.flow_matching_trellis_mfm.FlowMatchingGenerator
+  model: ${model}
+  sigma: 0.5

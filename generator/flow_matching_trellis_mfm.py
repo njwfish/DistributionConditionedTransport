@@ -5,11 +5,12 @@ from utils.latents import expand_latent_to_batch
 
 class TorchWrapper(nn.Module):
     """Wrapper to make the model compatible with NeuralODE"""
-    def __init__(self, model, source_latent, target_latent):
+    def __init__(self, model, source_latent, target_latent, treat_cond):
         super().__init__()
         self.model = model
         self.source_latent = source_latent
         self.target_latent = target_latent
+        self.treat_cond = treat_cond
     
     def forward(self, t, x, args={}):
         """NeuralODE expects (t, x) -> dx/dt"""
@@ -21,7 +22,7 @@ class TorchWrapper(nn.Module):
         else:
             t = t.unsqueeze(-1) if t.dim() == 1 else t
             
-        return self.model(x, t, self.source_latent, self.target_latent)
+        return self.model(x, t, self.source_latent, self.target_latent, self.treat_cond)
 
 
 class FlowMatchingGenerator(nn.Module):
@@ -78,7 +79,7 @@ class FlowMatchingGenerator(nn.Module):
         velocity = target_samples - source_samples
         return velocity
 
-    def forward(self, source_samples, source_latent, target_latent, num_steps=100, return_trajectory=False):
+    def forward(self, source_samples, source_latent, target_latent, treat_cond, num_steps=100, return_trajectory=False):
         """
         Generate samples by integrating the learned flow from source to target using NeuralODE
         
@@ -86,6 +87,7 @@ class FlowMatchingGenerator(nn.Module):
             source_samples: [batch_size, ...] starting points
             source_latent: [batch_size, latent_dim] source distribution embedding
             target_latent: [batch_size, latent_dim] target distribution embedding
+            treat_cond: [num_sets, treat_dim] treatment one-hot encoding (same for all cells in a set)
             num_steps: number of time steps for integration
             return_trajectory: whether to return full trajectory or just final point
         """
@@ -94,9 +96,11 @@ class FlowMatchingGenerator(nn.Module):
         # Expand latents to match the number of source samples
         source_latent = expand_latent_to_batch(source_latent, source_samples)
         target_latent = expand_latent_to_batch(target_latent, source_samples)
+        # Expand treat_cond to match batch size (same treatment for all cells in a set)
+        treat_cond = expand_latent_to_batch(treat_cond, source_samples)
         
         # Create wrapped model for NeuralODE
-        wrapped_model = TorchWrapper(self.model, source_latent, target_latent)
+        wrapped_model = TorchWrapper(self.model, source_latent, target_latent, treat_cond)
         
         # Create NeuralODE node
         node = NeuralODE(
@@ -115,7 +119,7 @@ class FlowMatchingGenerator(nn.Module):
             else:
                 return traj[-1]  # Return the last point
 
-    def loss(self, source_samples, target_samples, source_latent, target_latent):
+    def loss(self, source_samples, target_samples, source_latent, target_latent, treat_cond):
         """
         Flow matching loss: ||v_theta(x_t, t) - v_t||^2
         
@@ -124,12 +128,16 @@ class FlowMatchingGenerator(nn.Module):
             target_samples: samples from target distribution
             source_latent: source distribution embedding  
             target_latent: target distribution embedding
+            treat_cond: [batch_size, treat_dim] treatment one-hot encoding (same for all cells in a set)
         """
         
         batch_size, set_size = source_samples.shape[:2]
 
         source_latent = expand_latent_to_batch(source_latent, source_samples)
         target_latent = expand_latent_to_batch(target_latent, target_samples)
+        # Expand treat_cond to match flattened batch size
+        # treat_cond shape: [batch_size, treat_dim] -> need to expand to [batch_size * set_size, treat_dim]
+        treat_cond = expand_latent_to_batch(treat_cond, source_samples)
 
         # Sample random time
         t = self.sample_time(batch_size, source_samples.device)
@@ -141,14 +149,14 @@ class FlowMatchingGenerator(nn.Module):
         v_true = self.compute_conditional_flow(source_samples, target_samples, t)
         
         # Predicted velocity field
-        v_pred = self.model(x_t, t.unsqueeze(-1), source_latent, target_latent)
+        v_pred = self.model(x_t, t.unsqueeze(-1), source_latent, target_latent, treat_cond)
         
         # MSE loss
         loss = torch.mean((v_pred - v_true) ** 2)
         
         return loss
 
-    def sample(self, source_samples, source_latent, target_latent, num_steps=100, return_trajectory=False):
+    def sample(self, source_samples, source_latent, target_latent, treat_cond, num_steps=100, return_trajectory=False):
         """
         Generate samples by integrating the flow
         
@@ -156,12 +164,13 @@ class FlowMatchingGenerator(nn.Module):
             source_samples: [batch_size, ...] starting points
             source_latent: [batch_size, latent_dim] source embedding
             target_latent: [batch_size, latent_dim] target embedding
+            treat_cond: [num_sets, treat_dim] treatment one-hot encoding
             num_steps: number of integration steps
             return_trajectory: whether to return full trajectory
         """
         
         num_samples = source_samples.shape[0] // source_latent.shape[0]
-        generated = self.forward(source_samples, source_latent, target_latent, num_steps, return_trajectory)
+        generated = self.forward(source_samples, source_latent, target_latent, treat_cond, num_steps, return_trajectory)
         
         if return_trajectory:
             # Reshape trajectory: [time_steps, batch_size, ...] -> [time_steps, num_sets, num_samples, ...]

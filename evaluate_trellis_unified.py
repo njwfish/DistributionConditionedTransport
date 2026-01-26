@@ -9,7 +9,7 @@ import torch.nn as nn
 from typing import Literal
 
 from utils.latents import normalize_latent, normalize_latent_np
-from utils.predictor import LinearPredictor, cross_validate_predictor
+from utils.predictor import LinearPredictor, cross_validate_predictor, cross_validate_predictor_by_patient
 from utils.experiment_utils import (
     load_config,
     load_experiment,
@@ -43,6 +43,9 @@ def compute_args_hash(args: argparse.Namespace) -> str:
         'cross_validate': args.cross_validate,
         'predict_delta': args.predict_delta,
         'predictor_loss': args.predictor_loss,
+        'patient_cv': args.patient_cv,
+        'patient_holdout_fraction': args.patient_holdout_fraction,
+        'folds_per_patient': args.folds_per_patient,
     }
     
     # Create a deterministic JSON string and hash it
@@ -198,6 +201,10 @@ def train_linear_predictor(
     cross_validate: bool = False,
     predict_delta: bool = False,
     loss_type: str = "mse",
+    patient_ids: np.ndarray = None,
+    patient_cv: bool = False,
+    patient_holdout_fraction: float = 1.0,
+    folds_per_patient: int = 1,
 ) -> LinearPredictor:
     """
     Train a linear predictor to map source latents (conditioned on treatment) to target latents.
@@ -217,6 +224,10 @@ def train_linear_predictor(
         cross_validate: Whether to use cross-validation to find optimal hyperparameters
         predict_delta: Whether to predict (target - source) instead of target directly
         loss_type: Loss function for training ("mse" or "cosine")
+        patient_ids: Patient ID for each sample, shape (N,). Required if patient_cv=True.
+        patient_cv: Whether to use patient-based cross-validation instead of random k-fold.
+        patient_holdout_fraction: Fraction of each patient's samples to hold out (0.0-1.0).
+        folds_per_patient: Number of CV folds per patient when patient_holdout_fraction < 1.0.
     
     Returns:
         Trained LinearPredictor
@@ -242,21 +253,49 @@ def train_linear_predictor(
     
     # Cross-validation for hyperparameter tuning
     if cross_validate:
-        print(f"  Running cross-validation to find optimal hyperparameters...")
         param_grid = {
             'ridge_alpha': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0],
         }
-        cv_results = cross_validate_predictor(
-            source_latents_conditioned,
-            prediction_target,
-            loss_type=loss_type,
-            param_grid=param_grid,
-            n_folds=10,
-            num_epochs=num_epochs,
-            lr=lr,
-            device=device,
-            verbose=verbose,
-        )
+        
+        if patient_cv:
+            # Patient-based cross-validation
+            if patient_ids is None:
+                raise ValueError("patient_ids must be provided when patient_cv=True")
+            
+            print(f"  Running PATIENT-BASED cross-validation to find optimal hyperparameters...")
+            print(f"    Holdout fraction: {patient_holdout_fraction}")
+            print(f"    Folds per patient: {folds_per_patient}")
+            
+            cv_results = cross_validate_predictor_by_patient(
+                source_latents_conditioned,
+                prediction_target,
+                patient_ids=patient_ids,
+                loss_type=loss_type,
+                param_grid=param_grid,
+                holdout_fraction=patient_holdout_fraction,
+                folds_per_patient=folds_per_patient,
+                num_epochs=num_epochs,
+                lr=lr,
+                device=device,
+                verbose=verbose,
+            )
+            print(f"  Patient-based CV complete. {cv_results['n_patients']} patients evaluated.")
+            print(f"  Patients: {cv_results['unique_patients']}")
+        else:
+            # Standard random k-fold cross-validation
+            print(f"  Running cross-validation to find optimal hyperparameters...")
+            cv_results = cross_validate_predictor(
+                source_latents_conditioned,
+                prediction_target,
+                loss_type=loss_type,
+                param_grid=param_grid,
+                n_folds=10,
+                num_epochs=num_epochs,
+                lr=lr,
+                device=device,
+                verbose=verbose,
+            )
+        
         ridge_alpha = cv_results['best_params']['ridge_alpha']
         print(f"  Cross-validation complete. Best ridge_alpha: {ridge_alpha}")
     
@@ -429,6 +468,26 @@ def main():
         required=True,
         help="Loss function for predictor training: 'mse' or 'cosine' (default: mse)"
     )
+    parser.add_argument(
+        "--patient_cv",
+        action="store_true",
+        help="Use patient-based cross-validation instead of random k-fold. "
+             "Each fold holds out samples from a single patient."
+    )
+    parser.add_argument(
+        "--patient_holdout_fraction",
+        type=float,
+        default=1.0,
+        help="Fraction of each patient's samples to hold out (0.0-1.0). "
+             "If 1.0, all samples from the patient are held out. Default: 1.0"
+    )
+    parser.add_argument(
+        "--folds_per_patient",
+        type=int,
+        default=1,
+        help="Number of CV folds per patient. Only applicable when patient_holdout_fraction < 1.0. "
+             "Different random subsets of the patient's samples are held out for each fold. Default: 1"
+    )
 
     args = parser.parse_args()
     
@@ -466,6 +525,12 @@ def main():
     if (args.cross_validate or args.predict_delta) and not args.use_predictor:
         print("WARNING: --cross_validate and --predict_delta have no effect without --use_predictor")
     
+    if args.patient_cv and not args.cross_validate:
+        print("WARNING: --patient_cv has no effect without --cross_validate")
+    
+    if args.patient_cv and not args.use_predictor:
+        print("WARNING: --patient_cv has no effect without --use_predictor")
+    
     # Check if encoder uses cell_cond conditioning
     use_cell_cond = is_conditioned_encoder(cfg)
     if use_cell_cond:
@@ -494,6 +559,13 @@ def main():
             encoder, train_samples, device, split_name="train", use_cell_cond=use_cell_cond
         )
         
+        # Extract patient IDs from training samples for patient-based CV
+        train_patient_ids = None
+        if args.patient_cv:
+            train_patient_ids = np.array([sample[6] for sample in train_samples])  # patient is at index 6
+            unique_patients = np.unique(train_patient_ids)
+            print(f"  Patient-based CV enabled with {len(unique_patients)} unique patients: {unique_patients.tolist()}")
+        
         # Train predictor with source latents conditioned on treatment
         predictor = train_linear_predictor(
             train_source_latents, train_target_latents, train_treat_conds, 
@@ -501,6 +573,10 @@ def main():
             cross_validate=args.cross_validate,
             predict_delta=args.predict_delta,
             loss_type=args.predictor_loss,
+            patient_ids=train_patient_ids,
+            patient_cv=args.patient_cv,
+            patient_holdout_fraction=args.patient_holdout_fraction,
+            folds_per_patient=args.folds_per_patient,
         )
     
     # Evaluate

@@ -9,18 +9,7 @@ import torch.nn as nn
 from typing import Literal
 
 from utils.latents import normalize_latent, normalize_latent_np
-from utils.predictor import (
-    LinearPredictor,
-    RidgePredictor,
-    KernelRidgePredictor,
-    PLSPredictor,
-    MLPPredictor,
-    PredictorType,
-    create_predictor,
-    get_default_param_grid,
-    cross_validate_predictor,
-    cross_validate_predictor_by_patient,
-)
+from utils.predictor import LinearPredictor, cross_validate_predictor, cross_validate_predictor_by_patient
 from utils.experiment_utils import (
     load_config,
     load_experiment,
@@ -57,8 +46,6 @@ def compute_args_hash(args: argparse.Namespace) -> str:
         'patient_cv': args.patient_cv,
         'patient_holdout_fraction': args.patient_holdout_fraction,
         'folds_per_patient': args.folds_per_patient,
-        'predictor_type': args.predictor_type,
-        'train_on_test': args.train_on_test,
     }
     
     # Create a deterministic JSON string and hash it
@@ -202,12 +189,11 @@ def compute_latents(
     return source_latents, target_latents, treat_conds
 
 
-def train_predictor(
+def train_linear_predictor(
     source_latents: np.ndarray,
     target_latents: np.ndarray,
     treat_conds: np.ndarray,
     device: torch.device,
-    predictor_type: str = "linear",
     ridge_alpha: float = 1e-3,
     num_epochs: int = 1000,
     lr: float = 1e-2,
@@ -219,9 +205,9 @@ def train_predictor(
     patient_cv: bool = False,
     patient_holdout_fraction: float = 1.0,
     folds_per_patient: int = 1,
-) -> PredictorType:
+) -> LinearPredictor:
     """
-    Train a predictor to map source latents (conditioned on treatment) to target latents.
+    Train a linear predictor to map source latents (conditioned on treatment) to target latents.
     
     The predictor is always conditioned on the treatment condition by concatenating
     the one-hot encoded treatment vector with the source latents.
@@ -231,26 +217,21 @@ def train_predictor(
         target_latents: Target latents from encoder, shape (N, latent_dim)
         treat_conds: Treatment conditions (one-hot), shape (N, num_treatments)
         device: Device for training
-        predictor_type: Type of predictor ("linear", "ridge", or "mlp")
-        ridge_alpha: Ridge regularization coefficient (for linear/ridge)
-        num_epochs: Number of training epochs (for linear/mlp)
-        lr: Learning rate (for linear/mlp)
+        ridge_alpha: Ridge regularization coefficient
+        num_epochs: Number of training epochs
+        lr: Learning rate
         verbose: Whether to print training progress
         cross_validate: Whether to use cross-validation to find optimal hyperparameters
         predict_delta: Whether to predict (target - source) instead of target directly
-        loss_type: Loss function for training ("mse" or "cosine"). Ridge only supports "mse".
+        loss_type: Loss function for training ("mse" or "cosine")
         patient_ids: Patient ID for each sample, shape (N,). Required if patient_cv=True.
         patient_cv: Whether to use patient-based cross-validation instead of random k-fold.
         patient_holdout_fraction: Fraction of each patient's samples to hold out (0.0-1.0).
         folds_per_patient: Number of CV folds per patient when patient_holdout_fraction < 1.0.
     
     Returns:
-        Trained predictor (LinearPredictor, RidgePredictor, or MLPPredictor)
+        Trained LinearPredictor
     """
-    # Validate predictor_type and loss_type compatibility
-    if predictor_type == "ridge" and loss_type == "cosine":
-        raise ValueError("RidgePredictor does not support cosine loss. Use 'linear' or 'mlp' instead.")
-    
     # Concatenate source latents with treatment condition
     # This conditions the predictor on the treatment
     source_latents_conditioned = np.concatenate([source_latents, treat_conds], axis=1)
@@ -258,10 +239,10 @@ def train_predictor(
     # Determine prediction target
     if predict_delta:
         prediction_target = target_latents - source_latents
-        print(f"Training {predictor_type.upper()} predictor (DELTA mode: predicting target - source)...")
+        print(f"Training linear predictor (DELTA mode: predicting target - source)...")
     else:
         prediction_target = target_latents
-        print(f"Training {predictor_type.upper()} predictor...")
+        print(f"Training linear predictor...")
     
     print(f"  Source latents shape: {source_latents.shape}")
     print(f"  Treatment conditions shape: {treat_conds.shape}")
@@ -270,19 +251,18 @@ def train_predictor(
     input_dim = source_latents_conditioned.shape[1]
     output_dim = prediction_target.shape[1]
     
-    # Get default parameter grid for this predictor type
-    param_grid = get_default_param_grid(predictor_type)
-    best_params = {}
-    
     # Cross-validation for hyperparameter tuning
     if cross_validate:
+        param_grid = {
+            'ridge_alpha': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0],
+        }
+        
         if patient_cv:
             # Patient-based cross-validation
             if patient_ids is None:
                 raise ValueError("patient_ids must be provided when patient_cv=True")
             
             print(f"  Running PATIENT-BASED cross-validation to find optimal hyperparameters...")
-            print(f"    Predictor type: {predictor_type}")
             print(f"    Holdout fraction: {patient_holdout_fraction}")
             print(f"    Folds per patient: {folds_per_patient}")
             
@@ -290,7 +270,6 @@ def train_predictor(
                 source_latents_conditioned,
                 prediction_target,
                 patient_ids=patient_ids,
-                predictor_type=predictor_type,
                 loss_type=loss_type,
                 param_grid=param_grid,
                 holdout_fraction=patient_holdout_fraction,
@@ -305,93 +284,34 @@ def train_predictor(
         else:
             # Standard random k-fold cross-validation
             print(f"  Running cross-validation to find optimal hyperparameters...")
-            print(f"    Predictor type: {predictor_type}")
             cv_results = cross_validate_predictor(
                 source_latents_conditioned,
                 prediction_target,
-                predictor_type=predictor_type,
                 loss_type=loss_type,
                 param_grid=param_grid,
-                n_folds=5,
+                n_folds=10,
                 num_epochs=num_epochs,
                 lr=lr,
                 device=device,
                 verbose=verbose,
             )
         
-        best_params = cv_results['best_params']
-        print(f"  Cross-validation complete. Best params: {best_params}")
-    else:
-        # Use default hyperparameters
-        if predictor_type == "linear":
-            best_params = {'ridge_alpha': ridge_alpha}
-        elif predictor_type == "ridge":
-            best_params = {'ridge_alpha': ridge_alpha}
-        elif predictor_type == "kernel_ridge":
-            best_params = {'alpha': 1.0, 'gamma': None}
-        elif predictor_type == "pls":
-            best_params = {'n_components': 10}
-        elif predictor_type == "mlp":
-            best_params = {'weight_decay': 1e-3, 'dropout': 0.1}
+        ridge_alpha = cv_results['best_params']['ridge_alpha']
+        print(f"  Cross-validation complete. Best ridge_alpha: {ridge_alpha}")
     
-    # For MLP, separate constructor params (dropout) from fit params (weight_decay)
-    if predictor_type == "mlp":
-        constructor_params = {k: v for k, v in best_params.items() if k in ['dropout', 'hidden_dim']}
-        fit_params = {k: v for k, v in best_params.items() if k not in ['dropout', 'hidden_dim']}
-    else:
-        constructor_params = {}
-        fit_params = best_params
+    print(f"  loss_type={loss_type}, ridge_alpha={ridge_alpha}, lr={lr}, epochs={num_epochs}")
     
-    # Create and fit the predictor
-    predictor = create_predictor(predictor_type, input_dim, output_dim, **constructor_params)
-    
-    if predictor_type == "ridge":
-        print(f"  ridge_alpha={fit_params.get('ridge_alpha', 1.0)}")
-        predictor.fit(
-            source_latents_conditioned,
-            prediction_target,
-            **fit_params,
-        )
-    elif predictor_type == "kernel_ridge":
-        print(f"  alpha={fit_params.get('alpha', 1.0)}, gamma={fit_params.get('gamma', None)}")
-        predictor.fit(
-            source_latents_conditioned,
-            prediction_target,
-            **fit_params,
-        )
-    elif predictor_type == "pls":
-        print(f"  n_components={fit_params.get('n_components', 10)}")
-        predictor.fit(
-            source_latents_conditioned,
-            prediction_target,
-            **fit_params,
-        )
-    elif predictor_type == "mlp":
-        print(f"  loss_type={loss_type}, weight_decay={fit_params.get('weight_decay', 1e-3)}, "
-              f"dropout={constructor_params.get('dropout', 0.1)}, lr={lr}, epochs={num_epochs}")
-        predictor.fit(
-            source_latents_conditioned,
-            prediction_target,
-            loss_type=loss_type,
-            num_epochs=num_epochs,
-            lr=lr,
-            device=device,
-            verbose=verbose,
-            **fit_params,
-        )
-    else:  # linear
-        print(f"  loss_type={loss_type}, ridge_alpha={fit_params.get('ridge_alpha', ridge_alpha)}, "
-              f"lr={lr}, epochs={num_epochs}")
-        predictor.fit(
-            source_latents_conditioned,
-            prediction_target,
-            loss_type=loss_type,
-            num_epochs=num_epochs,
-            lr=lr,
-            device=device,
-            verbose=verbose,
-            **fit_params,
-        )
+    predictor = LinearPredictor(input_dim, output_dim)
+    predictor.fit(
+        source_latents_conditioned,
+        prediction_target,
+        loss_type=loss_type,
+        ridge_alpha=ridge_alpha,
+        num_epochs=num_epochs,
+        lr=lr,
+        device=device,
+        verbose=verbose,
+    )
     
     # Store metadata for inference
     predictor.predict_delta = predict_delta
@@ -545,7 +465,7 @@ def main():
         "--predictor_loss",
         type=str,
         choices=["mse", "cosine"],
-        required=True,
+        default="mse",
         help="Loss function for predictor training: 'mse' or 'cosine' (default: mse)"
     )
     parser.add_argument(
@@ -567,23 +487,6 @@ def main():
         default=1,
         help="Number of CV folds per patient. Only applicable when patient_holdout_fraction < 1.0. "
              "Different random subsets of the patient's samples are held out for each fold. Default: 1"
-    )
-    parser.add_argument(
-        "--predictor_type",
-        type=str,
-        choices=["linear", "ridge", "kernel_ridge", "pls", "mlp"],
-        default="linear",
-        help="Type of predictor model: 'linear' (gradient descent with cosine/mse loss), "
-             "'ridge' (sklearn Ridge regression, exact solution, mse only), "
-             "'kernel_ridge' (sklearn Kernel Ridge with RBF kernel, captures nonlinearities), "
-             "'pls' (Partial Least Squares, good for high-dim with limited samples), "
-             "'mlp' (multi-layer perceptron with regularization). Default: linear"
-    )
-    parser.add_argument(
-        "--train_on_test",
-        action="store_true",
-        help="CHEAT MODE: Train the predictor on both training AND test data combined. "
-             "This gives an upper bound on predictor performance by allowing it to see test data."
     )
 
     args = parser.parse_args()
@@ -628,13 +531,6 @@ def main():
     if args.patient_cv and not args.use_predictor:
         print("WARNING: --patient_cv has no effect without --use_predictor")
     
-    sklearn_predictors = ["ridge", "kernel_ridge", "pls"]
-    if args.predictor_type in sklearn_predictors and args.predictor_loss == "cosine":
-        raise ValueError(f"{args.predictor_type} predictor does not support cosine loss. Use --predictor_type linear or mlp instead.")
-    
-    if args.train_on_test:
-        print("WARNING: CHEAT MODE enabled - predictor will be trained on train+test data combined!")
-    
     # Check if encoder uses cell_cond conditioning
     use_cell_cond = is_conditioned_encoder(cfg)
     if use_cell_cond:
@@ -656,55 +552,28 @@ def main():
     predictor = None
     if args.use_predictor:
         print("\n" + "=" * 80)
-        predictor_title = f"TRAINING {args.predictor_type.upper()} PREDICTOR"
-        if args.train_on_test:
-            predictor_title += " (CHEAT MODE: train+test)"
-        print(predictor_title)
+        print("TRAINING LINEAR PREDICTOR")
         print("=" * 80)
         
         train_source_latents, train_target_latents, train_treat_conds = compute_latents(
             encoder, train_samples, device, split_name="train", use_cell_cond=use_cell_cond
         )
         
-        # Combine train and test data if in cheat mode
-        if args.train_on_test:
-            print("CHEAT MODE: Combining training and test data for predictor training...")
-            predictor_source_latents = np.concatenate([train_source_latents, test_source_latents], axis=0)
-            predictor_target_latents = np.concatenate([train_target_latents, test_target_latents], axis=0)
-            predictor_treat_conds = np.concatenate([train_treat_conds, test_treat_conds], axis=0)
-            print(f"  Combined data: {predictor_source_latents.shape[0]} samples "
-                  f"({train_source_latents.shape[0]} train + {test_source_latents.shape[0]} test)")
-            
-            # For patient-based CV in cheat mode, combine patient IDs too
-            if args.patient_cv:
-                train_patient_ids = np.array([sample[6] for sample in train_samples])
-                test_patient_ids = np.array([sample[6] for sample in test_samples])
-                predictor_patient_ids = np.concatenate([train_patient_ids, test_patient_ids], axis=0)
-                unique_patients = np.unique(predictor_patient_ids)
-                print(f"  Patient-based CV enabled with {len(unique_patients)} unique patients: {unique_patients.tolist()}")
-            else:
-                predictor_patient_ids = None
-        else:
-            predictor_source_latents = train_source_latents
-            predictor_target_latents = train_target_latents
-            predictor_treat_conds = train_treat_conds
-            
-            # Extract patient IDs from training samples for patient-based CV
-            predictor_patient_ids = None
-            if args.patient_cv:
-                predictor_patient_ids = np.array([sample[6] for sample in train_samples])  # patient is at index 6
-                unique_patients = np.unique(predictor_patient_ids)
-                print(f"  Patient-based CV enabled with {len(unique_patients)} unique patients: {unique_patients.tolist()}")
+        # Extract patient IDs from training samples for patient-based CV
+        train_patient_ids = None
+        if args.patient_cv:
+            train_patient_ids = np.array([sample[6] for sample in train_samples])  # patient is at index 6
+            unique_patients = np.unique(train_patient_ids)
+            print(f"  Patient-based CV enabled with {len(unique_patients)} unique patients: {unique_patients.tolist()}")
         
         # Train predictor with source latents conditioned on treatment
-        predictor = train_predictor(
-            predictor_source_latents, predictor_target_latents, predictor_treat_conds, 
+        predictor = train_linear_predictor(
+            train_source_latents, train_target_latents, train_treat_conds, 
             device=device,
-            predictor_type=args.predictor_type,
             cross_validate=args.cross_validate,
             predict_delta=args.predict_delta,
             loss_type=args.predictor_loss,
-            patient_ids=predictor_patient_ids,
+            patient_ids=train_patient_ids,
             patient_cv=args.patient_cv,
             patient_holdout_fraction=args.patient_holdout_fraction,
             folds_per_patient=args.folds_per_patient,
@@ -716,18 +585,15 @@ def main():
     if is_source_only:
         print("Mode: SOURCE-ONLY (no target latent used)")
     elif args.use_predictor:
-        mode_str = f"Mode: Using {args.predictor_type.upper()} predictor as target latent"
-        if args.predictor_type != "ridge":
-            mode_str += f" (loss={args.predictor_loss})"
+        mode_str = "Mode: Using LINEAR predictor as target latent"
+        mode_str += f" (loss={args.predictor_loss})"
         if args.predict_delta:
             mode_str += " (DELTA prediction)"
         if args.cross_validate:
             mode_str += " (cross-validated)"
-        if args.train_on_test:
-            mode_str += " [CHEAT: train+test]"
         print(mode_str)
     else:
-        print("Mode: Using oracle E(x1) as target latent [CHEAT]")
+        print("Mode: Using oracle E(x1) as target latent")
     
     metric_name = args.metric.upper()
     print(f"Metric: {metric_name}")

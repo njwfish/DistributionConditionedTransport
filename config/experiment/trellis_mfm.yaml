@@ -1,0 +1,33 @@
+# @package _global_.experiment
+
+# Split name (define before use)
+split_name: "replicas-2"
+
+# Experiment name and description
+name: trellis_mfm_gnn
+description: "Trellis MFM experiment"
+
+defaults:
+  - /dataset: trellis
+  - /encoder: gnn
+  - /model: diffusion_mlp_source_only
+  - /generator: flow_matching  # Use flow matching for coupled embeddings
+  - /training: default20000
+  - /loss: default_source_only
+  - /sampling: default
+  #- /coupling: sinkhorn_01
+
+# predictor parameters
+predictor_loss_weight: 0.0
+train_predictor_posthoc: true
+
+# sampling parameters
+num_samples: 100
+selective_pairing_mode: "single_step"
+
+# Experiment-specific parameters
+latent_dim: 256
+hidden_dim: 256
+set_size: 256
+batch_size: 4
+lr: 2e-4

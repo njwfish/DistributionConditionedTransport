@@ -10,8 +10,8 @@ description: "Trellis MFM experiment"
 defaults:
   - /dataset: trellis
   - /encoder: gnn
-  - /model: diffusion_mlp_source_only
-  - /generator: flow_matching  # Use flow matching for coupled embeddings
+  - /model: diffusion_mlp
+  - /generator: flow_matching_trellis_mfm  # Use flow matching for coupled embeddings
   - /training: default20000
   - /loss: default_source_only
   - /sampling: default

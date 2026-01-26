@@ -7,10 +7,9 @@ partition: kempner_requeue
 account: kempner_mzitnik_lab
 
 # Resource allocation - optimized for lightweight jobs
-gpus_per_node: 1
 cpus_per_task: 4
-mem_gb: 16
-timeout_min: 120  # 2 hours (200 epochs takes ~30 min for MVN) (may get preempted)
+mem_gb: 20
+timeout_min: 700  # 2 hours (200 epochs takes ~30 min for MVN) (may get preempted)
 
 # Submitit settings
 submitit_folder: ${hydra.sweep.dir}/.submitit/%j

@@ -7,7 +7,6 @@ partition: kempner
 account: kempner_mzitnik_lab
 
 # Resource allocation (A100 nodes: 4 GPUs, 64 cores, 1TB RAM)
-gpus_per_node: 1
 cpus_per_task: 8
 mem_gb: 64
 timeout_min: 360  # 6 hours

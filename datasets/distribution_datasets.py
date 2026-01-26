@@ -283,7 +283,8 @@ class GaussianMixtureModelDistributionDataset(Dataset):
             self.mu = np.repeat(self.mu[:n_unique_sets], n_sets // n_unique_sets, axis=0)
             self.cov = np.repeat(self.cov[:n_unique_sets], n_sets // n_unique_sets, axis=0)
             # Create mapping from data index to unique set index (for EmbeddingEncoder)
-            self.set_idx = np.tile(np.arange(n_unique_sets), n_sets // n_unique_sets)
+            # Must use np.repeat (not np.tile) to match the ordering of weights/mu/cov
+            self.set_idx = np.repeat(np.arange(n_unique_sets), n_sets // n_unique_sets)
         else:
             # If no unique sets specified, each set is unique
             self.set_idx = np.arange(n_sets)

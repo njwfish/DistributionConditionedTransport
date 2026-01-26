@@ -132,26 +132,87 @@ class Trainer:
                     
         return True
     
-    def _find_latest_checkpoint(self, directory):
-        """Find the latest checkpoint in a directory."""
-        best_model_path = os.path.join(directory, "best_model.pt")
-        if os.path.exists(best_model_path):
-            return best_model_path
-            
-        latest_checkpoint = None
-        latest_epoch = -1
-        
+    def _is_checkpoint_valid(self, checkpoint_path):
+        """
+        Check if a checkpoint file is valid (not corrupted).
+
+        Args:
+            checkpoint_path: Path to the checkpoint file
+
+        Returns:
+            True if checkpoint is valid, False if corrupted
+        """
+        try:
+            # Try to load the checkpoint to verify it's not corrupted
+            torch.load(checkpoint_path, weights_only=False, map_location='cpu')
+            return True
+        except Exception as e:
+            self.logger.warning(f"Checkpoint {checkpoint_path} appears corrupted: {e}")
+            return False
+
+    def _get_checkpoint_epoch(self, checkpoint_path):
+        """
+        Get the epoch number from a checkpoint file.
+
+        Args:
+            checkpoint_path: Path to the checkpoint file
+
+        Returns:
+            Epoch number, or -1 if unable to determine
+        """
+        try:
+            checkpoint = torch.load(checkpoint_path, weights_only=False, map_location='cpu')
+            return checkpoint.get('epoch', -1)
+        except Exception:
+            return -1
+
+    def _find_latest_checkpoint(self, directory, max_epoch=None):
+        """
+        Find the latest valid (non-corrupted) checkpoint in a directory.
+        Also considers best_model.pt if it has a higher epoch.
+
+        Args:
+            directory: Directory to search for checkpoints
+            max_epoch: If provided, only consider checkpoints up to this epoch
+
+        Returns:
+            Path to the best valid checkpoint, or None if not found
+        """
+        # Collect all checkpoint files with their epochs
+        checkpoints = []
         for filename in os.listdir(directory):
             if filename.startswith("checkpoint_epoch_"):
                 try:
                     epoch_num = int(filename.split("_")[-1].split(".")[0])
-                    if epoch_num > latest_epoch:
-                        latest_epoch = epoch_num
-                        latest_checkpoint = os.path.join(directory, filename)
+                    # Only consider checkpoints up to max_epoch if specified
+                    if max_epoch is not None and epoch_num > max_epoch:
+                        continue
+                    checkpoints.append((epoch_num, os.path.join(directory, filename)))
                 except (ValueError, IndexError):
                     continue
-                    
-        return latest_checkpoint
+
+        # Check best_model.pt and add if it has a valid epoch
+        best_model_path = os.path.join(directory, "best_model.pt")
+        if os.path.exists(best_model_path):
+            best_model_epoch = self._get_checkpoint_epoch(best_model_path)
+            if best_model_epoch > 0:
+                # Only include if within max_epoch constraint
+                if max_epoch is None or best_model_epoch <= max_epoch:
+                    checkpoints.append((best_model_epoch, best_model_path))
+                    self.logger.info(f"best_model.pt has epoch {best_model_epoch}")
+
+        # Sort by epoch descending (newest first)
+        checkpoints.sort(key=lambda x: x[0], reverse=True)
+
+        # Find the first valid (non-corrupted) checkpoint
+        for epoch_num, checkpoint_path in checkpoints:
+            if self._is_checkpoint_valid(checkpoint_path):
+                self.logger.info(f"Found valid checkpoint at epoch {epoch_num}: {checkpoint_path}")
+                return checkpoint_path
+            else:
+                self.logger.warning(f"Skipping corrupted checkpoint at epoch {epoch_num}: {checkpoint_path}")
+
+        return None
     
     def train(
         self,
@@ -195,48 +256,36 @@ class Trainer:
             self.logger.info(f"Using specified output directory: {output_dir}")
         
         # Check for existing checkpoints in the output directory
-        best_model_path = os.path.join(output_dir, "best_model.pt")
-        last_checkpoint = None
+        # Use _find_latest_checkpoint which validates checkpoints and considers best_model.pt
+        last_checkpoint = self._find_latest_checkpoint(output_dir)
         start_epoch = 0
-        
-        # Try to find the latest checkpoint if it exists
-        for filename in os.listdir(output_dir):
-            if filename.startswith("checkpoint_epoch_"):
-                try:
-                    epoch_num = int(filename.split("_")[-1].split(".")[0])
-                    if last_checkpoint is None or epoch_num > start_epoch:
-                        last_checkpoint = os.path.join(output_dir, filename)
-                        start_epoch = epoch_num
-                except (ValueError, IndexError):
-                    continue
-        if start_epoch == 0 and best_model_path is not None and os.path.exists(best_model_path):
-            last_checkpoint = best_model_path
         
         # If no checkpoint found and we have a config, try to find a similar experiment
         if last_checkpoint is None and config is not None:
             self.logger.info("No checkpoints found. Looking for similar experiments with different epoch counts...")
-            
+
             # Get experiment name from directory
             dir_name = os.path.basename(output_dir)
             experiment_name = dir_name.split('_')[0]  # Assume format is "name_hash"
-            
+
             # Find base directory (parent of output_dir)
             base_dir = os.path.dirname(output_dir)
-            
+
             # Find similar experiments with same name but different epoch counts
             similar_experiments = self._find_similar_experiment_by_name(experiment_name, config, base_dir)
-            
-            print("similar_experiments", similar_experiments)
+
             if similar_experiments:
                 # Sort by epoch count (descending) to prioritize those with more epochs
                 similar_experiments.sort(key=lambda x: x[1], reverse=True)
-                
-                for exp_dir, num_epochs in similar_experiments:
-                    self.logger.info(f"Checking for checkpoints in similar experiment with {num_epochs} epochs: {exp_dir}")
-                    
-                    # Find the latest checkpoint in this experiment
-                    checkpoint_path = self._find_latest_checkpoint(exp_dir)
-                    
+                self.logger.info(f"Found {len(similar_experiments)} similar experiments: {[(os.path.basename(d), e) for d, e in similar_experiments]}")
+
+                for exp_dir, exp_num_epochs in similar_experiments:
+                    self.logger.info(f"Checking for checkpoints in similar experiment with {exp_num_epochs} epochs: {exp_dir}")
+
+                    # Find the best checkpoint up to our target num_epochs
+                    # This ensures we don't resume from a checkpoint beyond what we need
+                    checkpoint_path = self._find_latest_checkpoint(exp_dir, max_epoch=self.num_epochs)
+
                     if checkpoint_path:
                         # Copy the checkpoint to our current directory
                         new_checkpoint_path = os.path.join(output_dir, os.path.basename(checkpoint_path))
@@ -247,6 +296,8 @@ class Trainer:
                             break
                         except Exception as e:
                             self.logger.error(f"Error copying checkpoint: {e}")
+                    else:
+                        self.logger.info(f"No suitable checkpoint found (up to epoch {self.num_epochs}) in {exp_dir}")
         
         # Resume from checkpoint if found
         step = 0

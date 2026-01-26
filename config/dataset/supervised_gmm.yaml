@@ -4,12 +4,11 @@ n_sets: 50000
 set_size: ${experiment.set_size}
 data_shape: [2]
 seed: ${seed}
-# Restricted mean support (smaller square) compared to gmm [0, 5]
+# Restricted mean support [0, 2.5] so that shifted target [1, 3.5] stays in [0, 5]
 prior_mu: [0, 2.5]
 prior_cov_df: 10
 prior_cov_scale: 1
 n_components: 3
 dirichlet_alpha: 1.0
-# Linear transformation parameters
-transform_scale: 1.0
-bias_scale: 1.0
+# Fixed shift transformation: Y = X + [1, 1]
+shift: [1.0, 1.0]

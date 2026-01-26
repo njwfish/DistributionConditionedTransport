@@ -8,7 +8,6 @@ partition: kempner_requeue
 account: kempner_mzitnik_lab
 
 # Resource allocation - using 3g.20gb MIG slice (1/3 of A100)
-gpus_per_node: 1
 cpus_per_task: 4
 mem_gb: 32
 timeout_min: 720  # 12 hours

@@ -62,7 +62,7 @@ def main(cfg: DictConfig):
 
         # Improved DataLoader with parallel workers and pinned memory
         dataloader_start = time.time()
-        num_workers = min(8, os.cpu_count())  # Reduced from 4 to 2 to avoid DataLoader warnings and reduce memory contention
+        num_workers = min(1, os.cpu_count())  # Reduced from 4 to 2 to avoid DataLoader warnings and reduce memory contention
 
         if hasattr(dataset, 'pairwise_distance'):
             coupling_kwargs = {'pairwise_dist_fn': dataset.pairwise_distance}

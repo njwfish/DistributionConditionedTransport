@@ -1,18 +1,20 @@
 # @package _global_.experiment
 
 # Experiment name and description
-name: lineage_pilot
+name: lineage_semisupervised
 description: "clonal dynamics with coupled distribution embeddings"
 
 
 defaults:
-  - /dataset: lineage_tracing
+  - /dataset: lineage_tracing_semi
   - /encoder: gnn
   - /model: noise_mlp
   - /generator: energy
-  - /training: default
+  - /training: default1000
   - /loss: default
-  - /predictor: default  # use unified predictor
+  - /predictor: default
+  - /predictor_sampling: default
+  - /predictor_training: none
   - /sampling: default
 
 ot_coupling: false
@@ -32,13 +34,13 @@ predictor_model_args:
 
 # sampling parameters
 weight_mode: "uniform"
-num_samples: 100
+num_samples: 10000
 exponential_weight_scale: 1.44  # approx ln(2)
 selective_pairing_mode: null
 
-latent_dim: 16
-hidden_dim: 64
+latent_dim: 128
+hidden_dim: 512
 set_size: 100
 
-batch_size: 10
+batch_size: 2000
 lr: 2e-4

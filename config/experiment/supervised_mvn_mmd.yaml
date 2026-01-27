@@ -1,0 +1,19 @@
+# @package _global_.experiment
+# Supervised MVN experiment with MMD generator
+
+name: supervised_mvn_exp
+description: "Supervised MVN with MMD generator - Y = X + shift"
+
+defaults:
+  - /dataset: supervised_mvn
+  - /encoder: gnn
+  - /generator: mmd
+  - /training: default
+  - /scheduler: none
+  - /loss: default_source_only
+
+latent_dim: 16
+hidden_dim: 64
+set_size: 100
+batch_size: 256
+lr: 2e-4

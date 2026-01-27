@@ -674,9 +674,23 @@ def filter_experiments(configs, experiment_type='mvn', num_epochs=200, checkpoin
 
 def get_experiment_info(cfg):
     """Extract key info from experiment config."""
+    # Determine generator type (including loss_type for DirectGenerator)
+    gen_cfg = cfg['config'].get('generator', {})
+    gen_target = gen_cfg.get('_target_', '')
+
+    if 'FlowMatchingGenerator' in gen_target:
+        gen_type = 'flow_matching'
+    elif 'EnergyGenerator' in gen_target:
+        gen_type = 'energy'
+    elif 'DirectGenerator' in gen_target:
+        # For DirectGenerator, use loss_type (mmd, swd, sinkhorn, etc.)
+        gen_type = gen_cfg.get('loss_type', 'direct')
+    else:
+        gen_type = cfg['generator']  # fallback to class name
+
     return {
         'encoder_type': 'embedding' if 'Embedding' in cfg['encoder'] else 'distribution',
-        'generator_type': cfg['generator'],
+        'generator_type': gen_type,
         'n_unique_sets': cfg['config']['dataset']['n_unique_sets'],
         'seed': cfg['config'].get('seed', 42),
     }

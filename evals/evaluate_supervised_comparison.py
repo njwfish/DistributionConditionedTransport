@@ -25,7 +25,7 @@ from tqdm import tqdm
 import copy
 import gc
 import argparse
-from sklearn.linear_model import Ridge
+from sklearn.linear_model import Ridge, RidgeCV
 from sklearn.neural_network import MLPRegressor
 import scipy as sp
 import matplotlib.pyplot as plt
@@ -367,7 +367,7 @@ def evaluate_at_mu(mu_value, enc, gen, device, method='supervised', predictor=No
 
 
 def fit_predictor_from_data(enc, device, n_train=10000, set_size=100,
-                             data_dim=2, alpha=1.0, seed=42, predictor_type='ridge',
+                             data_dim=2, seed=42, predictor_type='ridge',
                              shift=(1.0, 1.0)):
     """
     Fit predictor using supervised data with restricted support [0, 2.5].
@@ -419,9 +419,12 @@ def fit_predictor_from_data(enc, device, n_train=10000, set_size=100,
     residuals = target_latents - source_latents
 
     if predictor_type == 'ridge':
-        print(f"  Fitting ridge predictor for RESIDUAL (alpha={alpha})...")
-        predictor = Ridge(alpha=alpha)
+        # Use RidgeCV to automatically select regularization via cross-validation
+        alphas = np.logspace(-6, 6, 50)  # Wide range of alphas to search
+        print(f"  Fitting RidgeCV predictor for RESIDUAL (searching {len(alphas)} alphas via CV)...")
+        predictor = RidgeCV(alphas=alphas, cv=5)
         predictor.fit(source_latents, residuals)
+        print(f"  Selected alpha: {predictor.alpha_:.6g}")
     elif predictor_type == 'mlp':
         print(f"  Fitting MLP predictor for RESIDUAL...")
         predictor = MLPRegressor(
@@ -561,7 +564,7 @@ def evaluate_model_pair(supervised_exp, unsupervised_exp, device, args, model_se
     # Fit predictor for semisupervised
     predictor, train_mse = fit_predictor_from_data(
         enc_unsup, device, n_train=args.n_train, set_size=args.set_size,
-        data_dim=args.data_dim, alpha=args.ridge_alpha, seed=model_seed,
+        data_dim=args.data_dim, seed=model_seed,
         predictor_type=args.predictor_type, shift=shift
     )
 
@@ -627,11 +630,11 @@ def main():
     parser.add_argument('--set_size', type=int, default=100, help='Samples per distribution for predictor training (should match supervised model)')
     parser.add_argument('--eval_set_size', type=int, default=10000, help='Samples per distribution for evaluation (can be larger)')
     parser.add_argument('--data_dim', type=int, default=2, help='Data dimensionality')
-    parser.add_argument('--ridge_alpha', type=float, default=1.0, help='Ridge regularization')
     parser.add_argument('--predictor_type', type=str, default='ridge', choices=['ridge', 'mlp'],
                         help='Type of predictor: ridge or mlp')
     parser.add_argument('--generator', type=str, default=None, help='Specific generator to evaluate')
     parser.add_argument('--seed', type=int, default=None, help='Specific seed to evaluate')
+    parser.add_argument('--no_plots', action='store_true', help='Skip plotting, only save results')
     args = parser.parse_args()
 
     device = args.device if torch.cuda.is_available() else 'cpu'
@@ -711,8 +714,9 @@ def main():
             results_df['generator'] = gen_type
             results_df['seed'] = seed
 
-            # Generate plots
-            plot_all_metrics(results_df, args.save_dir, f"{gen_type}_seed{seed}")
+            # Generate plots (optional)
+            if not args.no_plots:
+                plot_all_metrics(results_df, args.save_dir, f"{gen_type}_seed{seed}")
 
             all_results.append(results_df)
 
@@ -743,17 +747,18 @@ def main():
         with open(f"{args.save_dir}/all_results.pkl", 'wb') as f:
             pickle.dump(combined_df, f)
 
-        # Generate aggregate plots (mean across seeds)
-        print("\nGenerating aggregate plots...")
-        for gen_type in combined_df['generator'].unique():
-            gen_df = combined_df[combined_df['generator'] == gen_type]
-            # Average across seeds
-            agg_df = gen_df.groupby(['mu', 'method']).agg({
-                'mmd_mean': 'mean', 'mmd_std': 'mean',
-                'swd_mean': 'mean', 'swd_std': 'mean',
-                'energy_mean': 'mean', 'energy_std': 'mean',
-            }).reset_index()
-            plot_all_metrics(agg_df, args.save_dir, f"{gen_type}_aggregate")
+        # Generate aggregate plots (mean across seeds) - optional
+        if not args.no_plots:
+            print("\nGenerating aggregate plots...")
+            for gen_type in combined_df['generator'].unique():
+                gen_df = combined_df[combined_df['generator'] == gen_type]
+                # Average across seeds
+                agg_df = gen_df.groupby(['mu', 'method']).agg({
+                    'mmd_mean': 'mean', 'mmd_std': 'mean',
+                    'swd_mean': 'mean', 'swd_std': 'mean',
+                    'energy_mean': 'mean', 'energy_std': 'mean',
+                }).reset_index()
+                plot_all_metrics(agg_df, args.save_dir, f"{gen_type}_aggregate")
 
         # Print final summary table
         print("\n" + "="*80)

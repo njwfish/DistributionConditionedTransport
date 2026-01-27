@@ -1,0 +1,27 @@
+# @package hydra.launcher
+# General GPU requeue partition - large preemptible pool
+_target_: hydra_plugins.hydra_submitit_launcher.submitit_launcher.SlurmLauncher
+
+# SLURM partition and account
+partition: gpu_requeue
+account: kempner_mzitnik_lab
+
+# Resource allocation
+cpus_per_task: 8
+mem_gb: 64
+timeout_min: 720  # 12 hours
+
+# Submitit settings
+submitit_folder: ${hydra.sweep.dir}/.submitit/%j
+array_parallelism: 32  # Larger pool available
+nodes: 1
+tasks_per_node: 1
+max_num_timeout: 3
+
+# GRES specification - A100 80GB
+gres: gpu:nvidia_a100-sxm4-80gb:1
+
+# Additional SLURM parameters
+additional_parameters:
+  mail-type: END,FAIL
+  mail-user: ${oc.env:USER}@g.harvard.edu

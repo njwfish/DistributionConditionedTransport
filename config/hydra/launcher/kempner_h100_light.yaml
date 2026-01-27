@@ -1,0 +1,27 @@
+# @package hydra.launcher
+# Kempner H100 partition - lightweight config for MNIST-scale experiments
+_target_: hydra_plugins.hydra_submitit_launcher.submitit_launcher.SlurmLauncher
+
+# SLURM partition and account
+partition: kempner_h100
+account: kempner_mzitnik_lab
+
+# Resource allocation - minimal for MNIST
+cpus_per_task: 8
+mem_gb: 64
+timeout_min: 720  # 12 hours
+
+# Submitit settings
+submitit_folder: ${hydra.sweep.dir}/.submitit/%j
+array_parallelism: 32  # Higher parallelism
+nodes: 1
+tasks_per_node: 1
+max_num_timeout: 3
+
+# GRES specification
+gres: gpu:nvidia_h100_80gb_hbm3:1
+
+# Additional SLURM parameters
+additional_parameters:
+  mail-type: END,FAIL
+  mail-user: ${oc.env:USER}@g.harvard.edu

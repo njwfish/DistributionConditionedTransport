@@ -1,0 +1,12 @@
+# @package _global_
+defaults:
+  - override /model: direct_mlp
+
+generator:
+  _target_: generator.direct.DirectGenerator
+  model: ${model}
+  loss_type: swd
+  noise_dim: ${experiment.latent_dim}
+  loss_params:
+    n_projections: 100
+    p: 2

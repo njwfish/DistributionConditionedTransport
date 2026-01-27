@@ -456,7 +456,9 @@ def load_experiment(
     print(f"Loaded checkpoint from {checkpoint_path} (epoch {checkpoint.get('epoch', 'unknown')})")
     
     # Instantiate dataset
+    print("Instantiating dataset...")
     dataset = hydra.utils.instantiate(cfg.dataset)
+    print("Dataset loaded")
 
     # Instantiate encoder
     encoder = hydra.utils.instantiate(cfg.encoder)

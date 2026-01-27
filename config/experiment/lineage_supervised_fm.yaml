@@ -8,8 +8,8 @@ description: "clonal dynamics with coupled distribution embeddings"
 defaults:
   - /dataset: lineage_tracing_supervised
   - /encoder: gnn
-  - /model: direct_mlp
-  - /generator: mmd
+  - /model: diffusion_mlp
+  - /generator: flow_matching
   - /training: default1000
   - /loss: default_source_only
   - /sampling: default

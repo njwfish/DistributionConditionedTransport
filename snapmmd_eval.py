@@ -1,29 +1,29 @@
+"""
+Evaluation script for snapMMD models with matched predictor loss.
+
+This script evaluates models trained via run_snapMMD.sh by fitting a linear predictor
+with exactly the same loss function (cosine or MSE) and regularization weight 
+that was used during training.
+
+The predictor loss_type and ridge_alpha are read from the saved config.
+"""
+
 import os
-
-os.chdir("/orcd/archive/abugoot/001/Projects/paolo/main_tde/")
-
-import sys
 import argparse
-import logging
-import yaml
-import json
-import itertools
-import copy
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict
 
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
-import joblib
 
 from utils.snapMMD import MMDLoss, RBF
-from utils.experiment_utils import load_best_model, get_experiment_info
-from utils.seed import seed_everything  # Import seeding utility
-from utils.predictor_training2 import get_ridge
-from utils.conditioning import build_condition_tuple
+from utils.seed import seed_everything
+from utils.predictor_training_matched import (
+    get_matched_predictor, 
+    get_predictor_config_from_checkpoint
+)
 from utils.latents import normalize_latent
-
 
 import hydra
 from omegaconf import OmegaConf
@@ -70,37 +70,35 @@ DATASET_CONFIGS: Dict[str, Dict[str, Any]] = {
         'requires_pca': True,
     },
 }
-def load_cfg_and_ckpt(ckpt_dir):
+
+
+def load_cfg_and_ckpt(ckpt_dir, outputs_dir="outputs"):
     # Resolve and validate checkpoint directory
-    experiment_dir = os.path.join(os.path.abspath(os.path.expanduser("outputs")), ckpt_dir)
+    experiment_dir = os.path.join(os.path.abspath(os.path.expanduser(outputs_dir)), ckpt_dir)
     cfg_path = os.path.join(experiment_dir, 'config.yaml')
     ckpt_path = os.path.join(experiment_dir, 'best_model.pt')
+    #ckpt_path = os.path.join(experiment_dir, 'checkpoint_epoch_1000.pt')
     # Load trained config and use it as the active config
     cfg = OmegaConf.load(cfg_path)
     return cfg, ckpt_path
 
 
 
-def load_models(cfg,ckpt_path):
+def load_models(cfg, ckpt_path):
     encoder = hydra.utils.instantiate(cfg.encoder).to(device)
     generator = hydra.utils.instantiate(cfg.generator).to(device)
-    predictor = None
-    if 'predictor' in cfg:
-        predictor = hydra.utils.instantiate(cfg.predictor).to(device)
 
     checkpoint = torch.load(ckpt_path, map_location=device, weights_only=False)
 
     encoder.load_state_dict(checkpoint['encoder_state_dict'])
     generator.load_state_dict(checkpoint['generator_state_dict'])
-    predictor.load_state_dict(checkpoint['predictor_state_dict'])
-    
     encoder.eval()
     generator.eval()
-    predictor.eval()
-    return encoder, generator, predictor
+
+    return encoder, generator
 
 
-def find_matching_ckpt_dirs(ckpt_dir):
+def find_matching_ckpt_dirs(ckpt_dir, outputs_dir="outputs"):
     """
     Find all checkpoint directories where the config differs only by the seed.
     
@@ -110,7 +108,7 @@ def find_matching_ckpt_dirs(ckpt_dir):
     Returns:
         List of checkpoint directory names that have configs differing only by seed
     """
-    outputs_dir = os.path.abspath(os.path.expanduser("outputs"))
+    outputs_dir = os.path.abspath(os.path.expanduser(outputs_dir))
     matching_dirs = []
     
     cfg_path = os.path.join(outputs_dir, ckpt_dir, 'config.yaml')
@@ -158,63 +156,53 @@ def find_matching_ckpt_dirs(ckpt_dir):
 
 
 
-def generate_cde_forecast(cfg, data, encoder, generator, predictor = None, two_step = False, predictor_type = 'posthoc'):
+def generate_cde_forecast(cfg, data, encoder, generator, predictor=None, two_step=False, tgt_latent_mode="use_predictor"):
+    """
+    Generate forecast by feeding all data at once into encoder and generator.
+    No subsetting by set_size - uses all samples at each timepoint.
+    """
 
-    # Re-seed for deterministic forecasting per run
-    try:
-        cfg_seed = int(getattr(cfg, 'seed', None) or OmegaConf.to_container(cfg, resolve=True).get('seed', None))
-    except Exception:
-        cfg_seed = None
-    if cfg_seed is not None:
-        seed_everything(cfg_seed, deterministic=True)
+    seed_everything(0, deterministic=True)
 
     Xs = data['Xs']
-    n_steps = int(data['N_steps'])
     
-    set_size = cfg.experiment.set_size
+    # Feed all data at each timepoint (no subsetting)
     Xs_third_last = torch.tensor(Xs[-3], dtype=torch.float).to(device)
     Xs_second_last = torch.tensor(Xs[-2], dtype=torch.float).to(device)
     Xs_last = torch.tensor(Xs[-1], dtype=torch.float).to(device)
     
-    num_sets = Xs_second_last.shape[0] // set_size
-    
-    all_gen_samples = []
-    
-    for i in range(num_sets):
-        Xs_third_last_set = Xs_third_last[i*set_size:(i+1)*set_size].unsqueeze(0)
-        Xs_second_last_set = Xs_second_last[i*set_size:(i+1)*set_size].unsqueeze(0)
-        Xs_last_set = Xs_last[i*set_size:(i+1)*set_size].unsqueeze(0)
+    # Add batch dimension for encoder (expects [batch, num_samples, features])
+    Xs_third_last_batch = Xs_third_last.unsqueeze(0)
+    Xs_second_last_batch = Xs_second_last.unsqueeze(0)
+    Xs_last_batch = Xs_last.unsqueeze(0)
 
-        if two_step:
-            src_latent_1 = encoder(Xs_third_last_set)
-            src_latent_2 = encoder(Xs_second_last_set)
-            
-            src_latent_combined = torch.cat([src_latent_1, src_latent_2], dim=-1)
-            src_latent = src_latent_2
-        else:
-            src_latent = encoder(Xs_second_last_set)
-            src_latent_combined = src_latent
+    if two_step:
+        src_latent_1 = encoder(Xs_third_last_batch)
+        src_latent_2 = encoder(Xs_second_last_batch)
         
-        if predictor is not None and predictor_type == "posthoc":
-            #print(src_latent.detach().cpu().numpy().shape)
-            tgt_latent = torch.tensor(predictor.predict(src_latent_combined.detach().cpu().numpy()), dtype=torch.float).to(device)
-            #tgt_latent = tgt_latent / tgt_latent.norm(dim=-1, keepdim=True)t
-            tgt_latent = normalize_latent(tgt_latent)
-        elif predictor is not None and predictor_type == "cotrained":
-            condition_scalars = build_condition_tuple({'d':torch.tensor([1/n_steps])}, device, getattr(predictor, 'condition_type', 'none'))
-            tgt_latent = predictor(src_latent,condition_scalars=condition_scalars)
-        elif predictor_type == "MFM":
-            tgt_latent = None
-        else:
-            tgt_latent = encoder(Xs_last_set)
-
-
-
-        gen = generator.sample(Xs_second_last_set.squeeze(0), src_latent, tgt_latent)
-        all_gen_samples.append(gen.squeeze(0))
+        src_latent_combined = torch.cat([src_latent_1, src_latent_2], dim=-1)
+        src_latent = src_latent_2
+    else:
+        src_latent = encoder(Xs_second_last_batch)
+        src_latent_combined = src_latent
     
-    all_gen_samples = torch.cat(all_gen_samples, dim=0)
-    return all_gen_samples.cpu().numpy()
+    # TODO: MFM option needs to be inserted here
+    if tgt_latent_mode == "use_predictor":
+        tgt_latent = torch.tensor(predictor.predict(src_latent_combined.detach().cpu().numpy()), dtype=torch.float).to(device)
+        tgt_latent = normalize_latent(tgt_latent)  # Normalize predicted latent to match encoder output
+    elif tgt_latent_mode == "mfm":
+        tgt_latent = None
+    elif tgt_latent_mode == "ideal":
+        tgt_latent = encoder(Xs_last_batch)  # Encoder already normalizes output
+
+    # Generate samples using all source samples at once
+    gen = generator.sample(Xs_second_last, src_latent, tgt_latent)
+    
+    # Squeeze out batch dimension if present to get [num_samples, features]
+    if gen.dim() == 3:
+        gen = gen.squeeze(0)
+    
+    return gen.cpu().numpy()
 
 
 def compute_scores(cfg, data, forecast):
@@ -316,75 +304,110 @@ def plot_forecast(cfg, data, forecast):
     plt.show()
 
     
-# NOTE: seeds=(40 41 42 43 44)
 
-predictor_loss_weight = 0.1
-selective_pairing_mode = None
+# Parse command line arguments
+parser = argparse.ArgumentParser(description="Evaluate snapMMD models with matched predictor loss")
+parser.add_argument("--two_step", type=lambda x: x.lower() in ('true', '1', 'yes'), 
+                    default=False, help="Use two-step prediction (default: True)")
+parser.add_argument("--ckpt_prefix", type=str, default="snapMMD_gnn_P", 
+                    help="Checkpoint directory prefix to search for (default: snapMMD_G)")
+parser.add_argument("--outputs_dir", type=str, default="outputs",
+                    help="Directory containing model outputs (default: outputs)")
+args = parser.parse_args()
 
-def run_analysis(predictor_loss_weight, selective_pairing_mode, predictor_type = None, two_step = False):
+# Training hyperparameter combinations to evaluate
+# These match the original snapmmd_eval_strat.py
+predictor_loss_weights = [10, 1, 0.1, 0.01, 0.001, 0.0]
+selective_pairing_modes = [None, "single_step"]
+
+# Use command line arguments
+outputs_dir = args.outputs_dir
+ckpt_prefix = args.ckpt_prefix
+two_step = args.two_step
+
+print(f"Configuration: two_step={two_step}, ckpt_prefix={ckpt_prefix}, outputs_dir={outputs_dir}")
+
+for predictor_loss_weight in predictor_loss_weights:
+    for selective_pairing_mode in selective_pairing_modes:
+        ckpt_dir_ref = None
+        for ckpt_dir in os.listdir(outputs_dir):
+            if ckpt_dir.startswith(ckpt_prefix):
+                try:
+                    cfg_ref, _ = load_cfg_and_ckpt(ckpt_dir, outputs_dir=outputs_dir)
+                    if cfg_ref['experiment']['predictor_loss_weight'] == predictor_loss_weight and cfg_ref['experiment']['selective_pairing_mode'] == selective_pairing_mode:
+                        ckpt_dir_ref = ckpt_dir
+                        break
+                except Exception as e:
+                    # Skip directories that fail to load (e.g., missing config.yaml)
+                    continue
     
-    if two_step and predictor_type == "cotrained":
-        raise ValueError("cotrained predictor does not support two-step forecasting")
-    
-    for ckpt_dir in os.listdir("outputs"):
-        if ckpt_dir.startswith("snapMMD_energy_cotrain_GoM"):
-            try:
-                cfg_ref,_ = load_cfg_and_ckpt(ckpt_dir)
-            except:
-                continue
-            if cfg_ref['experiment']['predictor_loss_weight'] == predictor_loss_weight and cfg_ref['experiment']['selective_pairing_mode'] == selective_pairing_mode:
-                print(ckpt_dir)
-                ckpt_dir_ref = ckpt_dir
-                break
+        if ckpt_dir_ref is None:
+            print(f"No matching directory found for predictor_loss_weight={predictor_loss_weight}, selective_pairing_mode={selective_pairing_mode}")
+            continue
+            
+
+        matching_dirs = find_matching_ckpt_dirs(ckpt_dir_ref, outputs_dir=outputs_dir)
+
+        plot_seed = 0
+        all_mmd = []
+        all_emd = []
+        tgt_latent_mode = "use_predictor" # alternatively: "mfm", "ideal"
+        
+        print(f"=" * 60)
+        print(f"Predictor loss weight: {predictor_loss_weight}")
+        print(f"Selective pairing mode: {selective_pairing_mode}")
+        print(f"Two step: {two_step}")
+        print(f"=" * 60)
+        
+        for j, ckpt_dir in enumerate(matching_dirs):
+            cfg, ckpt_path = load_cfg_and_ckpt(ckpt_dir, outputs_dir=outputs_dir)
+            encoder, generator = load_models(cfg, ckpt_path)
+            data = np.load(DATASET_CONFIGS[cfg.dataset_name]['data_path'])
+
+            if tgt_latent_mode == "use_predictor":
+                # Extract predictor loss type and ridge_alpha from the saved config
+                loss_type, ridge_alpha = get_predictor_config_from_checkpoint(cfg)
                 
+                if j == 0:
+                    print(f"Using matched predictor: loss_type={loss_type}, ridge_alpha={ridge_alpha}")
+                
+                # Train predictor with matched loss function (feeds all data at once)
+                predictor = get_matched_predictor(
+                    encoder, 
+                    data, 
+                    loss_type=loss_type,
+                    ridge_alpha=ridge_alpha,
+                    device=device, 
+                    seed=42, 
+                    two_step=two_step,
+                    num_epochs=1000,
+                    lr=1e-2,
+                    verbose=False
+                )
+
+            forecast = generate_cde_forecast(cfg, data, encoder, generator, predictor=predictor, two_step=two_step, tgt_latent_mode=tgt_latent_mode)
+            mmd, emd = compute_scores(cfg, data, forecast)
+            print(f"Seed {j}: MMD={mmd:.6f}, EMD={emd:.6f}")
+            all_mmd.append(mmd)
+            all_emd.append(emd)
+            #if j == plot_seed:
+            #    print(f"Forecast shape: {forecast.shape}")
+            #    plot_forecast(cfg, data, forecast)
         
-    print(cfg_ref['experiment']['predictor_loss_weight'])
-    print(cfg_ref['experiment']['selective_pairing_mode'])
 
-    matching_dirs = find_matching_ckpt_dirs(ckpt_dir_ref)
+        all_mmd = np.array(all_mmd)
+        all_emd = np.array(all_emd)
 
-    print(cfg_ref)
+        print("-" * 40)
+        print(f"MMD: {np.mean(all_mmd):.6f} +/- {np.std(all_mmd):.6f}")
+        print(f"EMD: {np.mean(all_emd):.6f} +/- {np.std(all_emd):.6f}")
+        print()
 
-
-    plot_seed = 3
-    all_mmd = []
-    all_emd = []
-    use_predictor = True
-    
-    for j, ckpt_dir in enumerate(matching_dirs):
-        cfg, ckpt_path = load_cfg_and_ckpt(ckpt_dir)
-        encoder, generator, cotrained_predictor = load_models(cfg, ckpt_path)
-        data = np.load(DATASET_CONFIGS[cfg.dataset_name]['data_path'])
-
-        if use_predictor and predictor_type == "posthoc":
-            #predictor = get_ridge(encoder, data, num_sets=20, set_size=32, alpha = 1, device=device)
-            predictor = get_ridge(encoder, data, num_sets=5, set_size=32, device=device, alpha = 0.001, seed=42, two_step=two_step)
-        
-        elif use_predictor and predictor_type == "cotrained":
-            predictor = cotrained_predictor
-            
-        else:
-            predictor = None
-
-        forecast = generate_cde_forecast(cfg, data, encoder, generator, predictor = predictor, predictor_type = predictor_type, two_step=two_step)
-        mmd, emd = compute_scores(cfg, data, forecast)
-        print(mmd, emd)
-        all_mmd.append(mmd)
-        all_emd.append(emd)
-        if j == plot_seed:
-            print(forecast.shape, type(forecast), forecast.device)
-            plot_forecast(cfg, data, forecast)
-            plt.savefig(f"outputs/snapMMD_MFM_GoM_{predictor_type}_{predictor_loss_weight}_{selective_pairing_mode}.png")
-        
-        
-        
-    all_mmd = np.array(all_mmd)
-    all_emd = np.array(all_emd)
-
-    print(f"MMD for {predictor_type}, {predictor_loss_weight}, {selective_pairing_mode}", np.mean(all_mmd), np.std(all_mmd))
-    print(f"EMD for {predictor_type}, {predictor_loss_weight}, {selective_pairing_mode}", np.mean(all_emd), np.std(all_emd))
-            
-
-run_analysis(0.1, "single_step", predictor_type = "MFM", two_step = False)
-run_analysis(0.1, None, predictor_type = "MFM", two_step = False)
-
+        # Clean up
+        ckpt_dir_ref = None
+        matching_dirs = None
+        cfg = None
+        ckpt_path = None
+        encoder = None
+        generator = None
+        predictor = None

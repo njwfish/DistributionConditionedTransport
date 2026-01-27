@@ -1096,7 +1096,8 @@ def main():
     parser.add_argument('--experiment', type=str, default='mvn', choices=['mvn', 'gmm'])
     parser.add_argument('--num_epochs', type=int, default=200)
     parser.add_argument('--device', type=str, default='cuda')
-    parser.add_argument('--save_path', type=str, default='eval_results.pkl')
+    parser.add_argument('--save_path', type=str, default=None,
+                        help='Path to save results. Default: {experiment}_epoch{checkpoint_epoch}_results.pkl')
     parser.add_argument('--batch_size', type=int, default=500, help='Batch size for transport')
     parser.add_argument('--n_out_dist', type=int, default=10000, help='Number of OOD distributions to generate')
     parser.add_argument('--set_size', type=int, default=1000, help='Samples per distribution')
@@ -1105,6 +1106,11 @@ def main():
     parser.add_argument('--generators', type=str, nargs='+', default=['flow_matching', 'mmd', 'swd'],
                         help='Generator types to evaluate. Options: flow_matching, mmd, swd, sinkhorn, energy, wasserstein. Default: flow_matching mmd swd')
     args = parser.parse_args()
+
+    # Generate default save path if not specified
+    if args.save_path is None:
+        epoch_str = f"_epoch{args.checkpoint_epoch}" if args.checkpoint_epoch else ""
+        args.save_path = f"{args.experiment}{epoch_str}_results.pkl"
 
     device = args.device if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")

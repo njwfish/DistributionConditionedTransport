@@ -1,13 +1,12 @@
 """
 Unified evaluation for supervised vs semisupervised distribution transport.
 
-Evaluates both approaches on test distributions across the full support [0, 5],
-showing how performance varies with the mean location (mu). This reveals:
-- How supervised models (source_only) generalize outside training support [0, 2.5]
+Evaluates both approaches on a 2D grid of test distributions across [0, 5] x [0, 5],
+showing how performance varies with the mean location (mu_x, mu_y). This reveals:
+- How supervised models (source_only) generalize outside training support [0, 2.5]^2
 - How semisupervised models (any-to-any + ridge predictor) perform across the range
 
-Produces visualizations plotting performance metrics vs mu, with clear comparison
-between supervised, semisupervised, and oracle (upper bound) approaches.
+Produces results that can be visualized as heatmaps or contour plots.
 """
 
 import sys
@@ -22,13 +21,10 @@ import hydra
 import pickle
 import pandas as pd
 from tqdm import tqdm
-import copy
 import gc
 import argparse
-from sklearn.linear_model import Ridge, RidgeCV
-from sklearn.neural_network import MLPRegressor
+from sklearn.linear_model import RidgeCV
 import scipy as sp
-import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')
 
@@ -83,16 +79,7 @@ def load_model(cfg, path, device, num_epochs):
 
 def filter_experiments(configs, experiment_type='mvn', num_epochs=200,
                        n_unique_sets=None, supervised=None, require_checkpoint=True):
-    """Filter experiments by criteria.
-
-    Args:
-        configs: List of experiment configs
-        experiment_type: Type of experiment ('mvn', 'gmm', etc)
-        num_epochs: Target epoch for checkpoint loading
-        n_unique_sets: Required n_unique_sets value
-        supervised: If True, only supervised; if False, only unsupervised; if None, both
-        require_checkpoint: If True, filter to experiments that have the checkpoint for num_epochs
-    """
+    """Filter experiments by criteria."""
     import os
     filtered = []
     for c in configs:
@@ -102,7 +89,6 @@ def filter_experiments(configs, experiment_type='mvn', num_epochs=200,
             is_supervised = 'supervised' in c['name']
             if is_supervised != supervised:
                 continue
-        # Check if checkpoint exists for the target epoch
         if require_checkpoint:
             checkpoint_path = os.path.join(c['dir'], f'checkpoint_epoch_{num_epochs}.pt')
             if not os.path.exists(checkpoint_path):
@@ -111,7 +97,6 @@ def filter_experiments(configs, experiment_type='mvn', num_epochs=200,
             cfg_n_unique = c['config']['dataset'].get('n_unique_sets')
             if cfg_n_unique != n_unique_sets:
                 continue
-        # Must be distribution encoder (GNN), not embedding
         if 'Embedding' in c.get('encoder', ''):
             continue
         filtered.append(c)
@@ -119,65 +104,87 @@ def filter_experiments(configs, experiment_type='mvn', num_epochs=200,
 
 
 # ============================================================================
-# Test data generation with controlled mu
+# Test data generation on 2D grid
 # ============================================================================
 
-def generate_test_distributions_at_mu(mu_value, n_distributions, data_dim=2,
-                                       prior_cov_df=10, prior_cov_scale=1.0,
-                                       set_size=100, seed=None):
+def generate_distribution_at_mu(mu_x, mu_y, data_dim=2, prior_cov_df=10,
+                                 prior_cov_scale=1.0, set_size=100, seed=None):
     """
-    Generate test distributions with means centered at a specific mu value.
+    Generate a single test distribution with mean at (mu_x, mu_y).
 
-    For MVN: generates distributions with mean uniformly in [mu - 0.25, mu + 0.25]
-    This allows testing at specific points along the [0, 5] range.
+    Returns:
+        data: (set_size, data_dim) samples
+        mu: (data_dim,) mean vector
+        cov: (data_dim, data_dim) covariance matrix
     """
     if seed is not None:
         np.random.seed(seed)
 
-    # Generate means in a small window around mu_value
-    delta = 0.25  # Half-width of window
-    mu = np.random.uniform(mu_value - delta, mu_value + delta, (n_distributions, data_dim))
+    mu = np.array([mu_x, mu_y])
 
-    # Clamp to valid range
-    mu = np.clip(mu, 0, 5)
-
-    # Generate covariances from inverse Wishart
+    # Generate covariance from inverse Wishart
     prior_cov_df_adjusted = prior_cov_df * (data_dim - 1)
     cov = np.linalg.inv(sp.stats.wishart.rvs(
         df=prior_cov_df_adjusted,
-        scale=prior_cov_scale * np.eye(data_dim),
-        size=n_distributions
+        scale=prior_cov_scale * np.eye(data_dim)
     ))
 
     # Sample data
-    data = np.zeros((n_distributions, set_size, data_dim))
-    for i in range(n_distributions):
-        L = np.linalg.cholesky(cov[i])
-        z = np.random.randn(set_size, data_dim)
-        data[i] = z @ L.T + mu[i]
+    L = np.linalg.cholesky(cov)
+    z = np.random.randn(set_size, data_dim)
+    data = z @ L.T + mu
 
     return data, mu, cov
 
 
-def generate_supervised_test_data(source_data, source_mu, n_distributions,
-                                   shift=(1.0, 1.0), data_dim=2, seed=None):
+def generate_mvn_target(source_data, shift=(1.0, 1.0), seed=None):
     """
-    Generate supervised target data: Y = X + shift (shuffled).
-    Uses a fixed shift transformation matching training.
+    Generate MVN target data: Y = X + shift (then shuffled).
+    Matches SupervisedMVNDataset.
     """
     if seed is not None:
         np.random.seed(seed)
 
-    # Fixed shift transformation: A = I, b = shift
-    A = np.eye(data_dim)
     b = np.array(shift)
+    target_data = source_data + b
+    np.random.shuffle(target_data)
 
-    target_data = np.zeros_like(source_data)
-    for i in range(n_distributions):
-        target_data[i] = source_data[i] + b
-        np.random.shuffle(target_data[i])
+    return target_data
 
-    return target_data, A, b
+
+def generate_gmm_target(source_data, shift=(0.5, 0.5), off_axis_shift=None, seed=None):
+    """
+    Generate GMM target data with off-axis shift.
+    Matches SupervisedGMMDataset.
+
+    Creates two shifted versions:
+    - Left: X + shift + off_axis_shift
+    - Right: X + shift - off_axis_shift
+    Then stacks and samples half.
+
+    Args:
+        source_data: Source samples
+        shift: Base shift vector
+        off_axis_shift: Off-axis shift vector (e.g., [-0.1, 0.1] for GMM)
+        seed: Random seed
+    """
+    if seed is not None:
+        np.random.seed(seed)
+
+    b = np.array(shift)
+    if off_axis_shift is None:
+        off_axis_shift = np.array([-0.1, 0.1])  # Default
+    else:
+        off_axis_shift = np.array(off_axis_shift)
+
+    target_left = source_data + b + off_axis_shift
+    target_right = source_data + b - off_axis_shift
+    target_stacked = np.vstack([target_left, target_right])
+
+    np.random.shuffle(target_stacked)
+    target_data = target_stacked[:source_data.shape[0]]
+
+    return target_data
 
 
 # ============================================================================
@@ -188,35 +195,21 @@ def transport_supervised(enc, gen, source_samples, device):
     """
     Transport using supervised model (source_only conditioning).
     Target latent is zeros.
-
-    Args:
-        source_samples: (set_size, dim) single distribution samples
     """
     with torch.no_grad():
         source_t = torch.from_numpy(source_samples).float().to(device)
-
-        # Add batch dimension for encoder: (1, set_size, dim)
         source_batch = source_t.unsqueeze(0)
-
-        # Get source embedding: (1, latent_dim)
         source_lat = enc(source_batch)
-
-        # Target latent is zeros (source_only): (1, latent_dim)
         target_lat = torch.zeros_like(source_lat)
 
-        set_size, dim = source_t.shape
+        set_size = source_t.shape[0]
+        source_lat_exp = source_lat.expand(set_size, -1)
+        target_lat_exp = target_lat.expand(set_size, -1)
 
-        # Expand latents for each sample in the set
-        source_lat_exp = source_lat.expand(set_size, -1)  # (set_size, latent_dim)
-        target_lat_exp = target_lat.expand(set_size, -1)  # (set_size, latent_dim)
-
-        # Transport: source_t is (set_size, dim)
         transported = gen.sample(source_t, source_lat_exp, target_lat_exp)
-
-        # Squeeze extra dimension if present (flow matching returns (N, 1, d))
         transported = transported.squeeze()
         if transported.dim() == 1:
-            transported = transported.unsqueeze(-1)  # Handle 1D case
+            transported = transported.unsqueeze(-1)
 
         return transported.cpu().numpy()
 
@@ -224,41 +217,26 @@ def transport_supervised(enc, gen, source_samples, device):
 def transport_semisupervised(enc, gen, predictor, source_samples, device):
     """
     Transport using semisupervised approach: any-to-any model + ridge predictor.
-
     The predictor predicts the RESIDUAL: target_lat = source_lat + predictor(source_lat)
-
-    Args:
-        source_samples: (set_size, dim) single distribution samples
     """
     with torch.no_grad():
         source_t = torch.from_numpy(source_samples).float().to(device)
-
-        # Add batch dimension for encoder: (1, set_size, dim)
         source_batch = source_t.unsqueeze(0)
-
-        # Get source embedding: (1, latent_dim)
         source_lat = enc(source_batch)
 
-        # Predict target latent using residual ridge regression:
-        # target_lat = source_lat + predictor(source_lat)
         source_lat_np = source_lat.cpu().numpy()
         residual_np = predictor.predict(source_lat_np)
         target_lat_np = source_lat_np + residual_np
         target_lat = torch.from_numpy(target_lat_np).float().to(device)
 
-        set_size, dim = source_t.shape
+        set_size = source_t.shape[0]
+        source_lat_exp = source_lat.expand(set_size, -1)
+        target_lat_exp = target_lat.expand(set_size, -1)
 
-        # Expand latents for each sample in the set
-        source_lat_exp = source_lat.expand(set_size, -1)  # (set_size, latent_dim)
-        target_lat_exp = target_lat.expand(set_size, -1)  # (set_size, latent_dim)
-
-        # Transport: source_t is (set_size, dim)
         transported = gen.sample(source_t, source_lat_exp, target_lat_exp)
-
-        # Squeeze extra dimension if present (flow matching returns (N, 1, d))
         transported = transported.squeeze()
         if transported.dim() == 1:
-            transported = transported.unsqueeze(-1)  # Handle 1D case
+            transported = transported.unsqueeze(-1)
 
         return transported.cpu().numpy()
 
@@ -266,139 +244,124 @@ def transport_semisupervised(enc, gen, predictor, source_samples, device):
 def transport_oracle(enc, gen, source_samples, target_samples, device):
     """
     Transport using oracle (true target embedding). Upper bound on performance.
-
-    Args:
-        source_samples: (set_size, dim) single distribution samples
-        target_samples: (set_size, dim) single distribution samples
     """
     with torch.no_grad():
         source_t = torch.from_numpy(source_samples).float().to(device)
         target_t = torch.from_numpy(target_samples).float().to(device)
 
-        # Add batch dimension for encoder: (1, set_size, dim)
         source_batch = source_t.unsqueeze(0)
         target_batch = target_t.unsqueeze(0)
 
-        # Get embeddings: (1, latent_dim)
         source_lat = enc(source_batch)
         target_lat = enc(target_batch)
 
-        set_size, dim = source_t.shape
+        set_size = source_t.shape[0]
+        source_lat_exp = source_lat.expand(set_size, -1)
+        target_lat_exp = target_lat.expand(set_size, -1)
 
-        # Expand latents for each sample in the set
-        source_lat_exp = source_lat.expand(set_size, -1)  # (set_size, latent_dim)
-        target_lat_exp = target_lat.expand(set_size, -1)  # (set_size, latent_dim)
-
-        # Transport: source_t is (set_size, dim)
         transported = gen.sample(source_t, source_lat_exp, target_lat_exp)
-
-        # Squeeze extra dimension if present (flow matching returns (N, 1, d))
         transported = transported.squeeze()
         if transported.dim() == 1:
-            transported = transported.unsqueeze(-1)  # Handle 1D case
+            transported = transported.unsqueeze(-1)
 
         return transported.cpu().numpy()
 
 
 # ============================================================================
-# Evaluation at specific mu values
+# Evaluation on 2D grid
 # ============================================================================
 
-def evaluate_at_mu(mu_value, enc, gen, device, method='supervised', predictor=None,
-                   n_distributions=100, set_size=100, data_dim=2, seed=None,
-                   shift=(1.0, 1.0)):
+def is_in_distribution(mu_x, mu_y, threshold=2.5):
+    """Check if a point is in the training support [0, threshold]^2."""
+    return mu_x <= threshold and mu_y <= threshold
+
+
+def evaluate_at_grid_point(mu_x, mu_y, enc, gen, device, method='supervised',
+                           predictor=None, set_size=100, data_dim=2, seed=None,
+                           experiment_type='mvn', shift=None, off_axis_shift=None):
     """
-    Evaluate transport performance at a specific mu value.
+    Evaluate transport performance at a single grid point (mu_x, mu_y).
 
     Args:
-        mu_value: Center of the mu range to test
+        mu_x, mu_y: Grid point coordinates (mean location)
         enc, gen: Encoder and generator models
         device: Device to use
         method: 'supervised', 'semisupervised', or 'oracle'
         predictor: Ridge predictor (required for semisupervised)
-        n_distributions: Number of test distributions
         set_size: Samples per distribution
         data_dim: Data dimensionality
-        seed: Random seed for source data generation (can vary per mu)
-        shift: Fixed shift vector for transformation Y = X + shift
+        seed: Random seed
+        experiment_type: 'mvn' or 'gmm'
+        shift: Shift vector (from dataset)
+        off_axis_shift: Off-axis shift vector for GMM (from dataset)
 
     Returns:
-        dict with mean and std of each metric
+        dict with metrics
     """
-    # Generate test data at this mu
-    source_data, source_mu, source_cov = generate_test_distributions_at_mu(
-        mu_value, n_distributions, data_dim, set_size=set_size, seed=seed
+    # Generate source distribution at this grid point
+    source_data, source_mu, source_cov = generate_distribution_at_mu(
+        mu_x, mu_y, data_dim=data_dim, set_size=set_size, seed=seed
     )
 
-    # Generate target data using fixed shift transformation
-    target_data, A, b = generate_supervised_test_data(
-        source_data, source_mu, n_distributions, shift=shift, data_dim=data_dim, seed=seed
-    )
+    # Generate target data based on experiment type
+    # Note: shift should always come from the dataset config, not hardcoded defaults
+    if shift is None:
+        raise ValueError("shift must be provided from the supervised dataset config")
 
-    mmd_vals, swd_vals, energy_vals = [], [], []
+    if experiment_type == 'mvn':
+        target_data = generate_mvn_target(source_data, shift=shift, seed=seed)
+    else:  # gmm
+        target_data = generate_gmm_target(source_data, shift=shift, off_axis_shift=off_axis_shift, seed=seed)
 
-    for i in range(n_distributions):
-        source = source_data[i]
-        target = target_data[i]
+    # Transport
+    if method == 'supervised':
+        transported = transport_supervised(enc, gen, source_data, device)
+    elif method == 'semisupervised':
+        transported = transport_semisupervised(enc, gen, predictor, source_data, device)
+    elif method == 'oracle':
+        transported = transport_oracle(enc, gen, source_data, target_data, device)
+    else:
+        raise ValueError(f"Unknown method: {method}")
 
-        if method == 'supervised':
-            transported = transport_supervised(enc, gen, source, device)
-        elif method == 'semisupervised':
-            transported = transport_semisupervised(enc, gen, predictor, source, device)
-        elif method == 'oracle':
-            transported = transport_oracle(enc, gen, source, target, device)
-        else:
-            raise ValueError(f"Unknown method: {method}")
-
-        metrics = compute_metrics(transported, target, device)
-        mmd_vals.append(metrics['mmd'])
-        swd_vals.append(metrics['swd'])
-        energy_vals.append(metrics['energy'])
+    metrics = compute_metrics(transported, target_data, device)
 
     return {
-        'mu': mu_value,
-        'mmd_mean': np.mean(mmd_vals),
-        'mmd_std': np.std(mmd_vals),
-        'swd_mean': np.mean(swd_vals),
-        'swd_std': np.std(swd_vals),
-        'energy_mean': np.mean(energy_vals),
-        'energy_std': np.std(energy_vals),
+        'mu_x': mu_x,
+        'mu_y': mu_y,
+        'in_distribution': is_in_distribution(mu_x, mu_y),
+        **metrics
     }
 
 
-def fit_predictor_from_data(enc, device, n_train=10000, set_size=100,
-                             data_dim=2, seed=42, predictor_type='ridge',
-                             shift=(1.0, 1.0)):
+def fit_predictor_from_dataset(enc, device, supervised_exp_config, n_train=10000):
     """
-    Fit predictor using supervised data with restricted support [0, 2.5].
+    Fit predictor using the exact same dataset as the supervised model training.
 
+    Instantiates the dataset from the experiment config and uses it for training.
     Predicts the RESIDUAL (target_emb - source_emb) rather than target_emb directly.
-    This can be easier to learn since the transformation is often roughly identity + small delta.
     """
-    print(f"  Generating {n_train} supervised training samples (restricted support)...")
-    np.random.seed(seed)
+    print(f"  Loading supervised dataset from config...")
 
-    # Generate source data with restricted support
-    source_data, source_mu, source_cov = generate_test_distributions_at_mu(
-        1.25, n_train, data_dim, set_size=set_size, seed=seed  # Center of [0, 2.5]
-    )
-    # Regenerate with full restricted range
-    source_mu = np.random.uniform(0, 2.5, (n_train, data_dim))
-    prior_cov_df_adjusted = 10 * (data_dim - 1)
-    source_cov = np.linalg.inv(sp.stats.wishart.rvs(
-        df=prior_cov_df_adjusted, scale=1.0 * np.eye(data_dim), size=n_train
-    ))
-    source_data = np.zeros((n_train, set_size, data_dim))
-    for i in range(n_train):
-        L = np.linalg.cholesky(source_cov[i])
-        z = np.random.randn(set_size, data_dim)
-        source_data[i] = z @ L.T + source_mu[i]
+    # Instantiate the dataset exactly as training would
+    dataset = hydra.utils.instantiate(supervised_exp_config['dataset'])
 
-    target_data, A, b = generate_supervised_test_data(
-        source_data, source_mu, n_train, shift=shift, data_dim=data_dim, seed=seed
-    )
+    # Limit to n_train samples
+    n_train = min(n_train, len(dataset))
+    print(f"  Using {n_train} samples from dataset (total: {len(dataset)})")
 
-    print("  Embedding training data...")
+    # Collect source and target data
+    source_data_list = []
+    target_data_list = []
+
+    for i in tqdm(range(n_train), desc="  Loading data"):
+        sample = dataset[i]
+        source_data_list.append(sample['source_samples'].numpy())
+        target_data_list.append(sample['target_samples'].numpy())
+
+    source_data = np.array(source_data_list)
+    target_data = np.array(target_data_list)
+
+    print(f"  Embedding {n_train} training distributions...")
     source_latents = []
     target_latents = []
 
@@ -418,119 +381,26 @@ def fit_predictor_from_data(enc, device, n_train=10000, set_size=100,
     # Compute residuals: delta = target - source
     residuals = target_latents - source_latents
 
-    if predictor_type == 'ridge':
-        # Use RidgeCV to automatically select regularization via cross-validation
-        alphas = np.logspace(-6, 6, 50)  # Wide range of alphas to search
-        print(f"  Fitting RidgeCV predictor for RESIDUAL (searching {len(alphas)} alphas via CV)...")
-        predictor = RidgeCV(alphas=alphas, cv=5)
-        predictor.fit(source_latents, residuals)
-        print(f"  Selected alpha: {predictor.alpha_:.6g}")
-    elif predictor_type == 'mlp':
-        print(f"  Fitting MLP predictor for RESIDUAL...")
-        predictor = MLPRegressor(
-            hidden_layer_sizes=(256, 128),
-            activation='relu',
-            solver='adam',
-            alpha=0.0001,
-            batch_size=256,
-            learning_rate='adaptive',
-            learning_rate_init=0.001,
-            max_iter=200,
-            early_stopping=True,
-            validation_fraction=0.1,
-            n_iter_no_change=10,
-            verbose=False,
-            random_state=seed
-        )
-        predictor.fit(source_latents, residuals)
-    else:
-        raise ValueError(f"Unknown predictor_type: {predictor_type}")
+    # Fit RidgeCV
+    alphas = np.logspace(-6, 6, 50)
+    print(f"  Fitting RidgeCV predictor for RESIDUAL (searching {len(alphas)} alphas via CV)...")
+    predictor = RidgeCV(alphas=alphas, cv=5)
+    predictor.fit(source_latents, residuals)
+    print(f"  Selected alpha: {predictor.alpha_:.6g}")
 
-    # Evaluate: predicted_target = source + predicted_residual
+    # Evaluate
     pred_residuals = predictor.predict(source_latents)
     pred_targets = source_latents + pred_residuals
     train_mse = np.mean((pred_targets - target_latents) ** 2)
-    residual_mse = np.mean((pred_residuals - residuals) ** 2)
-    print(f"  Residual MSE: {residual_mse:.6f}, Full prediction MSE: {train_mse:.6f}")
+    print(f"  Training MSE: {train_mse:.6f}")
 
-    # Also compute baseline: just use mean residual (constant offset)
-    mean_residual = np.mean(residuals, axis=0)
-    const_pred_targets = source_latents + mean_residual
-    const_mse = np.mean((const_pred_targets - target_latents) ** 2)
-    print(f"  Constant offset MSE: {const_mse:.6f}")
-
-    return predictor, train_mse
-
-
-# ============================================================================
-# Visualization
-# ============================================================================
-
-def plot_performance_vs_mu(results_df, save_path, metric='mmd', title=None):
-    """
-    Plot performance metric vs mu for different methods.
-
-    Args:
-        results_df: DataFrame with columns [mu, method, {metric}_mean, {metric}_std, ...]
-        save_path: Path to save figure
-        metric: Which metric to plot ('mmd', 'swd', 'energy')
-        title: Optional title
-    """
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    colors = {
-        'supervised': '#e41a1c',      # Red
-        'semisupervised': '#377eb8',  # Blue
-        'oracle': '#4daf4a',          # Green
-    }
-    labels = {
-        'supervised': 'Supervised (source-only)',
-        'semisupervised': 'Semisupervised (any-to-any + ridge)',
-        'oracle': 'Oracle (true target embedding)',
+    # Also get the shift/transformation info from dataset for evaluation
+    dataset_info = {
+        'shift': getattr(dataset, 'b', None),
+        'off_axis_shift': getattr(dataset, 'off_axis_shift', None),
     }
 
-    # Add shaded region for training support
-    ax.axvspan(0, 2.5, alpha=0.15, color='gray', label='Training support [0, 2.5]')
-    ax.axvline(x=2.5, color='gray', linestyle='--', alpha=0.5, linewidth=1)
-
-    for method in ['supervised', 'semisupervised', 'oracle']:
-        method_df = results_df[results_df['method'] == method].sort_values('mu')
-        if len(method_df) == 0:
-            continue
-
-        mu = method_df['mu'].values
-        mean = method_df[f'{metric}_mean'].values
-        std = method_df[f'{metric}_std'].values
-
-        ax.plot(mu, mean, color=colors[method], linewidth=2, label=labels[method])
-        ax.fill_between(mu, mean - std, mean + std, color=colors[method], alpha=0.2)
-
-    ax.set_xlabel('Mean location (μ)', fontsize=12)
-    metric_labels = {'mmd': 'MMD', 'swd': 'Sliced Wasserstein Distance', 'energy': 'Energy Distance'}
-    ax.set_ylabel(metric_labels.get(metric, metric), fontsize=12)
-
-    if title:
-        ax.set_title(title, fontsize=14)
-
-    ax.legend(loc='upper left', fontsize=10)
-    ax.set_xlim(0, 5)
-    ax.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    plt.close()
-    print(f"  Saved: {save_path}")
-
-
-def plot_all_metrics(results_df, save_dir, generator_name):
-    """Plot all metrics for a given generator."""
-    for metric in ['mmd', 'swd', 'energy']:
-        plot_performance_vs_mu(
-            results_df,
-            f"{save_dir}/{generator_name}_{metric}_vs_mu.png",
-            metric=metric,
-            title=f"{generator_name.replace('_', ' ').title()}: {metric.upper()} vs μ"
-        )
+    return predictor, train_mse, dataset_info
 
 
 # ============================================================================
@@ -539,80 +409,101 @@ def plot_all_metrics(results_df, save_dir, generator_name):
 
 def evaluate_model_pair(supervised_exp, unsupervised_exp, device, args, model_seed):
     """
-    Evaluate supervised vs semisupervised for a matched pair of models.
-
-    Args:
-        supervised_exp: Supervised experiment config (or None)
-        unsupervised_exp: Unsupervised (any-to-any) experiment config
-        device: Device to use
-        args: Command line arguments
-        model_seed: The training seed used for this model
-
-    Returns:
-        DataFrame with results at each mu value
+    Evaluate supervised vs semisupervised on a 2D grid.
     """
     results = []
 
-    # Fixed shift transformation (same for all models)
-    shift = (1.0, 1.0)
-    print(f"Using fixed shift transformation: Y = X + {shift}")
-
     # Load unsupervised model (used for semisupervised and oracle)
-    print("Loading unsupervised (any-to-any) model...")
-    enc_unsup, gen_unsup = load_model(unsupervised_exp['config'], unsupervised_exp['dir'], device, args.num_epochs)
-
-    # Fit predictor for semisupervised
-    predictor, train_mse = fit_predictor_from_data(
-        enc_unsup, device, n_train=args.n_train, set_size=args.set_size,
-        data_dim=args.data_dim, seed=model_seed,
-        predictor_type=args.predictor_type, shift=shift
-    )
+    print(f"Loading unsupervised (any-to-any) model at epoch {args.checkpoint_epoch}...")
+    enc_unsup, gen_unsup = load_model(unsupervised_exp['config'], unsupervised_exp['dir'], device, args.checkpoint_epoch)
 
     # Load supervised model if available
     if supervised_exp is not None:
-        print("Loading supervised model...")
-        enc_sup, gen_sup = load_model(supervised_exp['config'], supervised_exp['dir'], device, args.num_epochs)
+        print(f"Loading supervised model at epoch {args.checkpoint_epoch}...")
+        enc_sup, gen_sup = load_model(supervised_exp['config'], supervised_exp['dir'], device, args.checkpoint_epoch)
+
+        # Fit predictor using the exact same dataset as supervised training
+        predictor, train_mse, dataset_info = fit_predictor_from_dataset(
+            enc_unsup, device, supervised_exp['config'], n_train=args.n_train
+        )
+
+        # Get shift/transformation from the dataset
+        if dataset_info['shift'] is None:
+            raise ValueError("Could not extract shift from supervised dataset. Check dataset.b attribute.")
+        shift = tuple(dataset_info['shift'])
+        off_axis_shift = dataset_info['off_axis_shift']  # May be None for MVN
+
+        # Get data_dim from config
+        data_shape = supervised_exp['config']['dataset'].get('data_shape', [2])
+        # Handle both list and ListConfig from hydra
+        if hasattr(data_shape, '__iter__') and not isinstance(data_shape, str):
+            data_dim = int(data_shape[0])
+        else:
+            data_dim = int(data_shape)
     else:
         enc_sup, gen_sup = None, None
+        predictor = None
+        # Without a supervised experiment, we cannot properly evaluate
+        # as we don't know the exact transformation used
+        raise ValueError(
+            "No supervised experiment found. A supervised experiment is required "
+            "to determine the correct transformation (shift) for evaluation."
+        )
 
-    # Evaluate at each mu value
-    mu_values = np.linspace(0.5, 4.5, args.n_mu_points)
+    print(f"Experiment type: {args.experiment}")
+    print(f"Data dim: {data_dim}")
+    print(f"Shift: {shift}")
+    if off_axis_shift is not None:
+        print(f"Off-axis shift: {off_axis_shift}")
 
-    # Use eval_set_size for evaluation (can be much larger than training set_size)
-    eval_set_size = args.eval_set_size
-    print(f"Using eval_set_size={eval_set_size} for evaluation (predictor trained with set_size={args.set_size})")
+    # Create 2D evaluation grid
+    mu_x_values = np.linspace(args.mu_min, args.mu_max, args.n_grid_points)
+    mu_y_values = np.linspace(args.mu_min, args.mu_max, args.n_grid_points)
 
-    for mu in tqdm(mu_values, desc="Evaluating across μ"):
-        # Supervised
-        if enc_sup is not None:
-            res = evaluate_at_mu(
-                mu, enc_sup, gen_sup, device, method='supervised',
-                n_distributions=args.n_distributions, set_size=eval_set_size,
-                data_dim=args.data_dim, seed=int(mu * 1000),
-                shift=shift
+    print(f"\nEvaluating on {args.n_grid_points}x{args.n_grid_points} grid from [{args.mu_min}, {args.mu_max}]^2")
+    print(f"Using eval_set_size={args.eval_set_size}")
+
+    total_points = args.n_grid_points ** 2
+    pbar = tqdm(total=total_points * 3, desc="Evaluating grid")  # 3 methods
+
+    for mu_x in mu_x_values:
+        for mu_y in mu_y_values:
+            # Deterministic seed based on grid position
+            grid_seed = int((mu_x * 1000 + mu_y * 10 + model_seed) % (2**31))
+
+            # Supervised
+            if enc_sup is not None:
+                res = evaluate_at_grid_point(
+                    mu_x, mu_y, enc_sup, gen_sup, device, method='supervised',
+                    set_size=args.eval_set_size, data_dim=data_dim, seed=grid_seed,
+                    experiment_type=args.experiment, shift=shift, off_axis_shift=off_axis_shift
+                )
+                res['method'] = 'supervised'
+                results.append(res)
+            pbar.update(1)
+
+            # Semisupervised
+            if predictor is not None:
+                res = evaluate_at_grid_point(
+                    mu_x, mu_y, enc_unsup, gen_unsup, device, method='semisupervised',
+                    predictor=predictor, set_size=args.eval_set_size, data_dim=data_dim,
+                    seed=grid_seed, experiment_type=args.experiment, shift=shift, off_axis_shift=off_axis_shift
+                )
+                res['method'] = 'semisupervised'
+                results.append(res)
+            pbar.update(1)
+
+            # Oracle
+            res = evaluate_at_grid_point(
+                mu_x, mu_y, enc_unsup, gen_unsup, device, method='oracle',
+                set_size=args.eval_set_size, data_dim=data_dim, seed=grid_seed,
+                experiment_type=args.experiment, shift=shift, off_axis_shift=off_axis_shift
             )
-            res['method'] = 'supervised'
+            res['method'] = 'oracle'
             results.append(res)
+            pbar.update(1)
 
-        # Semisupervised
-        res = evaluate_at_mu(
-            mu, enc_unsup, gen_unsup, device, method='semisupervised',
-            predictor=predictor, n_distributions=args.n_distributions,
-            set_size=eval_set_size, data_dim=args.data_dim, seed=int(mu * 1000),
-            shift=shift
-        )
-        res['method'] = 'semisupervised'
-        results.append(res)
-
-        # Oracle
-        res = evaluate_at_mu(
-            mu, enc_unsup, gen_unsup, device, method='oracle',
-            n_distributions=args.n_distributions, set_size=eval_set_size,
-            data_dim=args.data_dim, seed=int(mu * 1000),
-            shift=shift
-        )
-        res['method'] = 'oracle'
-        results.append(res)
+    pbar.close()
 
     return pd.DataFrame(results)
 
@@ -621,26 +512,28 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output_dir', type=str, default='../outputs')
     parser.add_argument('--experiment', type=str, default='mvn', choices=['mvn', 'gmm'])
-    parser.add_argument('--num_epochs', type=int, default=200)
+    parser.add_argument('--num_epochs', type=int, default=200, help='Filter experiments that trained to this many epochs')
+    parser.add_argument('--checkpoint_epoch', type=int, default=None, help='Load checkpoint at this epoch (defaults to num_epochs)')
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--save_dir', type=str, default='./supervised_comparison_results')
-    parser.add_argument('--n_train', type=int, default=10000, help='Supervised training samples for ridge')
-    parser.add_argument('--n_distributions', type=int, default=100, help='Test distributions per mu')
-    parser.add_argument('--n_mu_points', type=int, default=20, help='Number of mu values to test')
-    parser.add_argument('--set_size', type=int, default=100, help='Samples per distribution for predictor training (should match supervised model)')
-    parser.add_argument('--eval_set_size', type=int, default=10000, help='Samples per distribution for evaluation (can be larger)')
+    parser.add_argument('--n_train', type=int, default=10000, help='Number of training samples for predictor (from supervised dataset)')
+    parser.add_argument('--n_grid_points', type=int, default=21, help='Evaluation grid points per dimension')
+    parser.add_argument('--mu_min', type=float, default=0.25, help='Minimum mu value')
+    parser.add_argument('--mu_max', type=float, default=4.75, help='Maximum mu value')
+    parser.add_argument('--eval_set_size', type=int, default=10000, help='Samples per distribution for evaluation')
     parser.add_argument('--data_dim', type=int, default=2, help='Data dimensionality')
-    parser.add_argument('--predictor_type', type=str, default='ridge', choices=['ridge', 'mlp'],
-                        help='Type of predictor: ridge or mlp')
     parser.add_argument('--generator', type=str, default=None, help='Specific generator to evaluate')
     parser.add_argument('--seed', type=int, default=None, help='Specific seed to evaluate')
-    parser.add_argument('--no_plots', action='store_true', help='Skip plotting, only save results')
     args = parser.parse_args()
+
+    # Default checkpoint_epoch to num_epochs if not specified
+    if args.checkpoint_epoch is None:
+        args.checkpoint_epoch = args.num_epochs
 
     device = args.device if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
+    print(f"Filtering experiments with {args.num_epochs} epochs, loading checkpoint at epoch {args.checkpoint_epoch}")
 
-    # Create save directory
     Path(args.save_dir).mkdir(parents=True, exist_ok=True)
 
     # Load all experiment configs
@@ -663,7 +556,6 @@ def main():
         print("No unsupervised experiments found!")
         return
 
-    # Helper to extract actual generator type
     def get_generator_type(exp):
         gen_cfg = exp['config']['generator']
         gen_target = gen_cfg.get('_target_', '')
@@ -676,14 +568,12 @@ def main():
         else:
             return gen_target.split('.')[-1]
 
-    # Group by generator and seed
     all_results = []
 
     for unsup_exp in unsupervised_exps:
         gen_type = get_generator_type(unsup_exp)
         seed = unsup_exp['config'].get('seed', 42)
 
-        # Filter by generator/seed if specified
         if args.generator and gen_type != args.generator:
             continue
         if args.seed is not None and seed != args.seed:
@@ -698,7 +588,6 @@ def main():
         for s in supervised_exps:
             s_gen_type = get_generator_type(s)
             if s_gen_type == gen_type and s['config'].get('seed', 42) == seed:
-                # Also check n_unique_sets matches
                 sup_n_unique = s['config']['dataset'].get('n_unique_sets', 10000)
                 if sup_n_unique == 10000:
                     sup_exp = s
@@ -707,28 +596,25 @@ def main():
         if sup_exp:
             print(f"Found matching supervised experiment")
         else:
-            print(f"No matching supervised experiment found, will only evaluate semisupervised + oracle")
+            print(f"No matching supervised experiment found")
 
         try:
             results_df = evaluate_model_pair(sup_exp, unsup_exp, device, args, model_seed=seed)
             results_df['generator'] = gen_type
             results_df['seed'] = seed
 
-            # Generate plots (optional)
-            if not args.no_plots:
-                plot_all_metrics(results_df, args.save_dir, f"{gen_type}_seed{seed}")
-
             all_results.append(results_df)
 
             # Print summary
-            print("\nSummary:")
-            in_support = results_df[results_df['mu'] <= 2.5]
-            out_support = results_df[results_df['mu'] > 2.5]
+            print("\nSummary (mean metrics):")
+            id_mask = results_df['in_distribution']
+            ood_mask = ~results_df['in_distribution']
 
             for method in results_df['method'].unique():
-                in_mmd = in_support[in_support['method'] == method]['mmd_mean'].mean()
-                out_mmd = out_support[out_support['method'] == method]['mmd_mean'].mean()
-                print(f"  {method:20s}: in-support MMD={in_mmd:.4f}, out-support MMD={out_mmd:.4f}")
+                method_df = results_df[results_df['method'] == method]
+                id_mmd = method_df[id_mask[method_df.index]]['mmd'].mean()
+                ood_mmd = method_df[ood_mask[method_df.index]]['mmd'].mean()
+                print(f"  {method:20s}: ID MMD={id_mmd:.4f}, OOD MMD={ood_mmd:.4f}")
 
         except Exception as e:
             print(f"Error: {e}")
@@ -747,44 +633,27 @@ def main():
         with open(f"{args.save_dir}/all_results.pkl", 'wb') as f:
             pickle.dump(combined_df, f)
 
-        # Generate aggregate plots (mean across seeds) - optional
-        if not args.no_plots:
-            print("\nGenerating aggregate plots...")
-            for gen_type in combined_df['generator'].unique():
-                gen_df = combined_df[combined_df['generator'] == gen_type]
-                # Average across seeds
-                agg_df = gen_df.groupby(['mu', 'method']).agg({
-                    'mmd_mean': 'mean', 'mmd_std': 'mean',
-                    'swd_mean': 'mean', 'swd_std': 'mean',
-                    'energy_mean': 'mean', 'energy_std': 'mean',
-                }).reset_index()
-                plot_all_metrics(agg_df, args.save_dir, f"{gen_type}_aggregate")
+        print(f"\nSaved results to {args.save_dir}/all_results.csv")
 
-        # Print final summary table
+        # Print final summary
         print("\n" + "="*80)
-        print("FINAL SUMMARY (averaged across seeds)")
+        print("FINAL SUMMARY")
         print("="*80)
 
-        summary = []
         for gen_type in combined_df['generator'].unique():
+            print(f"\n{gen_type}:")
             gen_df = combined_df[combined_df['generator'] == gen_type]
-            for method in gen_df['method'].unique():
+            id_mask = gen_df['in_distribution']
+
+            for method in ['supervised', 'semisupervised', 'oracle']:
                 method_df = gen_df[gen_df['method'] == method]
-                in_support = method_df[method_df['mu'] <= 2.5]
-                out_support = method_df[method_df['mu'] > 2.5]
-
-                summary.append({
-                    'generator': gen_type,
-                    'method': method,
-                    'in_support_mmd': in_support['mmd_mean'].mean(),
-                    'out_support_mmd': out_support['mmd_mean'].mean(),
-                    'in_support_swd': in_support['swd_mean'].mean(),
-                    'out_support_swd': out_support['swd_mean'].mean(),
-                })
-
-        summary_df = pd.DataFrame(summary)
-        print(summary_df.to_string(index=False))
-        summary_df.to_csv(f"{args.save_dir}/summary.csv", index=False)
+                if len(method_df) == 0:
+                    continue
+                id_mmd = method_df[method_df['in_distribution']]['mmd'].mean()
+                ood_mmd = method_df[~method_df['in_distribution']]['mmd'].mean()
+                id_swd = method_df[method_df['in_distribution']]['swd'].mean()
+                ood_swd = method_df[~method_df['in_distribution']]['swd'].mean()
+                print(f"  {method:20s}: ID MMD={id_mmd:.4f}, OOD MMD={ood_mmd:.4f}, ID SWD={id_swd:.4f}, OOD SWD={ood_swd:.4f}")
 
 
 if __name__ == '__main__':

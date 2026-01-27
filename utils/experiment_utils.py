@@ -427,11 +427,11 @@ def load_config(experiment_dir: str) -> DictConfig:
     return resolved_cfg
 
 
-def is_source_only_model(cfg: Union[Dict[str, Any], DictConfig]) -> bool:
-    """Detect if the model is source-only (MFM variant that doesn't use target latent)."""
+def is_mfm_model(cfg: Union[Dict[str, Any], DictConfig]) -> bool:
+    """Detect if the model is MFM variant (uses zeros for target latent instead of encoder output)."""
     model_source_only = cfg.get("model", {}).get("source_only", False)
     loss_target = cfg.get("loss", {}).get("_target_", "")
-    return model_source_only or "source_only" in loss_target.lower()
+    return model_source_only or "source_only" in loss_target.lower() or "mfm" in loss_target.lower()
 
 
 def load_experiment(

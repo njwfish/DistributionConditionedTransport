@@ -13,7 +13,7 @@ from utils.predictor import LinearPredictor, cross_validate_predictor, cross_val
 from utils.experiment_utils import (
     load_config,
     load_experiment,
-    is_source_only_model,
+    is_mfm_model,
     find_experiment_dir,
 )
 from generator.losses import wasserstein, mmd
@@ -331,7 +331,7 @@ def evaluate_sample(
     predictor = None,
     compute_baseline: bool = False,
     normalize_predicted_latent: bool = True,
-    is_source_only: bool = False,
+    is_mfm: bool = False,
 ):
     """
     Evaluate the model on a single sample using precomputed latents.
@@ -348,7 +348,8 @@ def evaluate_sample(
         predictor: Optional predictor to predict target latent from source latent + treat_cond
         compute_baseline: Whether to compute baseline metric (x0 vs x1)
         normalize_predicted_latent: Whether to normalize predicted latent
-        is_source_only: Whether the model is source-only (MFM variant)
+        is_mfm: Whether the model is MFM variant.
+                If True, zeros are used for target_latent and treat_cond is passed to generator.
     
     Returns:
         Dictionary with 'x1_pred', 'model_metric', and optionally 'baseline_metric'
@@ -361,9 +362,11 @@ def evaluate_sample(
         baseline_metric = compute_metric(x0_tensor, x1_tensor, metric=metric)
     
     source_latent_tensor = torch.tensor(source_latent, dtype=torch.float32, device=device)
+    treat_cond_tensor = torch.tensor(treat_cond, dtype=torch.float32, device=device)
     
-    if is_source_only:
-        target_latent_tensor = None
+    if is_mfm:
+        # MFM models use zeros for target latent (same as during training)
+        target_latent_tensor = torch.zeros_like(source_latent_tensor)
     elif predictor is not None:
         # Concatenate source latent with treatment condition for the predictor
         # The predictor was trained with this conditioning
@@ -383,12 +386,22 @@ def evaluate_sample(
         target_latent_tensor = torch.tensor(target_latent, dtype=torch.float32, device=device)
     
     with torch.no_grad():
-        # Generate x1_pred from x0 using source latent (and target latent if not source-only)
-        x1_pred = generator.sample(
-            x0_tensor,              # [N, dim] - source samples
-            source_latent_tensor,   # [1, latent_dim]
-            target_latent_tensor,   # [1, latent_dim] or None for source-only
-        )
+        # Generate x1_pred from x0 using source latent (and target latent)
+        if is_mfm:
+            # MFM generator requires treat_cond
+            x1_pred = generator.sample(
+                x0_tensor,              # [N, dim] - source samples
+                source_latent_tensor,   # [1, latent_dim]
+                target_latent_tensor,   # [1, latent_dim] - zeros for MFM
+                treat_cond_tensor,      # [1, treat_dim] - treatment condition
+            )
+        else:
+            # Standard generator doesn't use treat_cond
+            x1_pred = generator.sample(
+                x0_tensor,              # [N, dim] - source samples
+                source_latent_tensor,   # [1, latent_dim]
+                target_latent_tensor,   # [1, latent_dim]
+            )
         
         # Reshape: generator returns [num_sets, num_samples, dim], we want [num_samples, dim]
         x1_pred = x1_pred.squeeze(0)  # [N, dim]
@@ -514,13 +527,13 @@ def main():
     # Load experiment
     encoder, generator, dataset, cfg = load_experiment(args.experiment_dir, device)
     
-    # Check model type
-    is_source_only = is_source_only_model(cfg)
-    if is_source_only:
-        print("Detected SOURCE-ONLY model (no target latent used)")
+    # Check model type (MFM uses zeros for target latent instead of encoder output)
+    is_mfm = is_mfm_model(cfg)
+    if is_mfm:
+        print("Detected MFM model (zeros used for target latent)")
     
-    if is_source_only and args.use_predictor:
-        raise ValueError("Source-only models do not use target latent, so predictors are not applicable.")
+    if is_mfm and args.use_predictor:
+        raise ValueError("MFM models use zeros for target latent, so predictors are not applicable.")
     
     if (args.cross_validate or args.predict_delta) and not args.use_predictor:
         print("WARNING: --cross_validate and --predict_delta have no effect without --use_predictor")
@@ -582,8 +595,8 @@ def main():
     # Evaluate
     print("\n" + "=" * 80)
     print("EVALUATION RESULTS")
-    if is_source_only:
-        print("Mode: SOURCE-ONLY (no target latent used)")
+    if is_mfm:
+        print("Mode: MFM (zeros used for target latent)")
     elif args.use_predictor:
         mode_str = "Mode: Using LINEAR predictor as target latent"
         mode_str += f" (loss={args.predictor_loss})"
@@ -636,7 +649,7 @@ def main():
             predictor=predictor,
             compute_baseline=args.compute_baseline,
             normalize_predicted_latent=False,  # Must match encoder's normalize_latent setting (False by default)
-            is_source_only=is_source_only,
+            is_mfm=is_mfm,
         )
         
         model_metric = results['model_metric']

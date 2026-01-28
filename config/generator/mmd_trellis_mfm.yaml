@@ -3,7 +3,7 @@ defaults:
   - override /model: direct_mlp_trellis_mfm
 
 generator:
-  _target_: generator.direct.DirectGenerator
+  _target_: generator.direct_trellis_mfm.DirectGenerator
   model: ${model}
   loss_type: mmd
   noise_dim: ${experiment.latent_dim}

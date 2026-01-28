@@ -22,7 +22,7 @@ from utils.experiment_utils import (
     is_mfm_model,
     find_experiment_dir,
 )
-from generator.losses import wasserstein, mmd
+from generator.losses import wasserstein, mmd, sliced_wasserstein_distance
 
 # ============================================================================
 # Checkpointing Utilities
@@ -109,22 +109,30 @@ def is_conditioned_encoder(cfg) -> bool:
 def compute_metric(
     pred: torch.Tensor, 
     target: torch.Tensor, 
-    metric: Literal["w1", "mmd"] = "w1",
+    metric: Literal["w1", "mmd_energy", "mmd_rbf", "swd"] = "w1",
 ) -> float:
     """Compute distance metric between two distributions.
     
     Args:
         pred: Predicted samples tensor
         target: Target samples tensor
-        metric: Metric to compute - "w1" (Wasserstein-1) or "mmd" (energy MMD)
+        metric: Metric to compute:
+            - "w1": Wasserstein-1 distance (exact OT)
+            - "mmd_energy": MMD with energy kernel (parameter-free)
+            - "mmd_rbf": MMD with RBF kernel (uses median heuristic for bandwidth)
+            - "swd": Sliced Wasserstein Distance
     
     Returns:
         Computed metric value
     """
     if metric == "w1":
         return wasserstein(pred, target, p=1)
-    elif metric == "mmd":
+    elif metric == "mmd_energy":
         return mmd(pred, target, kernel='energy').item()
+    elif metric == "mmd_rbf":
+        return mmd(pred, target, kernel='rbf').item()
+    elif metric == "swd":
+        return sliced_wasserstein_distance(pred, target).item()
     else:
         raise ValueError(f"Unknown metric: {metric}")
 
@@ -389,7 +397,7 @@ def evaluate_sample(
     target_latent: np.ndarray,
     treat_cond: np.ndarray,
     device: torch.device,
-    metric: Literal["w1", "mmd"] = "w1",
+    metric: Literal["w1", "mmd_energy", "mmd_rbf", "swd"] = "w1",
     predictor = None,
     compute_baseline: bool = False,
     normalize_predicted_latent: bool = True,
@@ -406,7 +414,7 @@ def evaluate_sample(
         target_latent: Precomputed target latent, shape (1, latent_dim)
         treat_cond: Treatment condition (one-hot), shape (1, num_treatments)
         device: Device for computation
-        metric: Metric to compute ("w1" or "mmd")
+        metric: Metric to compute ("w1", "mmd_energy", "mmd_rbf", or "swd")
         predictor: Optional predictor to predict target latent from source latent + treat_cond
         compute_baseline: Whether to compute baseline metric (x0 vs x1)
         normalize_predicted_latent: Whether to normalize predicted latent
@@ -517,9 +525,10 @@ def main():
     parser.add_argument(
         "--metric",
         type=str,
-        choices=["w1", "mmd"],
+        choices=["w1", "mmd_energy", "mmd_rbf", "swd"],
         default="w1",
-        help="Metric to compute: 'w1' (Wasserstein-1) or 'mmd' (energy MMD)"
+        help="Metric to compute: 'w1' (Wasserstein-1), 'mmd_energy' (MMD with energy kernel), "
+             "'mmd_rbf' (MMD with RBF kernel), or 'swd' (Sliced Wasserstein Distance)"
     )
     parser.add_argument(
         "--use_predictor",
@@ -764,9 +773,9 @@ def main():
         target_latent = test_target_latents[i:i+1]
         sample_treat_cond = test_treat_conds[i:i+1]  # Already extracted first row during compute_latents
         
-        print(f"\nSample {i + 1}/{len(test_samples)} (computing):")
-        print(f"  Culture: {culture}, Patient: {patient}")
-        print(f"  x0 shape: {x0.shape}, x1 shape: {x1.shape}")
+        # print(f"\nSample {i + 1}/{len(test_samples)} (computing):")
+        # print(f"  Culture: {culture}, Patient: {patient}")
+        # print(f"  x0 shape: {x0.shape}, x1 shape: {x1.shape}")
         
         # Evaluate
         results = evaluate_sample(
@@ -795,15 +804,15 @@ def main():
         save_checkpoint(checkpoint_path, checkpoint)
         
         # Compute running averages (over all completed samples so far)
-        running_model_mean = np.mean(all_model_metrics)
-        
-        if args.compute_baseline:
-            running_baseline_mean = np.mean(all_baseline_metrics)
-            print(f"  {metric_name:<6} Model: {model_metric:>12.6f}  Baseline: {baseline_metric:>12.6f}")
-            print(f"  {'Avg':<6} Model: {running_model_mean:>12.6f}  Baseline: {running_baseline_mean:>12.6f}")
-        else:
-            print(f"  {metric_name:<6} Model: {model_metric:>12.6f}")
-            print(f"  {'Avg':<6} Model: {running_model_mean:>12.6f}")
+        # running_model_mean = np.mean(all_model_metrics)
+        # 
+        # if args.compute_baseline:
+        #     running_baseline_mean = np.mean(all_baseline_metrics)
+        #     print(f"  {metric_name:<6} Model: {model_metric:>12.6f}  Baseline: {baseline_metric:>12.6f}")
+        #     print(f"  {'Avg':<6} Model: {running_model_mean:>12.6f}  Baseline: {running_baseline_mean:>12.6f}")
+        # else:
+        #     print(f"  {metric_name:<6} Model: {model_metric:>12.6f}")
+        #     print(f"  {'Avg':<6} Model: {running_model_mean:>12.6f}")
     
     # Gather final results in proper order from checkpoint
     final_model_metrics = []

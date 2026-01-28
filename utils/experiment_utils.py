@@ -437,6 +437,7 @@ def is_mfm_model(cfg: Union[Dict[str, Any], DictConfig]) -> bool:
 def load_experiment(
     experiment_dir: str, 
     device: torch.device,
+    cfg: Optional[DictConfig] = None,
 ) -> Tuple[torch.nn.Module, torch.nn.Module, Any, DictConfig]:
     """
     Load the trained model and instantiate the components.
@@ -444,11 +445,14 @@ def load_experiment(
     Args:
         experiment_dir: Path to the experiment directory
         device: Device to load the model on
+        cfg: Optional pre-loaded config. If None, will load from experiment_dir.
+             This allows callers to modify the config before instantiation.
     
     Returns:
         encoder, generator, dataset, cfg
     """
-    cfg = load_config(experiment_dir)
+    if cfg is None:
+        cfg = load_config(experiment_dir)
     
     # Load checkpoint
     checkpoint_path = os.path.join(experiment_dir, "best_model.pt")

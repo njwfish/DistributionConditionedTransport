@@ -639,13 +639,24 @@ def main():
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # Load experiment
-    encoder, generator, dataset, cfg = load_experiment(args.experiment_dir, device)
+    # Load config first to check if we need to modify the generator target
+    cfg = load_config(args.experiment_dir)
     
     # Check model type (MFM uses zeros for target latent instead of encoder output)
     is_mfm = is_mfm_model(cfg)
     if is_mfm:
         print("Detected MFM model (zeros used for target latent)")
+        
+        # If this is an MFM model but has the standard DirectGenerator target,
+        # switch to the MFM-specific generator
+        generator_target = cfg.get("generator", {}).get("_target_", "")
+        if generator_target == "generator.direct.DirectGenerator":
+            print("  Switching generator target from 'generator.direct.DirectGenerator' "
+                  "to 'generator.direct_trellis_mfm.DirectGenerator' for MFM evaluation")
+            cfg.generator._target_ = "generator.direct_trellis_mfm.DirectGenerator"
+    
+    # Load experiment with the (possibly modified) config
+    encoder, generator, dataset, cfg = load_experiment(args.experiment_dir, device, cfg=cfg)
     
     if is_mfm and args.use_predictor:
         raise ValueError("MFM models use zeros for target latent, so predictors are not applicable.")
@@ -801,9 +812,9 @@ def main():
         target_latent = test_target_latents[i:i+1]
         sample_treat_cond = test_treat_conds[i:i+1]  # Already extracted first row during compute_latents
         
-        # print(f"\nSample {i + 1}/{len(test_samples)} (computing):")
-        # print(f"  Culture: {culture}, Patient: {patient}")
-        # print(f"  x0 shape: {x0.shape}, x1 shape: {x1.shape}")
+        print(f"\nSample {i + 1}/{len(test_samples)} (computing):")
+        print(f"  Culture: {culture}, Patient: {patient}")
+        print(f"  x0 shape: {x0.shape}, x1 shape: {x1.shape}")
         
         # Evaluate
         results = evaluate_sample(
@@ -832,15 +843,15 @@ def main():
         save_checkpoint(checkpoint_path, checkpoint)
         
         # Compute running averages (over all completed samples so far)
-        # running_model_mean = np.mean(all_model_metrics)
-        # 
-        # if args.compute_baseline:
-        #     running_baseline_mean = np.mean(all_baseline_metrics)
-        #     print(f"  {metric_name:<6} Model: {model_metric:>12.6f}  Baseline: {baseline_metric:>12.6f}")
-        #     print(f"  {'Avg':<6} Model: {running_model_mean:>12.6f}  Baseline: {running_baseline_mean:>12.6f}")
-        # else:
-        #     print(f"  {metric_name:<6} Model: {model_metric:>12.6f}")
-        #     print(f"  {'Avg':<6} Model: {running_model_mean:>12.6f}")
+        running_model_mean = np.mean(all_model_metrics)
+        
+        if args.compute_baseline:
+            running_baseline_mean = np.mean(all_baseline_metrics)
+            print(f"  {metric_name:<6} Model: {model_metric:>12.6f}  Baseline: {baseline_metric:>12.6f}")
+            print(f"  {'Avg':<6} Model: {running_model_mean:>12.6f}  Baseline: {running_baseline_mean:>12.6f}")
+        else:
+            print(f"  {metric_name:<6} Model: {model_metric:>12.6f}")
+            print(f"  {'Avg':<6} Model: {running_model_mean:>12.6f}")
     
     # Gather final results in proper order from checkpoint
     final_model_metrics = []

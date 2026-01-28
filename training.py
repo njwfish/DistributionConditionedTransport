@@ -327,9 +327,7 @@ class Trainer:
         start_time = time.time()
         self.logger.info(f"Starting training on {device}...")
         
-        # Configure AMP (prefer BF16 on CUDA if enabled)
-        use_amp = bool(self.use_amp) and (device.type == "cuda")
-        # autocast_context = torch.autocast(device_type='cuda', dtype=torch.bfloat16) if use_amp else contextlib.nullcontext()
+        # AMP disabled - causes training instability
         autocast_context = contextlib.nullcontext()
 
         # Main training loop

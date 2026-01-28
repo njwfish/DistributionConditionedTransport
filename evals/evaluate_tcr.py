@@ -38,11 +38,21 @@ def get_esm_embeddings(esm_model, input_ids, attention_mask):
     return (hidden_states * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-9)
 
 
-def retokenize_sequences(sequences, esm_tokenizer, max_length=64, device='cuda'):
+def retokenize_sequences(sequences, esm_tokenizer, max_length=64, device='cuda', decode_tokenizer=None):
     """
     Decode generated sequences and retokenize for ESM embedding.
-    sequences: tensor of shape (batch_size, num_samples, seq_len) or (num_samples, seq_len)
+
+    Args:
+        sequences: tensor of shape (batch_size, num_samples, seq_len) or (num_samples, seq_len)
+        esm_tokenizer: Tokenizer for ESM model (used for re-tokenizing)
+        max_length: Maximum sequence length
+        device: Device to put tensors on
+        decode_tokenizer: Tokenizer to decode the input sequences (default: esm_tokenizer)
+                         Use the generator's tokenizer for Progen models.
     """
+    if decode_tokenizer is None:
+        decode_tokenizer = esm_tokenizer
+
     if sequences.dim() == 2:
         sequences = sequences.unsqueeze(0)
 
@@ -52,7 +62,7 @@ def retokenize_sequences(sequences, esm_tokenizer, max_length=64, device='cuda')
     for b in range(batch_size):
         for s in range(num_samples):
             seq_ids = sequences[b, s].cpu().tolist()
-            seq_str = esm_tokenizer.decode(seq_ids, skip_special_tokens=True)
+            seq_str = decode_tokenizer.decode(seq_ids, skip_special_tokens=True)
             all_seqs.append(seq_str)
 
     tokens = esm_tokenizer(
@@ -397,10 +407,17 @@ def evaluate_model(
         }
 
         # Prepare source batch for generation (smaller, used as input to generator)
+        # Include both ESM and Progen keys to support both generator types
+        # ESM DFM expects 3D: (batch_size, set_size, seq_len)
         source_batch = {
             'esm_input_ids': source_item['samples']['esm_input_ids'][source_indices].unsqueeze(0).to(device),
             'esm_attention_mask': source_item['samples']['esm_attention_mask'][source_indices].unsqueeze(0).to(device),
         }
+        # Progen expects 2D: (batch_size, seq_len) - use single source sequence
+        if 'progen_input_ids' in source_item['samples']:
+            # Pick first source sequence for Progen (it generates num_samples from single source)
+            source_batch['progen_input_ids'] = source_item['samples']['progen_input_ids'][source_indices[0]].unsqueeze(0).to(device)
+            source_batch['progen_attention_mask'] = source_item['samples']['progen_attention_mask'][source_indices[0]].unsqueeze(0).to(device)
 
         # Prepare target batch for computing actual target embedding (for oracle comparison)
         target_embed_size = min(n_target, DEFAULT_SAMPLE_SIZE)
@@ -431,9 +448,11 @@ def evaluate_model(
                 num_samples=num_samples
             )
 
-            # Retokenize for ESM
+            # Retokenize for ESM (use generator's tokenizer for decoding if available)
+            decode_tokenizer = getattr(generator, 'tokenizer', esm_tokenizer)
             sampled_ids, sampled_mask = retokenize_sequences(
-                sampled_sequences, esm_tokenizer, max_length=64, device=device
+                sampled_sequences, esm_tokenizer, max_length=64, device=device,
+                decode_tokenizer=decode_tokenizer
             )
 
             # Get ESM embeddings for sampled sequences

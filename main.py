@@ -62,7 +62,7 @@ def main(cfg: DictConfig):
 
         # Improved DataLoader with parallel workers and pinned memory
         dataloader_start = time.time()
-        num_workers = min(1, os.cpu_count())  # Reduced from 4 to 2 to avoid DataLoader warnings and reduce memory contention
+        num_workers = min(4, os.cpu_count())  # Use 4 workers for better GPU utilization
 
         if hasattr(dataset, 'pairwise_distance'):
             coupling_kwargs = {'pairwise_dist_fn': dataset.pairwise_distance}
@@ -84,7 +84,7 @@ def main(cfg: DictConfig):
         # Base dataloader kwargs
         base_dataloader_kwargs = {
             'batch_size': cfg.experiment.batch_size,
-            'prefetch_factor': 2,
+            'prefetch_factor': 4,  # Increased for better GPU feeding
             'num_workers': num_workers,
             'pin_memory': True,
             'persistent_workers': True if num_workers > 0 else False,

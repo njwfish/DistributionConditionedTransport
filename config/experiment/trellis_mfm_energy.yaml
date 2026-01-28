@@ -10,7 +10,7 @@ description: "Trellis MFM energy experiment"
 defaults:
   - /dataset: trellis
   - /encoder: gnn
-  - /generator: mmd
+  - /generator: mmd_trellis_mfm
   - /training: default20000_early_stopping
   - /loss: default_source_only_trellis_mfm
   - /sampling: default

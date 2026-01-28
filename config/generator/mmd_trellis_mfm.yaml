@@ -1,0 +1,12 @@
+# @package _global_
+defaults:
+  - override /model: direct_mlp_trellis_mfm
+
+generator:
+  _target_: generator.direct.DirectGenerator
+  model: ${model}
+  loss_type: mmd
+  noise_dim: ${experiment.latent_dim}
+  loss_params:
+    kernel: energy  # Use energy kernel (parameter-free, beta=1)
+                    # Alternative: 'rbf' for RBF kernel with median heuristic

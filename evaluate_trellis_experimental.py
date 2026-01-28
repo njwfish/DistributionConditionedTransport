@@ -110,6 +110,7 @@ def compute_metric(
     pred: torch.Tensor, 
     target: torch.Tensor, 
     metric: Literal["w1", "mmd_energy", "mmd_rbf", "swd"] = "w1",
+    swd_subsample_rounds: int = 100,
 ) -> float:
     """Compute distance metric between two distributions.
     
@@ -121,6 +122,9 @@ def compute_metric(
             - "mmd_energy": MMD with energy kernel (parameter-free)
             - "mmd_rbf": MMD with RBF kernel (uses median heuristic for bandwidth)
             - "swd": Sliced Wasserstein Distance
+        swd_subsample_rounds: Number of subsampling rounds for SWD when sample sizes
+            differ. The larger distribution is subsampled to match the smaller one,
+            SWD is computed, and this is averaged over multiple rounds. Default: 100.
     
     Returns:
         Computed metric value
@@ -132,7 +136,31 @@ def compute_metric(
     elif metric == "mmd_rbf":
         return mmd(pred, target, kernel='rbf').item()
     elif metric == "swd":
-        return sliced_wasserstein_distance(pred, target).item()
+        n_pred, n_target = pred.shape[0], target.shape[0]
+        
+        # If sample sizes match, compute SWD directly
+        if n_pred == n_target:
+            return sliced_wasserstein_distance(pred, target).item()
+        
+        # Otherwise, subsample the larger distribution multiple times and average
+        min_size = min(n_pred, n_target)
+        swd_values = []
+        
+        for _ in range(swd_subsample_rounds):
+            # Subsample the larger distribution
+            if n_pred > n_target:
+                indices = torch.randperm(n_pred, device=pred.device)[:min_size]
+                pred_sub = pred[indices]
+                target_sub = target
+            else:
+                pred_sub = pred
+                indices = torch.randperm(n_target, device=target.device)[:min_size]
+                target_sub = target[indices]
+            
+            swd_val = sliced_wasserstein_distance(pred_sub, target_sub).item()
+            swd_values.append(swd_val)
+        
+        return np.mean(swd_values)
     else:
         raise ValueError(f"Unknown metric: {metric}")
 

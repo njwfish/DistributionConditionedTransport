@@ -6,8 +6,7 @@ from pathlib import Path
 from typing import Optional, List
 import os
 
-class CrossTissueDataset(Dataset):
-    """Eraslan et al 2022 cross tissue atlas, grouped by donor_id."""
+class BatchIntDataset(Dataset):
 
     def __init__(
         self,
@@ -33,7 +32,9 @@ class CrossTissueDataset(Dataset):
         self.n_pcs = n_pcs
         # Load data
         # print(os.listdir(self.root))
-        adata = sc.read(self.root / 'eraslan2022.h5ad')
+        adata = sc.read(self.root / 'mousepancreas_processed.h5ad')
+
+        print('data loaded !')
 
         adata.obsm['X_pca'] = adata.obsm['X_pca'][:, :self.n_pcs]
         
@@ -42,12 +43,17 @@ class CrossTissueDataset(Dataset):
         
         self.adata = adata
 
-        # Get sorted donor IDs and split into train/test (8 and 8)
         all_donors = sorted(adata.obs['donor_id'].unique())
-        mid = len(all_donors) // 2
-        train_donors = all_donors[:mid]
-        test_donors = all_donors[mid:]
+        # mid = len(all_donors) // 2
+        # train_donors = all_donors[:mid]
+        # test_donors = all_donors[mid:]
         
+        train_donors = [x for x in all_donors if '_2y_' not in x]
+        test_donors = [x for x in all_donors if '_2y_' in x]
+
+        print('n train donors:', len(train_donors))
+        print('n test donors:', len(test_donors))
+
         self.donors = train_donors if split == 'train' else test_donors
         
         # Filter adata to only include donors in this split

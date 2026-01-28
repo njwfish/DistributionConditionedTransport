@@ -1,17 +1,17 @@
 # @package _global_.experiment
 # Base GMM experiment with EmbeddingEncoder - generator must be specified separately
 
-name: crosstissue_gnn_energy
-description: "Cross tissue atlas"
+name: batchint
+description: "Batch integration"
 
 # Override defaults - uses embedding encoder instead of GNN
 defaults:
-  - /dataset: crosstissue
+  - /dataset: batch_integration
   - /encoder: gnn
-  - /model: diffusion_mlp
-  - /generator: flow_matching
+  - /model: direct_mlp
+  - /generator: wasserstein
   - /scheduler: cosine
-  - /training: default1000
+  - /training: default5000
   - /loss: default
 
 # Experiment-specific parameters

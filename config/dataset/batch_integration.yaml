@@ -1,0 +1,9 @@
+# @package _global_.dataset
+_target_: datasets.batch_integration.BatchIntDataset
+set_size: ${experiment.set_size}
+split: train
+data_shape: [10]
+n_pcs: 10
+seed: ${seed}
+root: /orcd/home/002/gokulg/orcd/scratch/CoupledDistributionEmbeddings/data
+n_unique_sets: 53

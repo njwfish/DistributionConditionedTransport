@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH -t 01:00:00
-#SBATCH --gres=gpu:1
-#SBATCH --partition ou_bcs_normal
+#SBATCH --gres=gpu:a100:1
+#SBATCH --partition ou_bcs_low
 #SBATCH --mem 32GB
 #SBATCH -o logs/o_ours_fm_%a
 #SBATCH -e logs/e_ours_fm_%a
-#SBATCH --array=13,14
+#SBATCH --array=1
 
 export HYDRA_FULL_ERROR=1
 

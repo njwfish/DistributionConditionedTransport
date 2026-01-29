@@ -11,6 +11,7 @@ For between-patient models:
 import os
 import sys
 import argparse
+import inspect
 import torch
 import torch.nn as nn
 import numpy as np
@@ -20,6 +21,10 @@ import hydra
 from transformers import EsmModel, AutoTokenizer
 from geomloss import SamplesLoss
 from sklearn.linear_model import RidgeCV
+from sklearn.neural_network import MLPRegressor
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -101,6 +106,26 @@ class DeltaPredictor(nn.Module):
         return x + delta
 
 
+class SklearnPredictorWrapper:
+    """Wrap a sklearn regressor to behave like a PyTorch module."""
+    def __init__(self, model, predict_delta=False):
+        self.model = model
+        self.predict_delta = predict_delta
+
+    def __call__(self, x):
+        x_np = x.detach().cpu().numpy()
+        pred_np = self.model.predict(x_np)
+        if self.predict_delta:
+            pred_np = pred_np + x_np
+        return torch.tensor(pred_np, dtype=x.dtype, device=x.device)
+
+    def eval(self):
+        return self
+
+    def to(self, device):
+        return self
+
+
 def compute_energy_distance(sampled_embs, target_embs):
     """Compute energy distance between two sets of embeddings."""
     loss_fn = SamplesLoss("energy", p=2)
@@ -144,7 +169,7 @@ def load_model(checkpoint_dir, device='cuda'):
 
     # Instantiate encoder and generator
     encoder = hydra.utils.instantiate(config.encoder)
-    generator = hydra.utils.instantiate(config.generator)
+    generator = instantiate_filtered(config.generator)
 
     # Find best checkpoint or latest
     best_model_path = os.path.join(checkpoint_dir, 'best_model.pt')
@@ -169,6 +194,18 @@ def load_model(checkpoint_dir, device='cuda'):
     generator.to(device).eval()
 
     return encoder, generator, config
+
+
+def instantiate_filtered(cfg):
+    """Instantiate a Hydra config, dropping unsupported kwargs."""
+    if not hasattr(cfg, "_target_"):
+        return hydra.utils.instantiate(cfg)
+
+    target = hydra.utils.get_class(cfg._target_)
+    sig = inspect.signature(target.__init__)
+    valid_keys = {k for k in sig.parameters.keys() if k != "self"}
+    kwargs = {k: v for k, v in cfg.items() if k in valid_keys}
+    return target(**kwargs)
 
 
 def compute_all_embeddings(encoder, dataset, device='cuda', sample_size=None):
@@ -256,9 +293,23 @@ def build_predictor_training_data(embeddings, dataset):
     return source_embeddings, target_embeddings
 
 
-def train_predictor(source_embeddings, target_embeddings, latent_dim,
-                   alphas=None, device='cuda', predict_delta=False):
-    """Train the predictor using sklearn's RidgeCV with LOO cross-validation.
+def train_predictor(
+    source_embeddings,
+    target_embeddings,
+    latent_dim,
+    alphas=None,
+    device='cuda',
+    predict_delta=False,
+    predictor_type='ridge',
+    seed=42,
+    mlp_hidden_dim=128,
+    mlp_layers=2,
+    mlp_max_iter=500,
+    rf_n_estimators=200,
+    rf_max_depth=None,
+    rf_min_samples_leaf=1,
+):
+    """Train the predictor using sklearn models (ridge, MLP, or random forest).
 
     Uses closed-form Ridge regression with efficient LOO CV for regularization selection.
     Fits one RidgeCV model per output dimension, then transfers weights to a PyTorch
@@ -273,8 +324,11 @@ def train_predictor(source_embeddings, target_embeddings, latent_dim,
         predict_delta: If True, train to predict (target - source) instead of target directly
 
     Returns:
-        LinearPredictor with weights initialized from RidgeCV
+        Predictor object compatible with evaluation (torch module or sklearn wrapper)
     """
+    if predictor_type not in {'ridge', 'mlp', 'rf'}:
+        raise ValueError(f"Unknown predictor_type: {predictor_type}")
+
     # Default regularization grid (log-spaced from 1e-4 to 1e4)
     if alphas is None:
         alphas = np.logspace(-4, 4, 20)
@@ -289,49 +343,91 @@ def train_predictor(source_embeddings, target_embeddings, latent_dim,
         print("Training predictor to predict DELTA (target - source)")
 
     n_samples, n_dims = Y.shape
-    print(f"Training RidgeCV predictor on {n_samples} samples, {n_dims} dimensions")
-    print(f"Regularization grid: {alphas[0]:.2e} to {alphas[-1]:.2e} ({len(alphas)} values)")
+    if predictor_type == 'ridge':
+        print(f"Training RidgeCV predictor on {n_samples} samples, {n_dims} dimensions")
+        print(f"Regularization grid: {alphas[0]:.2e} to {alphas[-1]:.2e} ({len(alphas)} values)")
 
-    # Train one RidgeCV model per output dimension
-    # RidgeCV with cv=None uses efficient LOO cross-validation
-    weights = []
-    biases = []
-    selected_alphas = []
+        # Train one RidgeCV model per output dimension
+        # RidgeCV with cv=None uses efficient LOO cross-validation
+        weights = []
+        biases = []
+        selected_alphas = []
 
-    for dim in range(n_dims):
-        model = RidgeCV(alphas=alphas, cv=None, store_cv_results=True)
-        model.fit(X, Y[:, dim])
-        weights.append(model.coef_)
-        biases.append(model.intercept_)
-        selected_alphas.append(model.alpha_)
+        for dim in range(n_dims):
+            model = RidgeCV(alphas=alphas, cv=None, store_cv_results=True)
+            model.fit(X, Y[:, dim])
+            weights.append(model.coef_)
+            biases.append(model.intercept_)
+            selected_alphas.append(model.alpha_)
 
-    # Print summary of selected alphas
-    alphas_arr = np.array(selected_alphas)
-    print(f"Selected alphas: min={alphas_arr.min():.2e}, max={alphas_arr.max():.2e}, "
-          f"median={np.median(alphas_arr):.2e}")
+        # Print summary of selected alphas
+        alphas_arr = np.array(selected_alphas)
+        print(f"Selected alphas: min={alphas_arr.min():.2e}, max={alphas_arr.max():.2e}, "
+              f"median={np.median(alphas_arr):.2e}")
 
-    # Stack weights and biases: weights is (n_dims, latent_dim), biases is (n_dims,)
-    W = np.stack(weights, axis=0)  # (latent_dim, latent_dim)
-    b = np.array(biases)  # (latent_dim,)
+        # Stack weights and biases: weights is (n_dims, latent_dim), biases is (n_dims,)
+        W = np.stack(weights, axis=0)  # (latent_dim, latent_dim)
+        b = np.array(biases)  # (latent_dim,)
 
-    # Create PyTorch LinearPredictor and set weights
-    predictor = LinearPredictor(latent_dim).to(device)
-    with torch.no_grad():
-        predictor.linear.weight.copy_(torch.tensor(W, dtype=torch.float32))
-        predictor.linear.bias.copy_(torch.tensor(b, dtype=torch.float32))
+        # Create PyTorch LinearPredictor and set weights
+        predictor = LinearPredictor(latent_dim).to(device)
+        with torch.no_grad():
+            predictor.linear.weight.copy_(torch.tensor(W, dtype=torch.float32))
+            predictor.linear.bias.copy_(torch.tensor(b, dtype=torch.float32))
 
-    # Wrap in DeltaPredictor if predicting delta
+        # Wrap in DeltaPredictor if predicting delta
+        if predict_delta:
+            predictor = DeltaPredictor(predictor)
+
+        # Compute training MSE (predictor now handles delta internally if applicable)
+        predictor.eval()
+        with torch.no_grad():
+            pred_target = predictor(source_embeddings.to(device))
+            train_mse = ((pred_target - target_embeddings.to(device)) ** 2).mean().item()
+        print(f"Training MSE: {train_mse:.6f}")
+
+        return predictor
+
+    if predictor_type == 'mlp':
+        hidden_layers = tuple([mlp_hidden_dim] * mlp_layers)
+        print(f"Training MLP predictor on {n_samples} samples, hidden_layers={hidden_layers}")
+        model = Pipeline([
+            ("scaler", StandardScaler()),
+            ("mlp", MLPRegressor(
+                hidden_layer_sizes=hidden_layers,
+                activation='relu',
+                solver='adam',
+                max_iter=mlp_max_iter,
+                early_stopping=True,
+                n_iter_no_change=20,
+                random_state=seed,
+            )),
+        ])
+        model.fit(X, Y)
+        pred = model.predict(X)
+        if predict_delta:
+            pred = pred + X
+        train_mse = ((pred - target_embeddings.cpu().numpy()) ** 2).mean()
+        print(f"Training MSE: {train_mse:.6f}")
+        return SklearnPredictorWrapper(model, predict_delta=predict_delta)
+
+    print(f"Training RandomForest predictor on {n_samples} samples, "
+          f"n_estimators={rf_n_estimators}, max_depth={rf_max_depth}, "
+          f"min_samples_leaf={rf_min_samples_leaf}")
+    model = RandomForestRegressor(
+        n_estimators=rf_n_estimators,
+        max_depth=rf_max_depth,
+        min_samples_leaf=rf_min_samples_leaf,
+        n_jobs=-1,
+        random_state=seed,
+    )
+    model.fit(X, Y)
+    pred = model.predict(X)
     if predict_delta:
-        predictor = DeltaPredictor(predictor)
-
-    # Compute training MSE (predictor now handles delta internally if applicable)
-    predictor.eval()
-    with torch.no_grad():
-        pred_target = predictor(source_embeddings.to(device))
-        train_mse = ((pred_target - target_embeddings.to(device)) ** 2).mean().item()
+        pred = pred + X
+    train_mse = ((pred - target_embeddings.cpu().numpy()) ** 2).mean()
     print(f"Training MSE: {train_mse:.6f}")
-
-    return predictor
+    return SklearnPredictorWrapper(model, predict_delta=predict_delta)
 
 
 def evaluate_model(
@@ -496,6 +592,21 @@ def main():
                        help='Use predictor for target embedding (vs oracle)')
     parser.add_argument('--predict_delta', action='store_true',
                        help='Train predictor to predict delta (target-source) instead of target directly')
+    parser.add_argument('--predictor_type', type=str, default='ridge',
+                       choices=['ridge', 'mlp', 'rf'],
+                       help='Predictor type for target embedding (ridge, mlp, rf)')
+    parser.add_argument('--mlp_hidden_dim', type=int, default=128,
+                       help='Hidden dim for MLP predictor')
+    parser.add_argument('--mlp_layers', type=int, default=2,
+                       help='Number of hidden layers for MLP predictor')
+    parser.add_argument('--mlp_max_iter', type=int, default=500,
+                       help='Max iterations for MLP predictor training')
+    parser.add_argument('--rf_n_estimators', type=int, default=200,
+                       help='Number of trees for random forest predictor')
+    parser.add_argument('--rf_max_depth', type=int, default=None,
+                       help='Max depth for random forest predictor')
+    parser.add_argument('--rf_min_samples_leaf', type=int, default=1,
+                       help='Min samples per leaf for random forest predictor')
     parser.add_argument('--within_patient', action='store_true',
                        help='Evaluate within-patient model (uses zero target embedding)')
     parser.add_argument('--device', type=str, default='cuda')
@@ -564,11 +675,19 @@ def main():
         source_embs, target_embs = build_predictor_training_data(train_embeddings, train_dataset)
 
         if source_embs is not None and args.use_predictor:
-            print(f"Training RidgeCV predictor on {source_embs.size(0)} pairs...")
+            print(f"Training {args.predictor_type} predictor on {source_embs.size(0)} pairs...")
             predictor = train_predictor(
                 source_embs, target_embs, latent_dim,
                 device=device,
-                predict_delta=args.predict_delta
+                predict_delta=args.predict_delta,
+                predictor_type=args.predictor_type,
+                seed=args.seed,
+                mlp_hidden_dim=args.mlp_hidden_dim,
+                mlp_layers=args.mlp_layers,
+                mlp_max_iter=args.mlp_max_iter,
+                rf_n_estimators=args.rf_n_estimators,
+                rf_max_depth=args.rf_max_depth,
+                rf_min_samples_leaf=args.rf_min_samples_leaf,
             )
 
     # Evaluate
@@ -577,7 +696,9 @@ def main():
         mode = "within_patient"
     else:
         if args.use_predictor:
-            mode = "predictor_delta" if args.predict_delta else "predictor"
+            mode = f"predictor_{args.predictor_type}"
+            if args.predict_delta:
+                mode = f"{mode}_delta"
         else:
             mode = "oracle"
     print(f"Mode: {mode}")

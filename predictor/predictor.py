@@ -64,26 +64,23 @@ class Predictor(nn.Module):
     def forward(self, x):
         return self.model(x)
 
-    def loss(self, source_latent, target_latent, train_predictor_bool):
-        # Convert to tensor if needed
-        if not isinstance(train_predictor_bool, torch.Tensor):
-            train_predictor_bool = torch.tensor(train_predictor_bool, device=source_latent.device)
+    def loss(self, source_latent, target_latent):
+        """
+        Compute predictor loss between source and target latents.
         
-        # Check if any samples should train the predictor
-        if not train_predictor_bool.any():
-            return torch.tensor(0.0, device=source_latent.device)
+        Args:
+            source_latent: Source latent vectors [batch, latent_dim]
+            target_latent: Target latent vectors [batch, latent_dim]
+            
+        Returns:
+            Loss scalar tensor
+        """
+        pred_target_latent = self.forward(source_latent)
         
-        # Mask to only include samples where train_predictor_bool is True
-        mask = train_predictor_bool.bool()
-        source_masked = source_latent[mask]
-        target_masked = target_latent[mask]
-        
-        pred_target_latent = self.forward(source_masked)
-        
-        if self.loss_type == "MSE":
-            loss = (pred_target_latent - target_masked).pow(2).mean()
-        elif self.loss_type == "cosine":
-            loss = (1 - self.similarity(pred_target_latent, target_masked)).mean()
+        if self.loss_type.lower() == "mse":
+            loss = (pred_target_latent - target_latent).pow(2).mean()
+        elif self.loss_type.lower() == "cosine":
+            loss = (1 - self.similarity(pred_target_latent, target_latent)).mean()
         else:
             raise ValueError(f"Unknown loss_type: {self.loss_type}")
         

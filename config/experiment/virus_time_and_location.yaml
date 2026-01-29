@@ -20,7 +20,6 @@ data_file: /orcd/archive/abugoot/001/Projects/paolo/CoupledDistributionEmbedding
 train_predictor_posthoc: false
 
 # Experiment-specific parameters
-use_predicted_latent: false
 predictor_loss_weight: 0.1
 
 predictor_model_type: "mlp"

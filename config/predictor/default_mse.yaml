@@ -3,4 +3,4 @@ _target_: predictor.predictor.Predictor
 latent_dim: ${experiment.latent_dim}
 model_type: ${experiment.predictor_model_type}
 model_args: ${experiment.predictor_model_args}
-loss_type: mse
+loss_type: MSE

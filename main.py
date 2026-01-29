@@ -102,12 +102,30 @@ def main(cfg: DictConfig):
         sampler = hydra.utils.instantiate(sampling_config, dataset=dataset, **sampler_kwargs) if sampling_config._target_ != "types.NoneType" else None
         print(sampler)
 
-        dataloader = DataLoader(
-            dataset,
-            **base_dataloader_kwargs,
-            sampler=sampler,
-            shuffle=False if sampler is not None else True,
+        # Check if sampler is a batch sampler (yields batches instead of individual indices)
+        # Batch samplers should be passed via batch_sampler= and batch_size should not be specified
+        is_batch_sampler = (
+            sampler is not None and 
+            hasattr(sampler, '__iter__') and 
+            'BatchSampler' in type(sampler).__name__
         )
+        
+        if is_batch_sampler:
+            # For batch samplers: remove batch_size and use batch_sampler parameter
+            dataloader_kwargs = {k: v for k, v in base_dataloader_kwargs.items() if k != 'batch_size'}
+            dataloader = DataLoader(
+                dataset,
+                **dataloader_kwargs,
+                batch_sampler=sampler,
+            )
+        else:
+            # For regular samplers: use sampler parameter with batch_size
+            dataloader = DataLoader(
+                dataset,
+                **base_dataloader_kwargs,
+                sampler=sampler,
+                shuffle=False if sampler is not None else True,
+            )
         
         # Create encoder
         encoder = hydra.utils.instantiate(cfg.encoder)

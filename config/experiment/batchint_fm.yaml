@@ -1,0 +1,25 @@
+# @package _global_.experiment
+# Base GMM experiment with EmbeddingEncoder - generator must be specified separately
+
+name: batchint_fm
+description: "Batch integration"
+
+# Override defaults - uses embedding encoder instead of GNN
+defaults:
+  - /dataset: batch_integration
+  - /encoder: gnn
+  - /model: diffusion_mlp
+  - /generator: flow_matching
+  - /scheduler: cosine
+  - /training: default1000
+  - /loss: default
+
+# Experiment-specific parameters
+latent_dim: 128
+hidden_dim: 256
+set_size: 128
+batch_size: 256
+lr: 2e-4
+
+
+

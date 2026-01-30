@@ -31,7 +31,6 @@ class StratifiedBatchSamplerTrellis(BaseSampler):
         drop_last: If True, drop the last incomplete batch.
         shuffle: If True, shuffle indices within each group before sampling.
         seed: Random seed for reproducibility.
-        forward_only: If True, only include forward pairs for non-consecutive sampling.
     """
     
     def __init__(
@@ -44,13 +43,11 @@ class StratifiedBatchSamplerTrellis(BaseSampler):
         drop_last: bool = False,
         shuffle: bool = True,
         seed: Optional[int] = None,
-        forward_only: bool = True,
     ):
         self.dataset = dataset
         self.batch_size = batch_size
         self.drop_last = drop_last
         self.shuffle = shuffle
-        self.forward_only = forward_only
         
         # Set num_samples (total samples per epoch)
         if num_samples is None:
@@ -213,7 +210,6 @@ class StratifiedWeightedSamplerTrellis(BaseSampler):
         consecutive_weight: Weight multiplier for consecutive pairs.
         num_samples: Total number of samples per epoch. If None, uses len(dataset).
         seed: Random seed for reproducibility.
-        forward_only: If True, set weight=0 for backward pairs.
     """
     
     def __init__(
@@ -222,11 +218,9 @@ class StratifiedWeightedSamplerTrellis(BaseSampler):
         consecutive_weight: float = 1.0,
         num_samples: Optional[int] = None,
         seed: Optional[int] = None,
-        forward_only: bool = False,
     ):
         self.dataset = dataset
         self.consecutive_weight = consecutive_weight
-        self.forward_only = forward_only
         
         if num_samples is None:
             self.num_samples = len(dataset)

@@ -9,7 +9,7 @@ description: "Trellis a2a stratified experiment"
 
 defaults:
   - /dataset: trellis
-  - /encoder: gnn_normalized
+  - /encoder: gnn
   - /model: diffusion_mlp
   - /generator: flow_matching
   - /training: default20000

@@ -9,4 +9,3 @@ consecutive_ratio: 0.25  # Target 25% consecutive pairs per batch
 drop_last: false
 shuffle: true
 seed: ${seed}
-forward_only: false  # Only include forward pairs (t→t+N, N>0) for non-consecutive

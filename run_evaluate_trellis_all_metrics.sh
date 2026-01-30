@@ -36,7 +36,6 @@ cmd="python -u evaluate_trellis_experimental.py \
     --compute_baseline \
     --predictor_type ridge \
     --use_predictor \
-    --outputs_dir outputs_trellis_fm_working_dont_ever_touch_this_01_27_2025 \
     "
 
 #--outputs_dir outputs_trellis_fm_working_dont_ever_touch_this_01_27_2025 \

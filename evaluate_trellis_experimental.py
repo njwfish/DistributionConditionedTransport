@@ -842,6 +842,10 @@ def main():
         # Save checkpoint after each sample
         save_checkpoint(checkpoint_path, checkpoint)
         
+        # Clear CUDA cache periodically to avoid OOM errors
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
         # Compute running averages (over all completed samples so far)
         running_model_mean = np.mean(all_model_metrics)
         

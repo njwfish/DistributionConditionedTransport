@@ -4,3 +4,4 @@ latent_dim: ${experiment.latent_dim}
 model_type: ${experiment.predictor_model_type}
 model_args: ${experiment.predictor_model_args}
 loss_type: MSE
+predict_difference: ${experiment.predict_difference}

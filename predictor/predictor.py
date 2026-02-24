@@ -35,6 +35,7 @@ class Predictor(nn.Module):
             num_layers=2,
         ),
         loss_type="cosine",  # "cosine" or "MSE"
+        predict_difference=False,
     ):
         super().__init__()
         self.latent_dim = latent_dim
@@ -43,6 +44,13 @@ class Predictor(nn.Module):
         # Backward-compat: store string label as requested
         self.model_args = model_args
         self.loss_type = loss_type
+        self.predict_difference = predict_difference
+
+        if self.predict_difference and self.loss_type.lower() != "mse":
+            raise ValueError(
+                f"predict_difference=True requires loss_type='MSE', "
+                f"but got loss_type='{self.loss_type}'"
+            )
         
         # Define activation before using it
         self.latent_act = nn.SELU()
@@ -75,12 +83,17 @@ class Predictor(nn.Module):
         Returns:
             Loss scalar tensor
         """
-        pred_target_latent = self.forward(source_latent)
+        prediction = self.forward(source_latent)
+
+        if self.predict_difference:
+            target = target_latent - source_latent
+        else:
+            target = target_latent
         
         if self.loss_type.lower() == "mse":
-            loss = (pred_target_latent - target_latent).pow(2).mean()
+            loss = (prediction - target).pow(2).mean()
         elif self.loss_type.lower() == "cosine":
-            loss = (1 - self.similarity(pred_target_latent, target_latent)).mean()
+            loss = (1 - self.similarity(prediction, target)).mean()
         else:
             raise ValueError(f"Unknown loss_type: {self.loss_type}")
         

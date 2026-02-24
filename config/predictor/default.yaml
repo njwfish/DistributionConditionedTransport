@@ -7,3 +7,4 @@ conditioning_mode: ${experiment.predictor_conditioning_mode}
 condition_type: ${experiment.predictor_condition_type}
 d_embed_dim: 16
 loss_type: cosine
+predict_difference: false

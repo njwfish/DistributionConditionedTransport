@@ -21,6 +21,7 @@ defaults:
 # predictor parameters
 predictor_loss_weight: 1.0
 train_predictor_posthoc: false
+predict_difference: true
 
 predictor_model_type: "ridge"
 predictor_model_args:

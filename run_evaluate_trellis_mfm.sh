@@ -5,7 +5,7 @@
 #SBATCH --mem 50GB
 #SBATCH -o logs/otr_eval_mfm0_%a
 #SBATCH -e logs/etr_eval_mfm0_%a
-#SBATCH --array=2
+#SBATCH --array=0-4
 
 export HYDRA_FULL_ERROR=1
 
@@ -18,7 +18,8 @@ echo "Evaluating model for split: ${split}"
 
 ## Standard trellis with ridge predictor
 python -u evaluate_trellis.py \
-    --match "experiment.name=trellis_mfm_gnn" \
+    --outputs_dir outputs_mfm_knn \
+    --match "experiment.name=trellis_mfm_knn" \
     --match "experiment.split_name=${split}" \
     --metric mmd \
     --compute_baseline \

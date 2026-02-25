@@ -13,6 +13,7 @@ for shift estimation and uses only treatment identity.
 """
 
 import argparse
+import gc
 import os
 import sys
 from typing import Dict, Literal
@@ -114,11 +115,20 @@ def build_cells_adata(
 
 
 def load_scgen_model(model_dir: str, adata_for_registry: anndata.AnnData) -> SCGEN:
-    # SCVI load signatures can vary across versions; keep fallbacks.
+    # PyTorch 2.6 changed weights_only default to True, but scvi checkpoints contain
+    # numpy objects. Allowlist the required numpy globals before loading.
+    # Checkpoint is from our own training run, so weights_only=False is safe.
+    _original_torch_load = torch.load
+    torch.load = lambda *args, **kwargs: _original_torch_load(
+        *args, **{**kwargs, "weights_only": False}
+    )
     try:
-        return SCGEN.load(model_dir, adata=adata_for_registry)
-    except TypeError:
-        return SCGEN.load(model_dir, adata_for_registry)
+        try:
+            return SCGEN.load(model_dir, adata=adata_for_registry)
+        except TypeError:
+            return SCGEN.load(model_dir, adata_for_registry)
+    finally:
+        torch.load = _original_torch_load
 
 
 def compute_treatment_deltas(
@@ -221,20 +231,33 @@ def main():
 
         x0_adata = build_cells_adata(x0, treatment_name=t_name, condition="control", model=model)
         z0 = model.get_latent_representation(x0_adata)
+        del x0_adata
         z1_pred = z0 + delta[None, :]
+        del z0
 
         with torch.no_grad():
             z1_pred_tensor = torch.tensor(z1_pred, dtype=torch.float32, device=decode_device)
             x1_pred = model.module.generative(z1_pred_tensor)["px"].cpu()
+            del z1_pred_tensor
+        del z1_pred
 
         x1_tensor = torch.tensor(x1, dtype=torch.float32)
         model_metric = compute_metric(x1_pred, x1_tensor, metric=args.metric)
+        del x1_pred
         all_model_metrics.append(model_metric)
 
         if args.compute_baseline:
             x0_tensor = torch.tensor(x0, dtype=torch.float32)
             baseline_metric = compute_metric(x0_tensor, x1_tensor, metric=args.metric)
+            del x0_tensor
             all_baseline_metrics.append(baseline_metric)
+
+        del x1_tensor
+
+        if i % 10 == 0:
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
         running_model = float(np.mean(all_model_metrics))
         print(f"\nSample {i + 1}/{len(samples_test)}:")

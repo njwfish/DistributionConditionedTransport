@@ -5,7 +5,7 @@
 #SBATCH --mem 100GB
 #SBATCH -o logs/otr_stratified_%a
 #SBATCH -e logs/etr_stratified_%a
-#SBATCH --array=16-18:1
+#SBATCH --array=0-19:1
 
 export HYDRA_FULL_ERROR=1
 export WANDB_API_KEY="c72e34cd8dc67f7220e3517232e86861cd5c537b"

@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH -t 12:00:00
-#SBATCH --gres=gpu:a100:1
-#SBATCH --partition ou_bcs_normal
-#SBATCH --mem 100GB
-#SBATCH -o logs/otr_stratified_%a
-#SBATCH -e logs/etr_stratified_%a
-#SBATCH --array=0-19:1
+#SBATCH --gres=gpu:1
+#SBATCH --partition ou_bcs_low
+#SBATCH --mem 50GB
+#SBATCH -o logs/otr_stratified_baseline_%a
+#SBATCH -e logs/etr_stratified_baseline_%a
+#SBATCH --array=0-9:1
 
 export HYDRA_FULL_ERROR=1
 export WANDB_API_KEY="c72e34cd8dc67f7220e3517232e86861cd5c537b"
@@ -15,7 +15,7 @@ split_names=("replicas-1" "replicas-2" "pdo21" "pdo27" "pdo75")
 
 # Ablation parameters
 consecutive_ratios=(0.5 0.2)
-predictor_loss_weights=(0.1 0.001)
+predictor_loss_weights=(0.0)
 
 num_consecutive_ratios=${#consecutive_ratios[@]}
 num_predictor_loss_weights=${#predictor_loss_weights[@]}

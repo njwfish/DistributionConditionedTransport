@@ -3,9 +3,9 @@
 #SBATCH --gres=gpu:1
 #SBATCH --partition ou_bcs_low
 #SBATCH --mem 100GB
-#SBATCH -o logs/o_eval_strat_%a
-#SBATCH -e logs/e_eval_strat_%a
-#SBATCH --array=0-59
+#SBATCH -o logs/o_eval_strat_baseline_%a
+#SBATCH -e logs/e_eval_strat_baseline_%a
+#SBATCH --array=0-29
 
 export HYDRA_FULL_ERROR=1
 
@@ -14,7 +14,7 @@ split_names=("replicas-1" "replicas-2" "pdo21" "pdo27" "pdo75")
 
 # Ablation parameters (must match run_trellis.sh)
 consecutive_ratios=(0.5 0.2)
-predictor_loss_weights=(0.1 0.001)
+predictor_loss_weights=(0.0)
 
 # Array of metrics (3 metrics)
 metrics=("mmd_energy" "mmd_rbf" "swd")

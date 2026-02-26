@@ -35,7 +35,10 @@ def load_item_from_save(path, key, default):
     if not path.exists():
         return default
 
-    ckpt = torch.load(path, weights_only=False)
+    try:
+        ckpt = torch.load(path, weights_only=False)
+    except TypeError:
+        ckpt = torch.load(path)
     if key not in ckpt:
         logging.warning(f"'{key}' not found in ckpt: {str(path)}")
         return default

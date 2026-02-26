@@ -63,6 +63,8 @@ class SingleLogger:
         return
 
     def _write(self):
+        if len(self.store) == 0:
+            return
         df = pd.DataFrame(self.store).set_index('step')
         df.to_hdf(self.path, self.key, append=True, format='table')
         return

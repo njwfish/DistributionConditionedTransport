@@ -19,7 +19,7 @@ optim:
   weight_decay: 0
 
 training:
-  n_iters: 100
+  n_iters: 1000
   n_inner_iters: 10
   cache_freq: 1000
   eval_freq: 250

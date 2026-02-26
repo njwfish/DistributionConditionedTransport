@@ -89,7 +89,7 @@ def load_cellot_model(config, restore=None, **kwargs):
     opts = load_opts(config, f, g)
 
     if restore is not None and Path(restore).exists():
-        ckpt = torch.load(restore, weights_only=False)
+        ckpt = torch.load(restore)
         f.load_state_dict(ckpt["f_state"])
         opts.f.load_state_dict(ckpt["opt_f_state"])
 

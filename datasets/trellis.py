@@ -2,12 +2,14 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from typing import Optional, Tuple, List, Any
-from torchvision import datasets, transforms
-from torchvision.datasets import MNIST
 import scipy as sp
 import os
-import hydra
-from hydra.core.global_hydra import GlobalHydra
+try:
+    import hydra
+    from hydra.core.global_hydra import GlobalHydra
+except ImportError:
+    hydra = None
+    GlobalHydra = None
 import time
 import pickle
 
@@ -55,7 +57,7 @@ class trellis_dataset(Dataset):
             raise ValueError("split not recognized")
 
 
-        if GlobalHydra.instance().is_initialized():
+        if GlobalHydra is not None and GlobalHydra.instance().is_initialized():
             base_dir = hydra.utils.get_original_cwd()
         else:
             base_dir = os.getcwd()

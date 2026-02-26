@@ -3,9 +3,11 @@ import torch
 from collections import namedtuple
 from cellot.networks.icnns import ICNN
 
-from absl import flags
-
-FLAGS = flags.FLAGS
+try:
+    from absl import flags
+    FLAGS = flags.FLAGS
+except ImportError:
+    FLAGS = None
 
 FGPair = namedtuple("FGPair", "f g")
 
@@ -52,7 +54,7 @@ def load_networks(config, **kwargs):
     f = ICNN(**fkwargs)
     g = ICNN(**gkwargs)
 
-    if "verbose" in FLAGS and FLAGS.verbose:
+    if FLAGS is not None and "verbose" in FLAGS and FLAGS.verbose:
         print(g)
         print(kwargs)
 
@@ -87,7 +89,7 @@ def load_cellot_model(config, restore=None, **kwargs):
     opts = load_opts(config, f, g)
 
     if restore is not None and Path(restore).exists():
-        ckpt = torch.load(restore)
+        ckpt = torch.load(restore, weights_only=False)
         f.load_state_dict(ckpt["f_state"])
         opts.f.load_state_dict(ckpt["opt_f_state"])
 

@@ -1,4 +1,7 @@
-from collections import MutableMapping
+try:
+    from collections.abc import MutableMapping
+except ImportError:
+    from collections import MutableMapping
 import yaml
 from ml_collections import ConfigDict
 from pathlib import Path

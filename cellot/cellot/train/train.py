@@ -4,8 +4,10 @@ import torch
 import numpy as np
 import random
 import pickle
-from absl import logging
-from absl.flags import FLAGS
+try:
+    from absl import logging
+except ImportError:
+    import logging
 from cellot import losses
 from cellot.utils.loaders import load
 from cellot.models.cellot import compute_loss_f, compute_loss_g, compute_w2_distance
@@ -33,15 +35,15 @@ def load_item_from_save(path, key, default):
     if not path.exists():
         return default
 
-    ckpt = torch.load(path)
+    ckpt = torch.load(path, weights_only=False)
     if key not in ckpt:
-        logging.warn(f"'{key}' not found in ckpt: {str(path)}")
+        logging.warning(f"'{key}' not found in ckpt: {str(path)}")
         return default
 
     return ckpt[key]
 
 
-def train_cellot(outdir, config):
+def train_cellot(outdir, config, loader=None, model_kwargs=None):
     def state_dict(f, g, opts, **kwargs):
         state = {
             "g_state": g.state_dict(),
@@ -83,7 +85,12 @@ def train_cellot(outdir, config):
 
     logger = Logger(outdir / "cache/scalars")
     cachedir = outdir / "cache"
-    (f, g), opts, loader = load(config, restore=cachedir / "last.pt")
+    if loader is not None:
+        from cellot.utils.loaders import load_model
+        restore = cachedir / "last.pt" if (cachedir / "last.pt").exists() else None
+        (f, g), opts = load_model(config, restore=restore, **(model_kwargs or {}))
+    else:
+        (f, g), opts, loader = load(config, restore=cachedir / "last.pt")
     iterator = cast_loader_to_iterator(loader, cycle_all=True)
 
     n_iters = config.training.n_iters

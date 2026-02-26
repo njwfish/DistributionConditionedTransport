@@ -1,0 +1,270 @@
+Job 9: Evaluating split=replicas-2, consecutive_ratio=0.2, predictor_loss_weight=0.0, metric=mmd_energy
+Skipping patient_cv for replicas split: replicas-2
+Searching for experiment with: {'experiment.name': 'trellis_a2a_stratified', 'experiment.split_name': 'replicas-2', 'sampling.consecutive_ratio': '0.2', 'experiment.predictor_loss_weight': '0.0'}
+Looking in: outputs
+  Found match: trellis_a2a_stratified_da94b4151f064742af94ab8ede21c87c
+
+Using experiment directory: outputs/trellis_a2a_stratified_da94b4151f064742af94ab8ede21c87c
+Checkpoint file: trellis_running_eval/checkpoint_763ae86f400c.json
+Loaded config from outputs/trellis_a2a_stratified_da94b4151f064742af94ab8ede21c87c/config.yaml
+Loaded checkpoint from outputs/trellis_a2a_stratified_da94b4151f064742af94ab8ede21c87c/best_model.pt (epoch 14400)
+Instantiating dataset...
+Dataset loaded
+Loaded encoder
+Loaded generator
+
+================================================================================
+COMPUTING LATENTS
+================================================================================
+Computing test latents for 33 samples...
+
+================================================================================
+TRAINING RIDGE PREDICTOR
+================================================================================
+Computing train latents for 861 samples...
+  Processed 50/861 samples
+  Processed 100/861 samples
+  Processed 150/861 samples
+  Processed 200/861 samples
+  Processed 250/861 samples
+  Processed 300/861 samples
+  Processed 350/861 samples
+  Processed 400/861 samples
+  Processed 450/861 samples
+  Processed 500/861 samples
+  Processed 550/861 samples
+  Processed 600/861 samples
+  Processed 650/861 samples
+  Processed 700/861 samples
+  Processed 750/861 samples
+  Processed 800/861 samples
+  Processed 850/861 samples
+Training RIDGE predictor (DELTA mode: predicting target - source)...
+  Source latents shape: (861, 256)
+  Treatment conditions shape: (861, 11)
+  Conditioned input shape: (861, 267) -> (861, 256)
+  Running cross-validation to find optimal hyperparameters...
+Params: {'ridge_alpha': 1e-05} -> CV score: 0.002953
+Params: {'ridge_alpha': 0.0001} -> CV score: 0.002759
+Params: {'ridge_alpha': 0.001} -> CV score: 0.002518
+Params: {'ridge_alpha': 0.01} -> CV score: 0.002282
+Params: {'ridge_alpha': 0.1} -> CV score: 0.002194
+Params: {'ridge_alpha': 1.0} -> CV score: 0.002251
+Params: {'ridge_alpha': 10.0} -> CV score: 0.002474
+
+Best params: {'ridge_alpha': 0.1} with score: 0.002194
+  Cross-validation complete. Best params: {'ridge_alpha': 0.1}
+  ridge_alpha=0.1
+Fitting Ridge regression (alpha=0.1)...
+  Training MSE: 0.001722
+
+================================================================================
+EVALUATION RESULTS
+Mode: Using RIDGE predictor as target latent (DELTA prediction) (cross-validated)
+Metric: MMD_ENERGY
+================================================================================
+
+Sample 1/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (4545, 43), x1 shape: (4338, 43)
+  MMD_ENERGY Model:     0.085928  Baseline:     0.756653
+  Avg    Model:     0.085928  Baseline:     0.756653
+
+Sample 2/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (2564, 43), x1 shape: (3341, 43)
+  MMD_ENERGY Model:     0.254025  Baseline:     0.785575
+  Avg    Model:     0.169976  Baseline:     0.771114
+
+Sample 3/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (2564, 43), x1 shape: (3761, 43)
+  MMD_ENERGY Model:     0.365320  Baseline:     0.815295
+  Avg    Model:     0.235091  Baseline:     0.785841
+
+Sample 4/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (2564, 43), x1 shape: (3533, 43)
+  MMD_ENERGY Model:     0.161194  Baseline:     0.016152
+  Avg    Model:     0.216617  Baseline:     0.593419
+
+Sample 5/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (2564, 43), x1 shape: (5374, 43)
+  MMD_ENERGY Model:     0.295778  Baseline:     0.074931
+  Avg    Model:     0.232449  Baseline:     0.489721
+
+Sample 6/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (3928, 43), x1 shape: (2731, 43)
+  MMD_ENERGY Model:     0.209804  Baseline:     0.463042
+  Avg    Model:     0.228675  Baseline:     0.485275
+
+Sample 7/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (3928, 43), x1 shape: (6426, 43)
+  MMD_ENERGY Model:     0.268757  Baseline:     0.215369
+  Avg    Model:     0.234401  Baseline:     0.446717
+
+Sample 8/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (3928, 43), x1 shape: (2252, 43)
+  MMD_ENERGY Model:     0.295289  Baseline:     0.513233
+  Avg    Model:     0.242012  Baseline:     0.455031
+
+Sample 9/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (3928, 43), x1 shape: (7222, 43)
+  MMD_ENERGY Model:     1.677200  Baseline:     1.396508
+  Avg    Model:     0.401477  Baseline:     0.559640
+
+Sample 10/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (3928, 43), x1 shape: (4342, 43)
+  MMD_ENERGY Model:     0.211576  Baseline:     0.308578
+  Avg    Model:     0.382487  Baseline:     0.534534
+
+Sample 11/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (3928, 43), x1 shape: (2265, 43)
+  MMD_ENERGY Model:     0.372206  Baseline:     0.558311
+  Avg    Model:     0.381552  Baseline:     0.536695
+
+Sample 12/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (5451, 43), x1 shape: (5755, 43)
+  MMD_ENERGY Model:     0.154225  Baseline:     0.024529
+  Avg    Model:     0.362608  Baseline:     0.494015
+
+Sample 13/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3402, 43), x1 shape: (7435, 43)
+  MMD_ENERGY Model:     0.457668  Baseline:     0.629855
+  Avg    Model:     0.369921  Baseline:     0.504464
+
+Sample 14/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3402, 43), x1 shape: (9186, 43)
+  MMD_ENERGY Model:     0.732222  Baseline:     0.957350
+  Avg    Model:     0.395799  Baseline:     0.536813
+
+Sample 15/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3402, 43), x1 shape: (4821, 43)
+  MMD_ENERGY Model:     0.115181  Baseline:     0.119790
+  Avg    Model:     0.377092  Baseline:     0.509011
+
+Sample 16/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3402, 43), x1 shape: (11483, 43)
+  MMD_ENERGY Model:     0.418569  Baseline:     0.524957
+  Avg    Model:     0.379684  Baseline:     0.510008
+
+Sample 17/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3411, 43), x1 shape: (5568, 43)
+  MMD_ENERGY Model:     0.244886  Baseline:     0.931072
+  Avg    Model:     0.371755  Baseline:     0.534777
+
+Sample 18/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3411, 43), x1 shape: (10246, 43)
+  MMD_ENERGY Model:     0.113615  Baseline:     0.209861
+  Avg    Model:     0.357413  Baseline:     0.516726
+
+Sample 19/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3411, 43), x1 shape: (9289, 43)
+  MMD_ENERGY Model:     0.077952  Baseline:     0.440072
+  Avg    Model:     0.342705  Baseline:     0.512691
+
+Sample 20/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3411, 43), x1 shape: (7836, 43)
+  MMD_ENERGY Model:     0.032934  Baseline:     0.657039
+  Avg    Model:     0.327216  Baseline:     0.519909
+
+Sample 21/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3411, 43), x1 shape: (7085, 43)
+  MMD_ENERGY Model:     0.112462  Baseline:     0.714319
+  Avg    Model:     0.316990  Baseline:     0.529166
+
+Sample 22/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3411, 43), x1 shape: (10263, 43)
+  MMD_ENERGY Model:     0.044133  Baseline:     0.381180
+  Avg    Model:     0.304587  Baseline:     0.522440
+
+Sample 23/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (6000, 43), x1 shape: (5433, 43)
+  MMD_ENERGY Model:     0.038285  Baseline:     0.045110
+  Avg    Model:     0.293009  Baseline:     0.501686
+
+Sample 24/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (8002, 43), x1 shape: (8268, 43)
+  MMD_ENERGY Model:     0.085051  Baseline:     0.237554
+  Avg    Model:     0.284344  Baseline:     0.490681
+
+Sample 25/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (8002, 43), x1 shape: (9043, 43)
+  MMD_ENERGY Model:     0.192814  Baseline:     0.364672
+  Avg    Model:     0.280683  Baseline:     0.485640
+
+Sample 26/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (8002, 43), x1 shape: (9676, 43)
+  MMD_ENERGY Model:     0.049753  Baseline:     0.127326
+  Avg    Model:     0.271801  Baseline:     0.471859
+
+Sample 27/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (8002, 43), x1 shape: (9823, 43)
+  MMD_ENERGY Model:     0.125618  Baseline:     0.227961
+  Avg    Model:     0.266387  Baseline:     0.462826
+
+Sample 28/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (10813, 43), x1 shape: (10660, 43)
+  MMD_ENERGY Model:     0.066062  Baseline:     0.022501
+  Avg    Model:     0.259232  Baseline:     0.447100
+
+Sample 29/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (10813, 43), x1 shape: (10696, 43)
+  MMD_ENERGY Model:     0.045176  Baseline:     0.105131
+  Avg    Model:     0.251851  Baseline:     0.435308
+
+Sample 30/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (10813, 43), x1 shape: (11415, 43)
+  MMD_ENERGY Model:     0.033613  Baseline:     0.033597
+  Avg    Model:     0.244577  Baseline:     0.421917
+
+Sample 31/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (10813, 43), x1 shape: (10652, 43)
+  MMD_ENERGY Model:     0.092875  Baseline:     0.191759
+  Avg    Model:     0.239683  Baseline:     0.414493
+
+Sample 32/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (10813, 43), x1 shape: (13516, 43)
+  MMD_ENERGY Model:     0.029401  Baseline:     0.081870
+  Avg    Model:     0.233112  Baseline:     0.404098
+
+Sample 33/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (10813, 43), x1 shape: (10449, 43)
+  MMD_ENERGY Model:     0.036438  Baseline:     0.046180
+  Avg    Model:     0.227152  Baseline:     0.393252
+
+================================================================================
+FINAL RESULTS (mean +/- std)
+Checkpoint: trellis_running_eval/checkpoint_763ae86f400c.json
+Total samples evaluated: 33/33
+================================================================================
+MMD_ENERGY Model:    0.2272 +/- 0.2990  Baseline:    0.3933 +/- 0.3372

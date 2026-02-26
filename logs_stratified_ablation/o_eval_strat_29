@@ -1,0 +1,673 @@
+Job 29: Evaluating split=pdo21, consecutive_ratio=0.5, predictor_loss_weight=0.001, metric=swd
+Using patient_cv for split: pdo21
+Searching for experiment with: {'experiment.name': 'trellis_a2a_stratified', 'experiment.split_name': 'pdo21', 'sampling.consecutive_ratio': '0.5', 'experiment.predictor_loss_weight': '0.001'}
+Looking in: outputs
+  Found match: trellis_a2a_stratified_eb4ef15f2beb67f4b25355937ea132f2
+
+Using experiment directory: outputs/trellis_a2a_stratified_eb4ef15f2beb67f4b25355937ea132f2
+Checkpoint file: trellis_running_eval/checkpoint_f89505afca32.json
+Loaded config from outputs/trellis_a2a_stratified_eb4ef15f2beb67f4b25355937ea132f2/config.yaml
+Loaded checkpoint from outputs/trellis_a2a_stratified_eb4ef15f2beb67f4b25355937ea132f2/best_model.pt (epoch 17900)
+Instantiating dataset...
+Dataset loaded
+Loaded encoder
+Loaded generator
+
+================================================================================
+COMPUTING LATENTS
+================================================================================
+Computing test latents for 88 samples...
+  Processed 50/88 samples
+
+================================================================================
+TRAINING RIDGE PREDICTOR
+================================================================================
+Computing train latents for 839 samples...
+  Processed 50/839 samples
+  Processed 100/839 samples
+  Processed 150/839 samples
+  Processed 200/839 samples
+  Processed 250/839 samples
+  Processed 300/839 samples
+  Processed 350/839 samples
+  Processed 400/839 samples
+  Processed 450/839 samples
+  Processed 500/839 samples
+  Processed 550/839 samples
+  Processed 600/839 samples
+  Processed 650/839 samples
+  Processed 700/839 samples
+  Processed 750/839 samples
+  Processed 800/839 samples
+  Patient-based CV enabled with 9 unique patients: ['pdo-109', 'pdo-11', 'pdo-141', 'pdo-216', 'pdo-23', 'pdo-27', 'pdo-5', 'pdo-75', 'pdo-99']
+Training RIDGE predictor (DELTA mode: predicting target - source)...
+  Source latents shape: (839, 256)
+  Treatment conditions shape: (839, 11)
+  Conditioned input shape: (839, 267) -> (839, 256)
+  Running PATIENT-BASED cross-validation to find optimal hyperparameters...
+    Holdout fraction: 1.0
+    Folds per patient: 1
+Patient-based CV: 9 unique patients
+  Predictor type: ridge
+  Holdout fraction: 1.0
+  Folds per patient: 1
+  Total folds: 9
+  Patient pdo-109, Fold 1: train=747, val=92, loss=0.086250
+  Patient pdo-11, Fold 1: train=742, val=97, loss=0.036454
+  Patient pdo-141, Fold 1: train=755, val=84, loss=0.037669
+  Patient pdo-216, Fold 1: train=742, val=97, loss=0.068224
+  Patient pdo-23, Fold 1: train=751, val=88, loss=0.089649
+  Patient pdo-27, Fold 1: train=751, val=88, loss=0.060216
+  Patient pdo-5, Fold 1: train=741, val=98, loss=0.061851
+  Patient pdo-75, Fold 1: train=742, val=97, loss=0.072019
+  Patient pdo-99, Fold 1: train=741, val=98, loss=0.044726
+Params: {'ridge_alpha': 1e-05} -> CV score: 0.061895 +/- 0.018372
+  Patient pdo-109, Fold 1: train=747, val=92, loss=0.057533
+  Patient pdo-11, Fold 1: train=742, val=97, loss=0.026435
+  Patient pdo-141, Fold 1: train=755, val=84, loss=0.023069
+  Patient pdo-216, Fold 1: train=742, val=97, loss=0.046813
+  Patient pdo-23, Fold 1: train=751, val=88, loss=0.054594
+  Patient pdo-27, Fold 1: train=751, val=88, loss=0.038094
+  Patient pdo-5, Fold 1: train=741, val=98, loss=0.052728
+  Patient pdo-75, Fold 1: train=742, val=97, loss=0.041289
+  Patient pdo-99, Fold 1: train=741, val=98, loss=0.029797
+Params: {'ridge_alpha': 0.0001} -> CV score: 0.041150 +/- 0.012005
+  Patient pdo-109, Fold 1: train=747, val=92, loss=0.026507
+  Patient pdo-11, Fold 1: train=742, val=97, loss=0.019795
+  Patient pdo-141, Fold 1: train=755, val=84, loss=0.013515
+  Patient pdo-216, Fold 1: train=742, val=97, loss=0.030317
+  Patient pdo-23, Fold 1: train=751, val=88, loss=0.038778
+  Patient pdo-27, Fold 1: train=751, val=88, loss=0.028454
+  Patient pdo-5, Fold 1: train=741, val=98, loss=0.032970
+  Patient pdo-75, Fold 1: train=742, val=97, loss=0.029088
+  Patient pdo-99, Fold 1: train=741, val=98, loss=0.023389
+Params: {'ridge_alpha': 0.001} -> CV score: 0.026979 +/- 0.006983
+  Patient pdo-109, Fold 1: train=747, val=92, loss=0.015169
+  Patient pdo-11, Fold 1: train=742, val=97, loss=0.015046
+  Patient pdo-141, Fold 1: train=755, val=84, loss=0.011113
+  Patient pdo-216, Fold 1: train=742, val=97, loss=0.019139
+  Patient pdo-23, Fold 1: train=751, val=88, loss=0.025157
+  Patient pdo-27, Fold 1: train=751, val=88, loss=0.019788
+  Patient pdo-5, Fold 1: train=741, val=98, loss=0.017302
+  Patient pdo-75, Fold 1: train=742, val=97, loss=0.018226
+  Patient pdo-99, Fold 1: train=741, val=98, loss=0.018127
+Params: {'ridge_alpha': 0.01} -> CV score: 0.017674 +/- 0.003644
+  Patient pdo-109, Fold 1: train=747, val=92, loss=0.007325
+  Patient pdo-11, Fold 1: train=742, val=97, loss=0.009103
+  Patient pdo-141, Fold 1: train=755, val=84, loss=0.006728
+  Patient pdo-216, Fold 1: train=742, val=97, loss=0.008440
+  Patient pdo-23, Fold 1: train=751, val=88, loss=0.010841
+  Patient pdo-27, Fold 1: train=751, val=88, loss=0.009249
+  Patient pdo-5, Fold 1: train=741, val=98, loss=0.006793
+  Patient pdo-75, Fold 1: train=742, val=97, loss=0.008935
+  Patient pdo-99, Fold 1: train=741, val=98, loss=0.008776
+Params: {'ridge_alpha': 0.1} -> CV score: 0.008465 +/- 0.001251
+  Patient pdo-109, Fold 1: train=747, val=92, loss=0.003199
+  Patient pdo-11, Fold 1: train=742, val=97, loss=0.003953
+  Patient pdo-141, Fold 1: train=755, val=84, loss=0.002866
+  Patient pdo-216, Fold 1: train=742, val=97, loss=0.003037
+  Patient pdo-23, Fold 1: train=751, val=88, loss=0.003862
+  Patient pdo-27, Fold 1: train=751, val=88, loss=0.004124
+  Patient pdo-5, Fold 1: train=741, val=98, loss=0.003252
+  Patient pdo-75, Fold 1: train=742, val=97, loss=0.004491
+  Patient pdo-99, Fold 1: train=741, val=98, loss=0.003584
+Params: {'ridge_alpha': 1.0} -> CV score: 0.003596 +/- 0.000516
+  Patient pdo-109, Fold 1: train=747, val=92, loss=0.002399
+  Patient pdo-11, Fold 1: train=742, val=97, loss=0.002140
+  Patient pdo-141, Fold 1: train=755, val=84, loss=0.002255
+  Patient pdo-216, Fold 1: train=742, val=97, loss=0.001674
+  Patient pdo-23, Fold 1: train=751, val=88, loss=0.002792
+  Patient pdo-27, Fold 1: train=751, val=88, loss=0.002807
+  Patient pdo-5, Fold 1: train=741, val=98, loss=0.002008
+  Patient pdo-75, Fold 1: train=742, val=97, loss=0.003765
+  Patient pdo-99, Fold 1: train=741, val=98, loss=0.002629
+Params: {'ridge_alpha': 10.0} -> CV score: 0.002497 +/- 0.000570
+
+Best params: {'ridge_alpha': 10.0} with score: 0.002497
+  Patient-based CV complete. 9 patients evaluated.
+  Patients: ['pdo-109', 'pdo-11', 'pdo-141', 'pdo-216', 'pdo-23', 'pdo-27', 'pdo-5', 'pdo-75', 'pdo-99']
+  Cross-validation complete. Best params: {'ridge_alpha': 10.0}
+  ridge_alpha=10.0
+Fitting Ridge regression (alpha=10.0)...
+  Training MSE: 0.001376
+
+================================================================================
+EVALUATION RESULTS
+Mode: Using RIDGE predictor as target latent (DELTA prediction) (cross-validated)
+Metric: SWD
+================================================================================
+
+Sample 1/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (4293, 43), x1 shape: (3828, 43)
+  SWD    Model:     0.393430  Baseline:     0.397363
+  Avg    Model:     0.393430  Baseline:     0.397363
+
+Sample 2/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (4530, 43), x1 shape: (3882, 43)
+  SWD    Model:     0.318255  Baseline:     0.341191
+  Avg    Model:     0.355843  Baseline:     0.369277
+
+Sample 3/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (4545, 43), x1 shape: (4338, 43)
+  SWD    Model:     0.364513  Baseline:     0.393888
+  Avg    Model:     0.358733  Baseline:     0.377481
+
+Sample 4/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (2564, 43), x1 shape: (3341, 43)
+  SWD    Model:     0.278596  Baseline:     0.404301
+  Avg    Model:     0.338699  Baseline:     0.384186
+
+Sample 5/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (2564, 43), x1 shape: (3761, 43)
+  SWD    Model:     0.312478  Baseline:     0.407166
+  Avg    Model:     0.333455  Baseline:     0.388782
+
+Sample 6/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (2564, 43), x1 shape: (3533, 43)
+  SWD    Model:     0.101614  Baseline:     0.062860
+  Avg    Model:     0.294814  Baseline:     0.334462
+
+Sample 7/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (2564, 43), x1 shape: (5374, 43)
+  SWD    Model:     0.184496  Baseline:     0.119326
+  Avg    Model:     0.279055  Baseline:     0.303728
+
+Sample 8/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3121, 43), x1 shape: (2917, 43)
+  SWD    Model:     0.304129  Baseline:     0.425563
+  Avg    Model:     0.282189  Baseline:     0.318957
+
+Sample 9/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3121, 43), x1 shape: (4330, 43)
+  SWD    Model:     0.306643  Baseline:     0.486000
+  Avg    Model:     0.284906  Baseline:     0.337518
+
+Sample 10/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3121, 43), x1 shape: (4324, 43)
+  SWD    Model:     0.196416  Baseline:     0.213960
+  Avg    Model:     0.276057  Baseline:     0.325162
+
+Sample 11/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3121, 43), x1 shape: (9991, 43)
+  SWD    Model:     0.224448  Baseline:     0.220584
+  Avg    Model:     0.271365  Baseline:     0.315655
+
+Sample 12/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3271, 43), x1 shape: (2358, 43)
+  SWD    Model:     0.404188  Baseline:     0.460830
+  Avg    Model:     0.282434  Baseline:     0.327753
+
+Sample 13/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3271, 43), x1 shape: (2580, 43)
+  SWD    Model:     0.410254  Baseline:     0.455987
+  Avg    Model:     0.292266  Baseline:     0.337617
+
+Sample 14/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3271, 43), x1 shape: (3560, 43)
+  SWD    Model:     0.143843  Baseline:     0.066508
+  Avg    Model:     0.281665  Baseline:     0.318252
+
+Sample 15/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3271, 43), x1 shape: (4919, 43)
+  SWD    Model:     0.134886  Baseline:     0.103737
+  Avg    Model:     0.271879  Baseline:     0.303951
+
+Sample 16/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3213, 43), x1 shape: (2486, 43)
+  SWD    Model:     0.206393  Baseline:     0.296100
+  Avg    Model:     0.267786  Baseline:     0.303460
+
+Sample 17/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3213, 43), x1 shape: (4444, 43)
+  SWD    Model:     0.169893  Baseline:     0.158568
+  Avg    Model:     0.262028  Baseline:     0.294937
+
+Sample 18/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3213, 43), x1 shape: (1781, 43)
+  SWD    Model:     0.287049  Baseline:     0.344052
+  Avg    Model:     0.263418  Baseline:     0.297666
+
+Sample 19/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3213, 43), x1 shape: (2540, 43)
+  SWD    Model:     0.349611  Baseline:     0.415211
+  Avg    Model:     0.267954  Baseline:     0.303852
+
+Sample 20/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3213, 43), x1 shape: (4391, 43)
+  SWD    Model:     0.202656  Baseline:     0.204978
+  Avg    Model:     0.264690  Baseline:     0.298909
+
+Sample 21/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3213, 43), x1 shape: (3273, 43)
+  SWD    Model:     0.362603  Baseline:     0.415979
+  Avg    Model:     0.269352  Baseline:     0.304484
+
+Sample 22/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3928, 43), x1 shape: (2731, 43)
+  SWD    Model:     0.172131  Baseline:     0.295825
+  Avg    Model:     0.264933  Baseline:     0.304090
+
+Sample 23/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3928, 43), x1 shape: (6426, 43)
+  SWD    Model:     0.192019  Baseline:     0.201271
+  Avg    Model:     0.261763  Baseline:     0.299620
+
+Sample 24/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3928, 43), x1 shape: (2252, 43)
+  SWD    Model:     0.246519  Baseline:     0.329028
+  Avg    Model:     0.261128  Baseline:     0.300845
+
+Sample 25/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3928, 43), x1 shape: (7222, 43)
+  SWD    Model:     0.514372  Baseline:     0.523500
+  Avg    Model:     0.271257  Baseline:     0.309751
+
+Sample 26/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3928, 43), x1 shape: (4342, 43)
+  SWD    Model:     0.207857  Baseline:     0.235171
+  Avg    Model:     0.268819  Baseline:     0.306883
+
+Sample 27/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3928, 43), x1 shape: (2265, 43)
+  SWD    Model:     0.267471  Baseline:     0.341607
+  Avg    Model:     0.268769  Baseline:     0.308169
+
+Sample 28/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3463, 43), x1 shape: (2326, 43)
+  SWD    Model:     0.199863  Baseline:     0.314942
+  Avg    Model:     0.266308  Baseline:     0.308411
+
+Sample 29/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3463, 43), x1 shape: (4149, 43)
+  SWD    Model:     0.131991  Baseline:     0.106027
+  Avg    Model:     0.261676  Baseline:     0.301432
+
+Sample 30/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3463, 43), x1 shape: (1684, 43)
+  SWD    Model:     0.372608  Baseline:     0.404941
+  Avg    Model:     0.265374  Baseline:     0.304882
+
+Sample 31/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3463, 43), x1 shape: (2874, 43)
+  SWD    Model:     0.454352  Baseline:     0.485325
+  Avg    Model:     0.271470  Baseline:     0.310703
+
+Sample 32/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3463, 43), x1 shape: (3528, 43)
+  SWD    Model:     0.164708  Baseline:     0.162527
+  Avg    Model:     0.268134  Baseline:     0.306072
+
+Sample 33/88 (computing):
+  Culture: PDO, Patient: pdo-21
+  x0 shape: (3463, 43), x1 shape: (1550, 43)
+  SWD    Model:     0.306507  Baseline:     0.371240
+  Avg    Model:     0.269297  Baseline:     0.308047
+
+Sample 34/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (5664, 43), x1 shape: (4798, 43)
+  SWD    Model:     0.211485  Baseline:     0.083642
+  Avg    Model:     0.267596  Baseline:     0.301447
+
+Sample 35/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (5451, 43), x1 shape: (5755, 43)
+  SWD    Model:     0.210743  Baseline:     0.080251
+  Avg    Model:     0.265972  Baseline:     0.295127
+
+Sample 36/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (5390, 43), x1 shape: (5555, 43)
+  SWD    Model:     0.201361  Baseline:     0.074755
+  Avg    Model:     0.264177  Baseline:     0.289006
+
+Sample 37/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (3402, 43), x1 shape: (7435, 43)
+  SWD    Model:     0.367760  Baseline:     0.411186
+  Avg    Model:     0.266977  Baseline:     0.292308
+
+Sample 38/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (3402, 43), x1 shape: (9186, 43)
+  SWD    Model:     0.476555  Baseline:     0.495673
+  Avg    Model:     0.272492  Baseline:     0.297660
+
+Sample 39/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (3402, 43), x1 shape: (4821, 43)
+  SWD    Model:     0.146050  Baseline:     0.170505
+  Avg    Model:     0.269250  Baseline:     0.294399
+
+Sample 40/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (3402, 43), x1 shape: (11483, 43)
+  SWD    Model:     0.348709  Baseline:     0.360978
+  Avg    Model:     0.271236  Baseline:     0.296064
+
+Sample 41/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (7390, 43), x1 shape: (7556, 43)
+  SWD    Model:     0.260681  Baseline:     0.361337
+  Avg    Model:     0.270979  Baseline:     0.297656
+
+Sample 42/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (7390, 43), x1 shape: (9882, 43)
+  SWD    Model:     0.353749  Baseline:     0.420389
+  Avg    Model:     0.272950  Baseline:     0.300578
+
+Sample 43/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (7390, 43), x1 shape: (3585, 43)
+  SWD    Model:     0.229673  Baseline:     0.249263
+  Avg    Model:     0.271943  Baseline:     0.299385
+
+Sample 44/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (7390, 43), x1 shape: (7132, 43)
+  SWD    Model:     0.132322  Baseline:     0.193028
+  Avg    Model:     0.268770  Baseline:     0.296967
+
+Sample 45/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (7091, 43), x1 shape: (11659, 43)
+  SWD    Model:     0.227787  Baseline:     0.312098
+  Avg    Model:     0.267859  Baseline:     0.297304
+
+Sample 46/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (7091, 43), x1 shape: (12503, 43)
+  SWD    Model:     0.394822  Baseline:     0.477659
+  Avg    Model:     0.270619  Baseline:     0.301224
+
+Sample 47/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (7091, 43), x1 shape: (6480, 43)
+  SWD    Model:     0.182302  Baseline:     0.116952
+  Avg    Model:     0.268740  Baseline:     0.297304
+
+Sample 48/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (7091, 43), x1 shape: (6843, 43)
+  SWD    Model:     0.094639  Baseline:     0.194394
+  Avg    Model:     0.265113  Baseline:     0.295160
+
+Sample 49/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (5851, 43), x1 shape: (8370, 43)
+  SWD    Model:     0.158146  Baseline:     0.196648
+  Avg    Model:     0.262930  Baseline:     0.293149
+
+Sample 50/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (5851, 43), x1 shape: (7702, 43)
+  SWD    Model:     0.168913  Baseline:     0.180359
+  Avg    Model:     0.261050  Baseline:     0.290893
+
+Sample 51/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (5851, 43), x1 shape: (7410, 43)
+  SWD    Model:     0.104973  Baseline:     0.089470
+  Avg    Model:     0.257989  Baseline:     0.286944
+
+Sample 52/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (5851, 43), x1 shape: (7363, 43)
+  SWD    Model:     0.236571  Baseline:     0.230918
+  Avg    Model:     0.257578  Baseline:     0.285867
+
+Sample 53/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (5851, 43), x1 shape: (5786, 43)
+  SWD    Model:     0.087994  Baseline:     0.084462
+  Avg    Model:     0.254378  Baseline:     0.282066
+
+Sample 54/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (5851, 43), x1 shape: (7121, 43)
+  SWD    Model:     0.194557  Baseline:     0.192901
+  Avg    Model:     0.253270  Baseline:     0.280415
+
+Sample 55/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (7572, 43), x1 shape: (8669, 43)
+  SWD    Model:     0.181027  Baseline:     0.279941
+  Avg    Model:     0.251957  Baseline:     0.280407
+
+Sample 56/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (7572, 43), x1 shape: (6126, 43)
+  SWD    Model:     0.120465  Baseline:     0.180410
+  Avg    Model:     0.249609  Baseline:     0.278621
+
+Sample 57/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (7572, 43), x1 shape: (5062, 43)
+  SWD    Model:     0.144099  Baseline:     0.225645
+  Avg    Model:     0.247757  Baseline:     0.277692
+
+Sample 58/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (7572, 43), x1 shape: (8947, 43)
+  SWD    Model:     0.200110  Baseline:     0.255669
+  Avg    Model:     0.246936  Baseline:     0.277312
+
+Sample 59/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (7572, 43), x1 shape: (6097, 43)
+  SWD    Model:     0.107075  Baseline:     0.163681
+  Avg    Model:     0.244565  Baseline:     0.275386
+
+Sample 60/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (7572, 43), x1 shape: (10522, 43)
+  SWD    Model:     0.144339  Baseline:     0.165976
+  Avg    Model:     0.242895  Baseline:     0.273562
+
+Sample 61/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (3411, 43), x1 shape: (5568, 43)
+  SWD    Model:     0.431278  Baseline:     0.482194
+  Avg    Model:     0.245983  Baseline:     0.276983
+
+Sample 62/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (3411, 43), x1 shape: (10246, 43)
+  SWD    Model:     0.173077  Baseline:     0.233719
+  Avg    Model:     0.244807  Baseline:     0.276285
+
+Sample 63/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (3411, 43), x1 shape: (9289, 43)
+  SWD    Model:     0.248816  Baseline:     0.333166
+  Avg    Model:     0.244871  Baseline:     0.277188
+
+Sample 64/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (3411, 43), x1 shape: (7836, 43)
+  SWD    Model:     0.314822  Baseline:     0.409490
+  Avg    Model:     0.245964  Baseline:     0.279255
+
+Sample 65/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (3411, 43), x1 shape: (7085, 43)
+  SWD    Model:     0.354672  Baseline:     0.428199
+  Avg    Model:     0.247636  Baseline:     0.281546
+
+Sample 66/88 (computing):
+  Culture: PDOF, Patient: pdo-21
+  x0 shape: (3411, 43), x1 shape: (10263, 43)
+  SWD    Model:     0.224038  Baseline:     0.312729
+  Avg    Model:     0.247279  Baseline:     0.282019
+
+Sample 67/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (5608, 43), x1 shape: (5635, 43)
+  SWD    Model:     0.108883  Baseline:     0.062911
+  Avg    Model:     0.245213  Baseline:     0.278749
+
+Sample 68/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (6000, 43), x1 shape: (5433, 43)
+  SWD    Model:     0.121264  Baseline:     0.092018
+  Avg    Model:     0.243390  Baseline:     0.276003
+
+Sample 69/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (8131, 43), x1 shape: (10449, 43)
+  SWD    Model:     0.103860  Baseline:     0.142883
+  Avg    Model:     0.241368  Baseline:     0.274073
+
+Sample 70/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (8131, 43), x1 shape: (8746, 43)
+  SWD    Model:     0.169325  Baseline:     0.185333
+  Avg    Model:     0.240339  Baseline:     0.272806
+
+Sample 71/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (8131, 43), x1 shape: (8629, 43)
+  SWD    Model:     0.072501  Baseline:     0.037607
+  Avg    Model:     0.237975  Baseline:     0.269493
+
+Sample 72/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (8131, 43), x1 shape: (9403, 43)
+  SWD    Model:     0.122435  Baseline:     0.087654
+  Avg    Model:     0.236370  Baseline:     0.266967
+
+Sample 73/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (8002, 43), x1 shape: (8268, 43)
+  SWD    Model:     0.126357  Baseline:     0.189443
+  Avg    Model:     0.234863  Baseline:     0.265905
+
+Sample 74/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (8002, 43), x1 shape: (9043, 43)
+  SWD    Model:     0.230528  Baseline:     0.233986
+  Avg    Model:     0.234805  Baseline:     0.265474
+
+Sample 75/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (8002, 43), x1 shape: (9676, 43)
+  SWD    Model:     0.132532  Baseline:     0.136806
+  Avg    Model:     0.233441  Baseline:     0.263758
+
+Sample 76/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (8002, 43), x1 shape: (9823, 43)
+  SWD    Model:     0.189973  Baseline:     0.183076
+  Avg    Model:     0.232869  Baseline:     0.262697
+
+Sample 77/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (11402, 43), x1 shape: (10809, 43)
+  SWD    Model:     0.089124  Baseline:     0.048734
+  Avg    Model:     0.231002  Baseline:     0.259918
+
+Sample 78/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (11402, 43), x1 shape: (12536, 43)
+  SWD    Model:     0.075472  Baseline:     0.052048
+  Avg    Model:     0.229008  Baseline:     0.257253
+
+Sample 79/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (11402, 43), x1 shape: (10746, 43)
+  SWD    Model:     0.112254  Baseline:     0.085484
+  Avg    Model:     0.227530  Baseline:     0.255079
+
+Sample 80/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (11402, 43), x1 shape: (10071, 43)
+  SWD    Model:     0.079800  Baseline:     0.089108
+  Avg    Model:     0.225684  Baseline:     0.253004
+
+Sample 81/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (11402, 43), x1 shape: (10898, 43)
+  SWD    Model:     0.102388  Baseline:     0.085170
+  Avg    Model:     0.224162  Baseline:     0.250932
+
+Sample 82/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (11402, 43), x1 shape: (11174, 43)
+  SWD    Model:     0.097637  Baseline:     0.082558
+  Avg    Model:     0.222619  Baseline:     0.248879
+
+Sample 83/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (10813, 43), x1 shape: (10660, 43)
+  SWD    Model:     0.080605  Baseline:     0.058843
+  Avg    Model:     0.220908  Baseline:     0.246589
+
+Sample 84/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (10813, 43), x1 shape: (10696, 43)
+  SWD    Model:     0.120647  Baseline:     0.126365
+  Avg    Model:     0.219714  Baseline:     0.245158
+
+Sample 85/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (10813, 43), x1 shape: (11415, 43)
+  SWD    Model:     0.093584  Baseline:     0.072931
+  Avg    Model:     0.218230  Baseline:     0.243132
+
+Sample 86/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (10813, 43), x1 shape: (10652, 43)
+  SWD    Model:     0.159506  Baseline:     0.170913
+  Avg    Model:     0.217547  Baseline:     0.242292
+
+Sample 87/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (10813, 43), x1 shape: (13516, 43)
+  SWD    Model:     0.109126  Baseline:     0.112479
+  Avg    Model:     0.216301  Baseline:     0.240800
+
+Sample 88/88 (computing):
+  Culture: F, Patient: pdo-21
+  x0 shape: (10813, 43), x1 shape: (10449, 43)
+  SWD    Model:     0.077954  Baseline:     0.085602
+  Avg    Model:     0.214729  Baseline:     0.239036
+
+================================================================================
+FINAL RESULTS (mean +/- std)
+Checkpoint: trellis_running_eval/checkpoint_f89505afca32.json
+Total samples evaluated: 88/88
+================================================================================
+SWD    Model:    0.2147 +/- 0.1076  Baseline:    0.2390 +/- 0.1382

@@ -1,0 +1,483 @@
+Job 4: Evaluating split=replicas-1, consecutive_ratio=0.5, predictor_loss_weight=0.001, metric=mmd_rbf
+Skipping patient_cv for replicas split: replicas-1
+Searching for experiment with: {'experiment.name': 'trellis_a2a_stratified', 'experiment.split_name': 'replicas-1', 'sampling.consecutive_ratio': '0.5', 'experiment.predictor_loss_weight': '0.001'}
+Looking in: outputs
+  Found match: trellis_a2a_stratified_db14f2991012208da0f443e04b638602
+
+Using experiment directory: outputs/trellis_a2a_stratified_db14f2991012208da0f443e04b638602
+Loaded checkpoint from trellis_running_eval/checkpoint_cf62b6c038e0.json
+  36 samples already completed
+Checkpoint file: trellis_running_eval/checkpoint_cf62b6c038e0.json
+Loaded config from outputs/trellis_a2a_stratified_db14f2991012208da0f443e04b638602/config.yaml
+Loaded checkpoint from outputs/trellis_a2a_stratified_db14f2991012208da0f443e04b638602/best_model.pt (epoch 13600)
+Instantiating dataset...
+Dataset loaded
+Loaded encoder
+Loaded generator
+
+================================================================================
+COMPUTING LATENTS
+================================================================================
+Computing test latents for 104 samples...
+  Processed 50/104 samples
+  Processed 100/104 samples
+
+================================================================================
+TRAINING RIDGE PREDICTOR
+================================================================================
+Computing train latents for 712 samples...
+  Processed 50/712 samples
+  Processed 100/712 samples
+  Processed 150/712 samples
+  Processed 200/712 samples
+  Processed 250/712 samples
+  Processed 300/712 samples
+  Processed 350/712 samples
+  Processed 400/712 samples
+  Processed 450/712 samples
+  Processed 500/712 samples
+  Processed 550/712 samples
+  Processed 600/712 samples
+  Processed 650/712 samples
+  Processed 700/712 samples
+Training RIDGE predictor (DELTA mode: predicting target - source)...
+  Source latents shape: (712, 256)
+  Treatment conditions shape: (712, 11)
+  Conditioned input shape: (712, 267) -> (712, 256)
+  Running cross-validation to find optimal hyperparameters...
+Params: {'ridge_alpha': 1e-05} -> CV score: 0.001748
+Params: {'ridge_alpha': 0.0001} -> CV score: 0.001669
+Params: {'ridge_alpha': 0.001} -> CV score: 0.001525
+Params: {'ridge_alpha': 0.01} -> CV score: 0.001382
+Params: {'ridge_alpha': 0.1} -> CV score: 0.001344
+Params: {'ridge_alpha': 1.0} -> CV score: 0.001405
+Params: {'ridge_alpha': 10.0} -> CV score: 0.001580
+
+Best params: {'ridge_alpha': 0.1} with score: 0.001344
+  Cross-validation complete. Best params: {'ridge_alpha': 0.1}
+  ridge_alpha=0.1
+Fitting Ridge regression (alpha=0.1)...
+  Training MSE: 0.001028
+
+================================================================================
+EVALUATION RESULTS
+Mode: Using RIDGE predictor as target latent (DELTA prediction) (cross-validated)
+Metric: MMD_RBF
+================================================================================
+
+Resuming from checkpoint: 36 samples already done, 68 remaining
+
+Sample 37/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (18201, 43), x1 shape: (9466, 43)
+  MMD_RBF Model:     0.000984  Baseline:     0.005784
+  Avg    Model:     0.011425  Baseline:     0.026094
+
+Sample 38/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (18201, 43), x1 shape: (19135, 43)
+  MMD_RBF Model:     0.001364  Baseline:     0.000315
+  Avg    Model:     0.011160  Baseline:     0.025416
+
+Sample 39/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (18201, 43), x1 shape: (16342, 43)
+  MMD_RBF Model:     0.001384  Baseline:     0.000616
+  Avg    Model:     0.010909  Baseline:     0.024780
+
+Sample 40/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (19528, 43), x1 shape: (18404, 43)
+  MMD_RBF Model:     0.001393  Baseline:     0.003989
+  Avg    Model:     0.010671  Baseline:     0.024260
+
+Sample 41/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (9569, 43), x1 shape: (7035, 43)
+  MMD_RBF Model:     0.042272  Baseline:     0.030961
+  Avg    Model:     0.011442  Baseline:     0.024424
+
+Sample 42/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (9569, 43), x1 shape: (7924, 43)
+  MMD_RBF Model:     0.016702  Baseline:     0.018669
+  Avg    Model:     0.011567  Baseline:     0.024287
+
+Sample 43/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (9569, 43), x1 shape: (8305, 43)
+  MMD_RBF Model:     0.027105  Baseline:     0.012418
+  Avg    Model:     0.011929  Baseline:     0.024011
+
+Sample 44/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (9569, 43), x1 shape: (8633, 43)
+  MMD_RBF Model:     0.004992  Baseline:     0.004676
+  Avg    Model:     0.011771  Baseline:     0.023571
+
+Sample 45/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (8424, 43), x1 shape: (8578, 43)
+  MMD_RBF Model:     0.005993  Baseline:     0.011255
+  Avg    Model:     0.011643  Baseline:     0.023297
+
+Sample 46/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (8424, 43), x1 shape: (9989, 43)
+  MMD_RBF Model:     0.006318  Baseline:     0.002050
+  Avg    Model:     0.011527  Baseline:     0.022836
+
+Sample 47/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (8424, 43), x1 shape: (8930, 43)
+  MMD_RBF Model:     0.005513  Baseline:     0.001548
+  Avg    Model:     0.011399  Baseline:     0.022383
+
+Sample 48/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (8424, 43), x1 shape: (7542, 43)
+  MMD_RBF Model:     0.007292  Baseline:     0.008158
+  Avg    Model:     0.011313  Baseline:     0.022086
+
+Sample 49/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (8424, 43), x1 shape: (6962, 43)
+  MMD_RBF Model:     0.003474  Baseline:     0.004751
+  Avg    Model:     0.011153  Baseline:     0.021733
+
+Sample 50/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (8424, 43), x1 shape: (10147, 43)
+  MMD_RBF Model:     0.010003  Baseline:     0.006308
+  Avg    Model:     0.011130  Baseline:     0.021424
+
+Sample 51/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (10710, 43), x1 shape: (12251, 43)
+  MMD_RBF Model:     0.005848  Baseline:     0.005362
+  Avg    Model:     0.011027  Baseline:     0.021109
+
+Sample 52/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (10710, 43), x1 shape: (16706, 43)
+  MMD_RBF Model:     0.003722  Baseline:     0.008734
+  Avg    Model:     0.010886  Baseline:     0.020871
+
+Sample 53/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (10710, 43), x1 shape: (9982, 43)
+  MMD_RBF Model:     0.011288  Baseline:     0.010126
+  Avg    Model:     0.010894  Baseline:     0.020668
+
+Sample 54/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (10710, 43), x1 shape: (12694, 43)
+  MMD_RBF Model:     0.003842  Baseline:     0.006403
+  Avg    Model:     0.010763  Baseline:     0.020404
+
+Sample 55/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (26791, 43), x1 shape: (28775, 43)
+  MMD_RBF Model:     0.000046  Baseline:     0.000045
+  Avg    Model:     0.010569  Baseline:     0.020034
+
+Sample 56/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (13960, 43), x1 shape: (19194, 43)
+  MMD_RBF Model:     0.001178  Baseline:     0.001016
+  Avg    Model:     0.010401  Baseline:     0.019694
+
+Sample 57/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (13960, 43), x1 shape: (21666, 43)
+  MMD_RBF Model:     0.001979  Baseline:     0.002062
+  Avg    Model:     0.010253  Baseline:     0.019385
+
+Sample 58/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (13960, 43), x1 shape: (19308, 43)
+  MMD_RBF Model:     0.000884  Baseline:     0.000532
+  Avg    Model:     0.010092  Baseline:     0.019060
+
+Sample 59/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (13960, 43), x1 shape: (17464, 43)
+  MMD_RBF Model:     0.001287  Baseline:     0.001770
+  Avg    Model:     0.009942  Baseline:     0.018767
+
+Sample 60/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (13960, 43), x1 shape: (16645, 43)
+  MMD_RBF Model:     0.000643  Baseline:     0.000730
+  Avg    Model:     0.009787  Baseline:     0.018466
+
+Sample 61/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (13960, 43), x1 shape: (16544, 43)
+  MMD_RBF Model:     0.000924  Baseline:     0.000820
+  Avg    Model:     0.009642  Baseline:     0.018177
+
+Sample 62/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (8911, 43), x1 shape: (14621, 43)
+  MMD_RBF Model:     0.003523  Baseline:     0.042534
+  Avg    Model:     0.009543  Baseline:     0.018570
+
+Sample 63/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (5451, 43), x1 shape: (5755, 43)
+  MMD_RBF Model:     0.004167  Baseline:     0.001432
+  Avg    Model:     0.009458  Baseline:     0.018298
+
+Sample 64/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3402, 43), x1 shape: (7435, 43)
+  MMD_RBF Model:     0.015577  Baseline:     0.037433
+  Avg    Model:     0.009554  Baseline:     0.018597
+
+Sample 65/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3402, 43), x1 shape: (9186, 43)
+  MMD_RBF Model:     0.030428  Baseline:     0.056604
+  Avg    Model:     0.009875  Baseline:     0.019182
+
+Sample 66/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3402, 43), x1 shape: (4821, 43)
+  MMD_RBF Model:     0.004802  Baseline:     0.007527
+  Avg    Model:     0.009798  Baseline:     0.019005
+
+Sample 67/104 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3402, 43), x1 shape: (11483, 43)
+  MMD_RBF Model:     0.018697  Baseline:     0.031892
+  Avg    Model:     0.009931  Baseline:     0.019197
+
+Sample 68/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (5746, 43), x1 shape: (4035, 43)
+  MMD_RBF Model:     0.004715  Baseline:     0.009300
+  Avg    Model:     0.009854  Baseline:     0.019052
+
+Sample 69/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (13254, 43), x1 shape: (9332, 43)
+  MMD_RBF Model:     0.012958  Baseline:     0.027605
+  Avg    Model:     0.009899  Baseline:     0.019176
+
+Sample 70/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (13254, 43), x1 shape: (10489, 43)
+  MMD_RBF Model:     0.003371  Baseline:     0.008473
+  Avg    Model:     0.009806  Baseline:     0.019023
+
+Sample 71/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (13254, 43), x1 shape: (11903, 43)
+  MMD_RBF Model:     0.002475  Baseline:     0.005203
+  Avg    Model:     0.009702  Baseline:     0.018828
+
+Sample 72/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (13254, 43), x1 shape: (11037, 43)
+  MMD_RBF Model:     0.001540  Baseline:     0.008513
+  Avg    Model:     0.009589  Baseline:     0.018685
+
+Sample 73/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (13254, 43), x1 shape: (10812, 43)
+  MMD_RBF Model:     0.001982  Baseline:     0.004304
+  Avg    Model:     0.009485  Baseline:     0.018488
+
+Sample 74/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (13254, 43), x1 shape: (10097, 43)
+  MMD_RBF Model:     0.002562  Baseline:     0.009217
+  Avg    Model:     0.009391  Baseline:     0.018363
+
+Sample 75/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (20536, 43), x1 shape: (7697, 43)
+  MMD_RBF Model:     0.017641  Baseline:     0.041507
+  Avg    Model:     0.009501  Baseline:     0.018671
+
+Sample 76/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (20536, 43), x1 shape: (14978, 43)
+  MMD_RBF Model:     0.009450  Baseline:     0.012926
+  Avg    Model:     0.009501  Baseline:     0.018596
+
+Sample 77/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (20536, 43), x1 shape: (18118, 43)
+  MMD_RBF Model:     0.010172  Baseline:     0.008440
+  Avg    Model:     0.009509  Baseline:     0.018464
+
+Sample 78/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (20536, 43), x1 shape: (16688, 43)
+  MMD_RBF Model:     0.002693  Baseline:     0.002519
+  Avg    Model:     0.009422  Baseline:     0.018259
+
+Sample 79/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (6843, 43), x1 shape: (4440, 43)
+  MMD_RBF Model:     0.013220  Baseline:     0.009935
+  Avg    Model:     0.009470  Baseline:     0.018154
+
+Sample 80/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (6843, 43), x1 shape: (4666, 43)
+  MMD_RBF Model:     0.007019  Baseline:     0.030947
+  Avg    Model:     0.009439  Baseline:     0.018314
+
+Sample 81/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (6843, 43), x1 shape: (6476, 43)
+  MMD_RBF Model:     0.009649  Baseline:     0.006005
+  Avg    Model:     0.009442  Baseline:     0.018162
+
+Sample 82/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (6843, 43), x1 shape: (6693, 43)
+  MMD_RBF Model:     0.002570  Baseline:     0.022359
+  Avg    Model:     0.009358  Baseline:     0.018213
+
+Sample 83/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (3725, 43), x1 shape: (3807, 43)
+  MMD_RBF Model:     0.010826  Baseline:     0.012162
+  Avg    Model:     0.009376  Baseline:     0.018140
+
+Sample 84/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (3725, 43), x1 shape: (4757, 43)
+  MMD_RBF Model:     0.008754  Baseline:     0.001167
+  Avg    Model:     0.009368  Baseline:     0.017938
+
+Sample 85/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (3725, 43), x1 shape: (3229, 43)
+  MMD_RBF Model:     0.018034  Baseline:     0.026543
+  Avg    Model:     0.009470  Baseline:     0.018039
+
+Sample 86/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (3725, 43), x1 shape: (6158, 43)
+  MMD_RBF Model:     0.004284  Baseline:     0.014961
+  Avg    Model:     0.009410  Baseline:     0.018004
+
+Sample 87/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (3725, 43), x1 shape: (5506, 43)
+  MMD_RBF Model:     0.011329  Baseline:     0.000813
+  Avg    Model:     0.009432  Baseline:     0.017806
+
+Sample 88/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (3725, 43), x1 shape: (4850, 43)
+  MMD_RBF Model:     0.018905  Baseline:     0.006947
+  Avg    Model:     0.009540  Baseline:     0.017683
+
+Sample 89/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (11400, 43), x1 shape: (14587, 43)
+  MMD_RBF Model:     0.002364  Baseline:     0.006769
+  Avg    Model:     0.009459  Baseline:     0.017560
+
+Sample 90/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (11400, 43), x1 shape: (14283, 43)
+  MMD_RBF Model:     0.009104  Baseline:     0.014424
+  Avg    Model:     0.009455  Baseline:     0.017525
+
+Sample 91/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (11400, 43), x1 shape: (10587, 43)
+  MMD_RBF Model:     0.001761  Baseline:     0.001118
+  Avg    Model:     0.009371  Baseline:     0.017345
+
+Sample 92/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (11400, 43), x1 shape: (12672, 43)
+  MMD_RBF Model:     0.009192  Baseline:     0.007063
+  Avg    Model:     0.009369  Baseline:     0.017233
+
+Sample 93/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (11863, 43), x1 shape: (15997, 43)
+  MMD_RBF Model:     0.003672  Baseline:     0.008951
+  Avg    Model:     0.009308  Baseline:     0.017144
+
+Sample 94/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (11863, 43), x1 shape: (19233, 43)
+  MMD_RBF Model:     0.010843  Baseline:     0.012455
+  Avg    Model:     0.009324  Baseline:     0.017094
+
+Sample 95/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (11863, 43), x1 shape: (19857, 43)
+  MMD_RBF Model:     0.003199  Baseline:     0.010495
+  Avg    Model:     0.009259  Baseline:     0.017025
+
+Sample 96/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (11863, 43), x1 shape: (16254, 43)
+  MMD_RBF Model:     0.005684  Baseline:     0.010784
+  Avg    Model:     0.009222  Baseline:     0.016960
+
+Sample 97/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (11863, 43), x1 shape: (27147, 43)
+  MMD_RBF Model:     0.008487  Baseline:     0.008699
+  Avg    Model:     0.009215  Baseline:     0.016874
+
+Sample 98/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (11863, 43), x1 shape: (16185, 43)
+  MMD_RBF Model:     0.002433  Baseline:     0.009217
+  Avg    Model:     0.009145  Baseline:     0.016796
+
+Sample 99/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (3655, 43), x1 shape: (3646, 43)
+  MMD_RBF Model:     0.004069  Baseline:     0.003382
+  Avg    Model:     0.009094  Baseline:     0.016661
+
+Sample 100/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (10687, 43), x1 shape: (10864, 43)
+  MMD_RBF Model:     0.007017  Baseline:     0.036962
+  Avg    Model:     0.009073  Baseline:     0.016864
+
+Sample 101/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (8339, 43), x1 shape: (11039, 43)
+  MMD_RBF Model:     0.005156  Baseline:     0.020822
+  Avg    Model:     0.009035  Baseline:     0.016903
+
+Sample 102/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (8339, 43), x1 shape: (11579, 43)
+  MMD_RBF Model:     0.015344  Baseline:     0.029500
+  Avg    Model:     0.009096  Baseline:     0.017027
+
+Sample 103/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (8339, 43), x1 shape: (8949, 43)
+  MMD_RBF Model:     0.001648  Baseline:     0.001524
+  Avg    Model:     0.009024  Baseline:     0.016876
+
+Sample 104/104 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (8339, 43), x1 shape: (10837, 43)
+  MMD_RBF Model:     0.003817  Baseline:     0.004130
+  Avg    Model:     0.008974  Baseline:     0.016753
+
+================================================================================
+FINAL RESULTS (mean +/- std)
+Checkpoint: trellis_running_eval/checkpoint_cf62b6c038e0.json
+Total samples evaluated: 104/104
+================================================================================
+MMD_RBF Model:    0.0090 +/- 0.0089  Baseline:    0.0168 +/- 0.0211

@@ -1,0 +1,17 @@
+  0%|          | 0/100 [00:00<?, ?it/s]  1%|          | 1/100 [00:01<01:47,  1.08s/it]  3%|▎         | 3/100 [00:01<00:30,  3.13it/s]  6%|▌         | 6/100 [00:01<00:14,  6.51it/s]  8%|▊         | 8/100 [00:01<00:10,  8.63it/s] 11%|█         | 11/100 [00:01<00:07, 11.58it/s] 14%|█▍        | 14/100 [00:01<00:06, 13.92it/s] 16%|█▌        | 16/100 [00:01<00:05, 15.10it/s] 19%|█▉        | 19/100 [00:01<00:04, 16.69it/s] 22%|██▏       | 22/100 [00:02<00:04, 17.82it/s] 24%|██▍       | 24/100 [00:02<00:04, 18.24it/s] 27%|██▋       | 27/100 [00:02<00:03, 18.94it/s] 30%|███       | 30/100 [00:02<00:03, 19.29it/s] 33%|███▎      | 33/100 [00:02<00:03, 19.69it/s] 36%|███▌      | 36/100 [00:02<00:03, 19.79it/s] 39%|███▉      | 39/100 [00:02<00:03, 19.98it/s] 42%|████▏     | 42/100 [00:03<00:02, 20.14it/s] 45%|████▌     | 45/100 [00:03<00:02, 20.19it/s] 48%|████▊     | 48/100 [00:03<00:02, 20.26it/s] 51%|█████     | 51/100 [00:03<00:02, 20.24it/s] 54%|█████▍    | 54/100 [00:03<00:02, 20.32it/s] 57%|█████▋    | 57/100 [00:03<00:02, 20.28it/s] 60%|██████    | 60/100 [00:03<00:01, 20.32it/s] 63%|██████▎   | 63/100 [00:04<00:01, 20.30it/s] 66%|██████▌   | 66/100 [00:04<00:01, 20.34it/s] 69%|██████▉   | 69/100 [00:04<00:01, 20.26it/s] 72%|███████▏  | 72/100 [00:04<00:01, 20.30it/s] 75%|███████▌  | 75/100 [00:04<00:01, 20.34it/s] 78%|███████▊  | 78/100 [00:04<00:01, 20.37it/s] 81%|████████  | 81/100 [00:05<00:00, 20.35it/s] 84%|████████▍ | 84/100 [00:05<00:00, 20.37it/s] 87%|████████▋ | 87/100 [00:05<00:00, 20.37it/s] 90%|█████████ | 90/100 [00:05<00:00, 20.41it/s] 93%|█████████▎| 93/100 [00:05<00:00, 20.38it/s] 96%|█████████▌| 96/100 [00:05<00:00, 20.46it/s] 99%|█████████▉| 99/100 [00:05<00:00, 20.37it/s]100%|██████████| 100/100 [00:05<00:00, 16.77it/s]
+Traceback (most recent call last):
+  File "/orcd/home/002/paolo123/DistributionConditionedTransport/train_cellot.py", line 148, in <module>
+    main()
+  File "/orcd/home/002/paolo123/DistributionConditionedTransport/train_cellot.py", line 136, in main
+    train_cellot(
+  File "/orcd/home/002/paolo123/DistributionConditionedTransport/cellot/cellot/train/train.py", line 172, in train_cellot
+    logger.flush()
+  File "/orcd/home/002/paolo123/DistributionConditionedTransport/cellot/cellot/train/summary.py", line 25, in flush
+    logger.flush()
+  File "/orcd/home/002/paolo123/DistributionConditionedTransport/cellot/cellot/train/summary.py", line 72, in flush
+    self._write()
+  File "/orcd/home/002/paolo123/DistributionConditionedTransport/cellot/cellot/train/summary.py", line 66, in _write
+    df = pd.DataFrame(self.store).set_index('step')
+  File "/home/paolo123/anaconda3/envs/cellot/lib/python3.9/site-packages/pandas/core/frame.py", line 4727, in set_index
+    raise KeyError(f"None of {missing} are in the columns")
+KeyError: "None of ['step'] are in the columns"

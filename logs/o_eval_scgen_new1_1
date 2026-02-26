@@ -1,0 +1,437 @@
+Running job 1: split=replicas-1, metric=mmd_rbf
+Loading dataset split: replicas-1
+Building train AnnData for model registry transfer: 712 samples
+Loading SCGEN model from: scgen_model_replicas-1
+[34mINFO    [0m File scgen_model_replicas-[1;36m1[0m/model.pt already downloaded                
+Computing per-treatment latent shifts from train x0 -> x1
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+Computed shifts for 11/11 treatments
+
+================================================================================
+EVALUATION RESULTS
+Mode: SCGEN per-treatment latent shift (train x0->x1), sample-level test evaluation
+Metric: MMD_RBF
+================================================================================
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 1/104:
+  Culture: PDO, Patient: -1, Treatment: S
+  MMD_RBF Model:     0.012141
+  Avg    Model:     0.012141
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 2/104:
+  Culture: PDO, Patient: -1, Treatment: VS
+  MMD_RBF Model:     0.029354
+  Avg    Model:     0.020748
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 3/104:
+  Culture: PDO, Patient: -1, Treatment: L
+  MMD_RBF Model:     0.001744
+  Avg    Model:     0.014413
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 4/104:
+  Culture: PDO, Patient: -1, Treatment: V
+  MMD_RBF Model:     0.005206
+  Avg    Model:     0.012111
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 5/104:
+  Culture: PDO, Patient: -1, Treatment: F
+  MMD_RBF Model:     0.052151
+  Avg    Model:     0.020119
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 6/104:
+  Culture: PDO, Patient: -1, Treatment: C
+  MMD_RBF Model:     0.004299
+  Avg    Model:     0.017482
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 7/104:
+  Culture: PDO, Patient: -1, Treatment: SF
+  MMD_RBF Model:     0.004143
+  Avg    Model:     0.015577
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 8/104:
+  Culture: PDO, Patient: -1, Treatment: CS
+  MMD_RBF Model:     0.004678
+  Avg    Model:     0.014215
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 9/104:
+  Culture: PDO, Patient: -1, Treatment: CF
+  MMD_RBF Model:     0.003291
+  Avg    Model:     0.013001
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 10/104:
+  Culture: PDO, Patient: -1, Treatment: CSF
+  MMD_RBF Model:     0.004698
+  Avg    Model:     0.012170
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 11/104:
+  Culture: PDO, Patient: -1, Treatment: S
+  MMD_RBF Model:     0.005041
+  Avg    Model:     0.011522
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 12/104:
+  Culture: PDO, Patient: -1, Treatment: VS
+  MMD_RBF Model:     0.009325
+  Avg    Model:     0.011339
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 13/104:
+  Culture: PDO, Patient: -1, Treatment: L
+  MMD_RBF Model:     0.003800
+  Avg    Model:     0.010759
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 14/104:
+  Culture: PDO, Patient: -1, Treatment: V
+  MMD_RBF Model:     0.012537
+  Avg    Model:     0.010886
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 15/104:
+  Culture: PDO, Patient: -1, Treatment: O
+  MMD_RBF Model:     0.022027
+  Avg    Model:     0.011629
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 16/104:
+  Culture: PDO, Patient: -1, Treatment: S
+  MMD_RBF Model:     0.068752
+  Avg    Model:     0.015199
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 17/104:
+  Culture: PDO, Patient: -1, Treatment: VS
+  MMD_RBF Model:     0.119545
+  Avg    Model:     0.021337
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 18/104:
+  Culture: PDO, Patient: -1, Treatment: L
+  MMD_RBF Model:     0.003499
+  Avg    Model:     0.020346
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 19/104:
+  Culture: PDO, Patient: -1, Treatment: V
+  MMD_RBF Model:     0.037419
+  Avg    Model:     0.021245
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 20/104:
+  Culture: PDO, Patient: -1, Treatment: S
+  MMD_RBF Model:     0.029423
+  Avg    Model:     0.021654
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 21/104:
+  Culture: PDO, Patient: -1, Treatment: VS
+  MMD_RBF Model:     0.031455
+  Avg    Model:     0.022120
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 22/104:
+  Culture: PDO, Patient: -1, Treatment: L
+  MMD_RBF Model:     0.002999
+  Avg    Model:     0.021251
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 23/104:
+  Culture: PDO, Patient: -1, Treatment: V
+  MMD_RBF Model:     0.005082
+  Avg    Model:     0.020548
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 24/104:
+  Culture: PDO, Patient: -1, Treatment: O
+  MMD_RBF Model:     0.007340
+  Avg    Model:     0.019998
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 25/104:
+  Culture: PDO, Patient: -1, Treatment: F
+  MMD_RBF Model:     0.044441
+  Avg    Model:     0.020976
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 26/104:
+  Culture: PDO, Patient: -1, Treatment: C
+  MMD_RBF Model:     0.002046
+  Avg    Model:     0.020248
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 27/104:
+  Culture: PDO, Patient: -1, Treatment: SF
+  MMD_RBF Model:     0.021493
+  Avg    Model:     0.020294
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 28/104:
+  Culture: PDO, Patient: -1, Treatment: CS
+  MMD_RBF Model:     0.020745
+  Avg    Model:     0.020310
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 29/104:
+  Culture: PDO, Patient: -1, Treatment: CF
+  MMD_RBF Model:     0.012834
+  Avg    Model:     0.020052
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 30/104:
+  Culture: PDO, Patient: -1, Treatment: CSF
+  MMD_RBF Model:     0.026783
+  Avg    Model:     0.020276
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 31/104:
+  Culture: PDO, Patient: -1, Treatment: S
+  MMD_RBF Model:     0.060386
+  Avg    Model:     0.021570
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 32/104:
+  Culture: PDO, Patient: -1, Treatment: VS
+  MMD_RBF Model:     0.079470
+  Avg    Model:     0.023380
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 33/104:
+  Culture: PDO, Patient: -1, Treatment: L
+  MMD_RBF Model:     0.017250
+  Avg    Model:     0.023194
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 34/104:
+  Culture: PDO, Patient: -1, Treatment: V
+  MMD_RBF Model:     0.019014
+  Avg    Model:     0.023071
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 35/104:
+  Culture: PDO, Patient: -1, Treatment: O
+  MMD_RBF Model:     0.122874
+  Avg    Model:     0.025922
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 36/104:
+  Culture: PDOF, Patient: -1, Treatment: S
+  MMD_RBF Model:     0.004655
+  Avg    Model:     0.025332
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 37/104:
+  Culture: PDOF, Patient: -1, Treatment: VS
+  MMD_RBF Model:     0.003104
+  Avg    Model:     0.024731
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 38/104:
+  Culture: PDOF, Patient: -1, Treatment: L
+  MMD_RBF Model:     0.000628
+  Avg    Model:     0.024097
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 39/104:
+  Culture: PDOF, Patient: -1, Treatment: V
+  MMD_RBF Model:     0.000888
+  Avg    Model:     0.023502
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 40/104:
+  Culture: PDOF, Patient: -1, Treatment: O
+  MMD_RBF Model:     0.005547
+  Avg    Model:     0.023053
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 41/104:
+  Culture: PDOF, Patient: -1, Treatment: S
+  MMD_RBF Model:     0.031132
+  Avg    Model:     0.023250
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 42/104:
+  Culture: PDOF, Patient: -1, Treatment: VS
+  MMD_RBF Model:     0.021998
+  Avg    Model:     0.023220
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 43/104:
+  Culture: PDOF, Patient: -1, Treatment: L
+  MMD_RBF Model:     0.011248
+  Avg    Model:     0.022941
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 44/104:
+  Culture: PDOF, Patient: -1, Treatment: V
+  MMD_RBF Model:     0.005591
+  Avg    Model:     0.022547
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 45/104:
+  Culture: PDOF, Patient: -1, Treatment: F
+  MMD_RBF Model:     0.010182
+  Avg    Model:     0.022272
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 46/104:
+  Culture: PDOF, Patient: -1, Treatment: C
+  MMD_RBF Model:     0.002627
+  Avg    Model:     0.021845
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 47/104:
+  Culture: PDOF, Patient: -1, Treatment: SF
+  MMD_RBF Model:     0.003393
+  Avg    Model:     0.021453
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 48/104:
+  Culture: PDOF, Patient: -1, Treatment: CS
+  MMD_RBF Model:     0.008769
+  Avg    Model:     0.021188
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 49/104:
+  Culture: PDOF, Patient: -1, Treatment: CF
+  MMD_RBF Model:     0.005958
+  Avg    Model:     0.020878
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 50/104:
+  Culture: PDOF, Patient: -1, Treatment: CSF
+  MMD_RBF Model:     0.009362
+  Avg    Model:     0.020647
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 51/104:
+  Culture: PDOF, Patient: -1, Treatment: S
+  MMD_RBF Model:     0.005185
+  Avg    Model:     0.020344
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 52/104:
+  Culture: PDOF, Patient: -1, Treatment: VS
+  MMD_RBF Model:     0.008004
+  Avg    Model:     0.020107
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 53/104:
+  Culture: PDOF, Patient: -1, Treatment: L
+  MMD_RBF Model:     0.010509
+  Avg    Model:     0.019926
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  
+
+Sample 54/104:
+  Culture: PDOF, Patient: -1, Treatment: V
+  MMD_RBF Model:     0.005746
+  Avg    Model:     0.019663
+[34mINFO    [0m Input AnnData not setup with scvi-tools. attempting to transfer AnnData
+         setup                                                                  

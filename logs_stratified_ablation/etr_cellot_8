@@ -1,0 +1,17 @@
+  0%|          | 0/100 [00:00<?, ?it/s]  1%|          | 1/100 [00:00<01:16,  1.30it/s]  3%|▎         | 3/100 [00:00<00:23,  4.21it/s]  5%|▌         | 5/100 [00:00<00:13,  7.07it/s]  7%|▋         | 7/100 [00:01<00:09,  9.73it/s]  9%|▉         | 9/100 [00:01<00:07, 12.06it/s] 11%|█         | 11/100 [00:01<00:06, 13.96it/s] 14%|█▍        | 14/100 [00:01<00:05, 16.16it/s] 17%|█▋        | 17/100 [00:01<00:04, 17.45it/s] 19%|█▉        | 19/100 [00:01<00:04, 18.01it/s] 21%|██        | 21/100 [00:01<00:04, 18.41it/s] 23%|██▎       | 23/100 [00:01<00:04, 18.79it/s] 25%|██▌       | 25/100 [00:01<00:03, 18.90it/s] 27%|██▋       | 27/100 [00:02<00:03, 19.14it/s] 29%|██▉       | 29/100 [00:02<00:03, 19.37it/s] 31%|███       | 31/100 [00:02<00:03, 19.49it/s] 33%|███▎      | 33/100 [00:02<00:03, 19.30it/s] 35%|███▌      | 35/100 [00:02<00:03, 19.47it/s] 38%|███▊      | 38/100 [00:02<00:03, 19.64it/s] 40%|████      | 40/100 [00:02<00:03, 19.47it/s] 42%|████▏     | 42/100 [00:02<00:02, 19.59it/s] 45%|████▌     | 45/100 [00:02<00:02, 19.93it/s] 47%|████▋     | 47/100 [00:03<00:02, 19.92it/s] 49%|████▉     | 49/100 [00:03<00:02, 19.84it/s] 51%|█████     | 51/100 [00:03<00:02, 19.82it/s] 53%|█████▎    | 53/100 [00:03<00:02, 19.85it/s] 55%|█████▌    | 55/100 [00:03<00:02, 19.84it/s] 57%|█████▋    | 57/100 [00:03<00:02, 19.83it/s] 59%|█████▉    | 59/100 [00:03<00:02, 19.85it/s] 61%|██████    | 61/100 [00:03<00:01, 19.63it/s] 63%|██████▎   | 63/100 [00:03<00:01, 19.68it/s] 65%|██████▌   | 65/100 [00:04<00:01, 19.74it/s] 67%|██████▋   | 67/100 [00:04<00:01, 19.61it/s] 70%|███████   | 70/100 [00:04<00:01, 19.77it/s] 72%|███████▏  | 72/100 [00:04<00:01, 19.71it/s] 74%|███████▍  | 74/100 [00:04<00:01, 19.79it/s] 77%|███████▋  | 77/100 [00:04<00:01, 19.95it/s] 79%|███████▉  | 79/100 [00:04<00:01, 19.78it/s] 81%|████████  | 81/100 [00:04<00:00, 19.74it/s] 83%|████████▎ | 83/100 [00:04<00:00, 19.78it/s] 85%|████████▌ | 85/100 [00:05<00:00, 19.67it/s] 87%|████████▋ | 87/100 [00:05<00:00, 19.76it/s] 89%|████████▉ | 89/100 [00:05<00:00, 19.78it/s] 91%|█████████ | 91/100 [00:05<00:00, 19.66it/s] 94%|█████████▍| 94/100 [00:05<00:00, 19.84it/s] 96%|█████████▌| 96/100 [00:05<00:00, 19.87it/s] 98%|█████████▊| 98/100 [00:05<00:00, 19.82it/s]100%|██████████| 100/100 [00:05<00:00, 17.33it/s]
+Traceback (most recent call last):
+  File "/orcd/home/002/paolo123/DistributionConditionedTransport/train_cellot.py", line 148, in <module>
+    main()
+  File "/orcd/home/002/paolo123/DistributionConditionedTransport/train_cellot.py", line 136, in main
+    train_cellot(
+  File "/orcd/home/002/paolo123/DistributionConditionedTransport/cellot/cellot/train/train.py", line 172, in train_cellot
+    logger.flush()
+  File "/orcd/home/002/paolo123/DistributionConditionedTransport/cellot/cellot/train/summary.py", line 25, in flush
+    logger.flush()
+  File "/orcd/home/002/paolo123/DistributionConditionedTransport/cellot/cellot/train/summary.py", line 72, in flush
+    self._write()
+  File "/orcd/home/002/paolo123/DistributionConditionedTransport/cellot/cellot/train/summary.py", line 66, in _write
+    df = pd.DataFrame(self.store).set_index('step')
+  File "/home/paolo123/anaconda3/envs/cellot/lib/python3.9/site-packages/pandas/core/frame.py", line 4727, in set_index
+    raise KeyError(f"None of {missing} are in the columns")
+KeyError: "None of ['step'] are in the columns"

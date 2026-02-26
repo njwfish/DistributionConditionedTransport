@@ -1,0 +1,19 @@
+Evaluating model for split: pdo27
+Searching for experiment with: {'experiment.name': 'trellis_mfm_knn', 'experiment.split_name': 'pdo27'}
+Looking in: outputs_mfm_knn
+  Found match: trellis_mfm_knn_c9e6912490fbd023eccffc22d85f1953
+
+Using experiment directory: outputs_mfm_knn/trellis_mfm_knn_c9e6912490fbd023eccffc22d85f1953
+Checkpoint file: trellis_running_eval/checkpoint_e976b21a628a.json
+Loaded config from outputs_mfm_knn/trellis_mfm_knn_c9e6912490fbd023eccffc22d85f1953/config.yaml
+Loaded checkpoint from outputs_mfm_knn/trellis_mfm_knn_c9e6912490fbd023eccffc22d85f1953/best_model.pt (epoch 16800)
+Instantiating dataset...
+Dataset loaded
+Loaded encoder
+Loaded generator
+Detected MFM model (zeros used for target latent)
+
+================================================================================
+COMPUTING LATENTS
+================================================================================
+Computing test latents for 88 samples...

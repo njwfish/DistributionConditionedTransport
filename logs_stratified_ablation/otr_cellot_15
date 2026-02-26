@@ -1,0 +1,21 @@
+Running job 15: split=replicas-2, treatment=V
+============================================================
+Training CellOT for split: replicas-2
+============================================================
+
+Cells per treatment:
+    O: 743878 ctrl, 737951 treated
+    S: 878057 ctrl, 770842 treated
+   VS: 878057 ctrl, 750076 treated
+    L: 878057 ctrl, 877893 treated
+    V: 873685 ctrl, 904148 treated
+    F: 913974 ctrl, 789378 treated
+    C: 870390 ctrl, 873692 treated
+   SF: 875708 ctrl, 749327 treated
+   CS: 886840 ctrl, 794921 treated
+   CF: 856824 ctrl, 757126 treated
+  CSF: 868856 ctrl, 773660 treated
+
+============================================================
+Training: V
+  Control: (873685, 43), Treated: (904148, 43)

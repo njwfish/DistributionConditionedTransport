@@ -1,0 +1,270 @@
+Job 17: Evaluating split=replicas-2, consecutive_ratio=0.5, predictor_loss_weight=0.001, metric=swd
+Skipping patient_cv for replicas split: replicas-2
+Searching for experiment with: {'experiment.name': 'trellis_a2a_stratified', 'experiment.split_name': 'replicas-2', 'sampling.consecutive_ratio': '0.5', 'experiment.predictor_loss_weight': '0.001'}
+Looking in: outputs
+  Found match: trellis_a2a_stratified_086f724a1582c072015b5717a20bdbd4
+
+Using experiment directory: outputs/trellis_a2a_stratified_086f724a1582c072015b5717a20bdbd4
+Checkpoint file: trellis_running_eval/checkpoint_e56e2e76260d.json
+Loaded config from outputs/trellis_a2a_stratified_086f724a1582c072015b5717a20bdbd4/config.yaml
+Loaded checkpoint from outputs/trellis_a2a_stratified_086f724a1582c072015b5717a20bdbd4/best_model.pt (epoch 12200)
+Instantiating dataset...
+Dataset loaded
+Loaded encoder
+Loaded generator
+
+================================================================================
+COMPUTING LATENTS
+================================================================================
+Computing test latents for 33 samples...
+
+================================================================================
+TRAINING RIDGE PREDICTOR
+================================================================================
+Computing train latents for 861 samples...
+  Processed 50/861 samples
+  Processed 100/861 samples
+  Processed 150/861 samples
+  Processed 200/861 samples
+  Processed 250/861 samples
+  Processed 300/861 samples
+  Processed 350/861 samples
+  Processed 400/861 samples
+  Processed 450/861 samples
+  Processed 500/861 samples
+  Processed 550/861 samples
+  Processed 600/861 samples
+  Processed 650/861 samples
+  Processed 700/861 samples
+  Processed 750/861 samples
+  Processed 800/861 samples
+  Processed 850/861 samples
+Training RIDGE predictor (DELTA mode: predicting target - source)...
+  Source latents shape: (861, 256)
+  Treatment conditions shape: (861, 11)
+  Conditioned input shape: (861, 267) -> (861, 256)
+  Running cross-validation to find optimal hyperparameters...
+Params: {'ridge_alpha': 1e-05} -> CV score: 0.001609
+Params: {'ridge_alpha': 0.0001} -> CV score: 0.001526
+Params: {'ridge_alpha': 0.001} -> CV score: 0.001395
+Params: {'ridge_alpha': 0.01} -> CV score: 0.001275
+Params: {'ridge_alpha': 0.1} -> CV score: 0.001260
+Params: {'ridge_alpha': 1.0} -> CV score: 0.001343
+Params: {'ridge_alpha': 10.0} -> CV score: 0.001515
+
+Best params: {'ridge_alpha': 0.1} with score: 0.001260
+  Cross-validation complete. Best params: {'ridge_alpha': 0.1}
+  ridge_alpha=0.1
+Fitting Ridge regression (alpha=0.1)...
+  Training MSE: 0.001013
+
+================================================================================
+EVALUATION RESULTS
+Mode: Using RIDGE predictor as target latent (DELTA prediction) (cross-validated)
+Metric: SWD
+================================================================================
+
+Sample 1/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (4545, 43), x1 shape: (4338, 43)
+  SWD    Model:     0.171942  Baseline:     0.392434
+  Avg    Model:     0.171942  Baseline:     0.392434
+
+Sample 2/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (2564, 43), x1 shape: (3341, 43)
+  SWD    Model:     0.154042  Baseline:     0.402081
+  Avg    Model:     0.162992  Baseline:     0.397257
+
+Sample 3/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (2564, 43), x1 shape: (3761, 43)
+  SWD    Model:     0.197878  Baseline:     0.413355
+  Avg    Model:     0.174621  Baseline:     0.402623
+
+Sample 4/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (2564, 43), x1 shape: (3533, 43)
+  SWD    Model:     0.149034  Baseline:     0.062398
+  Avg    Model:     0.168224  Baseline:     0.317567
+
+Sample 5/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (2564, 43), x1 shape: (5374, 43)
+  SWD    Model:     0.192946  Baseline:     0.120157
+  Avg    Model:     0.173168  Baseline:     0.278085
+
+Sample 6/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (3928, 43), x1 shape: (2731, 43)
+  SWD    Model:     0.159442  Baseline:     0.298378
+  Avg    Model:     0.170881  Baseline:     0.281467
+
+Sample 7/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (3928, 43), x1 shape: (6426, 43)
+  SWD    Model:     0.197852  Baseline:     0.200322
+  Avg    Model:     0.174734  Baseline:     0.269875
+
+Sample 8/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (3928, 43), x1 shape: (2252, 43)
+  SWD    Model:     0.133060  Baseline:     0.332262
+  Avg    Model:     0.169524  Baseline:     0.277673
+
+Sample 9/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (3928, 43), x1 shape: (7222, 43)
+  SWD    Model:     0.399625  Baseline:     0.517356
+  Avg    Model:     0.195091  Baseline:     0.304305
+
+Sample 10/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (3928, 43), x1 shape: (4342, 43)
+  SWD    Model:     0.225094  Baseline:     0.231955
+  Avg    Model:     0.198091  Baseline:     0.297070
+
+Sample 11/33 (computing):
+  Culture: PDO, Patient: -1
+  x0 shape: (3928, 43), x1 shape: (2265, 43)
+  SWD    Model:     0.143355  Baseline:     0.344776
+  Avg    Model:     0.193115  Baseline:     0.301407
+
+Sample 12/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (5451, 43), x1 shape: (5755, 43)
+  SWD    Model:     0.109222  Baseline:     0.080423
+  Avg    Model:     0.186124  Baseline:     0.282991
+
+Sample 13/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3402, 43), x1 shape: (7435, 43)
+  SWD    Model:     0.366573  Baseline:     0.399647
+  Avg    Model:     0.200005  Baseline:     0.291965
+
+Sample 14/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3402, 43), x1 shape: (9186, 43)
+  SWD    Model:     0.460344  Baseline:     0.493713
+  Avg    Model:     0.218601  Baseline:     0.306375
+
+Sample 15/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3402, 43), x1 shape: (4821, 43)
+  SWD    Model:     0.153517  Baseline:     0.169640
+  Avg    Model:     0.214262  Baseline:     0.297260
+
+Sample 16/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3402, 43), x1 shape: (11483, 43)
+  SWD    Model:     0.322920  Baseline:     0.362261
+  Avg    Model:     0.221053  Baseline:     0.301322
+
+Sample 17/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3411, 43), x1 shape: (5568, 43)
+  SWD    Model:     0.367166  Baseline:     0.480809
+  Avg    Model:     0.229648  Baseline:     0.311880
+
+Sample 18/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3411, 43), x1 shape: (10246, 43)
+  SWD    Model:     0.110238  Baseline:     0.233061
+  Avg    Model:     0.223014  Baseline:     0.307501
+
+Sample 19/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3411, 43), x1 shape: (9289, 43)
+  SWD    Model:     0.145961  Baseline:     0.332901
+  Avg    Model:     0.218959  Baseline:     0.308838
+
+Sample 20/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3411, 43), x1 shape: (7836, 43)
+  SWD    Model:     0.206030  Baseline:     0.409882
+  Avg    Model:     0.218312  Baseline:     0.313890
+
+Sample 21/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3411, 43), x1 shape: (7085, 43)
+  SWD    Model:     0.271972  Baseline:     0.420406
+  Avg    Model:     0.220867  Baseline:     0.318963
+
+Sample 22/33 (computing):
+  Culture: PDOF, Patient: -1
+  x0 shape: (3411, 43), x1 shape: (10263, 43)
+  SWD    Model:     0.136217  Baseline:     0.313662
+  Avg    Model:     0.217020  Baseline:     0.318722
+
+Sample 23/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (6000, 43), x1 shape: (5433, 43)
+  SWD    Model:     0.075122  Baseline:     0.092742
+  Avg    Model:     0.210850  Baseline:     0.308896
+
+Sample 24/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (8002, 43), x1 shape: (8268, 43)
+  SWD    Model:     0.103634  Baseline:     0.188387
+  Avg    Model:     0.206383  Baseline:     0.303875
+
+Sample 25/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (8002, 43), x1 shape: (9043, 43)
+  SWD    Model:     0.163737  Baseline:     0.231051
+  Avg    Model:     0.204677  Baseline:     0.300962
+
+Sample 26/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (8002, 43), x1 shape: (9676, 43)
+  SWD    Model:     0.082451  Baseline:     0.138989
+  Avg    Model:     0.199976  Baseline:     0.294733
+
+Sample 27/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (8002, 43), x1 shape: (9823, 43)
+  SWD    Model:     0.118980  Baseline:     0.187491
+  Avg    Model:     0.196976  Baseline:     0.290761
+
+Sample 28/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (10813, 43), x1 shape: (10660, 43)
+  SWD    Model:     0.106826  Baseline:     0.059302
+  Avg    Model:     0.193756  Baseline:     0.282494
+
+Sample 29/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (10813, 43), x1 shape: (10696, 43)
+  SWD    Model:     0.086994  Baseline:     0.127516
+  Avg    Model:     0.190075  Baseline:     0.277150
+
+Sample 30/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (10813, 43), x1 shape: (11415, 43)
+  SWD    Model:     0.079946  Baseline:     0.073096
+  Avg    Model:     0.186404  Baseline:     0.270348
+
+Sample 31/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (10813, 43), x1 shape: (10652, 43)
+  SWD    Model:     0.117213  Baseline:     0.171172
+  Avg    Model:     0.184172  Baseline:     0.267149
+
+Sample 32/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (10813, 43), x1 shape: (13516, 43)
+  SWD    Model:     0.072314  Baseline:     0.112546
+  Avg    Model:     0.180676  Baseline:     0.262318
+
+Sample 33/33 (computing):
+  Culture: F, Patient: -1
+  x0 shape: (10813, 43), x1 shape: (10449, 43)
+  SWD    Model:     0.075199  Baseline:     0.084577
+  Avg    Model:     0.177480  Baseline:     0.256932
+
+================================================================================
+FINAL RESULTS (mean +/- std)
+Checkpoint: trellis_running_eval/checkpoint_e56e2e76260d.json
+Total samples evaluated: 33/33
+================================================================================
+SWD    Model:    0.1775 +/- 0.0999  Baseline:    0.2569 +/- 0.1395

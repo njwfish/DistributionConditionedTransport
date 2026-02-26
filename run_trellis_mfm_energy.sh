@@ -28,4 +28,4 @@ seed=${seeds[$seed_idx]}
 
 echo "Running job for split: ${split}, seed: ${seed}"
 
-python main.py experiment=trellis_mfm_energy experiment.split_name=${split} seed=${seed}
+python main.py experiment=trellis_mfm_energy_knn experiment.split_name=${split} seed=${seed}

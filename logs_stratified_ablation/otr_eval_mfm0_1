@@ -1,0 +1,19 @@
+Evaluating model for split: replicas-2
+Searching for experiment with: {'experiment.name': 'trellis_mfm_knn', 'experiment.split_name': 'replicas-2'}
+Looking in: outputs_mfm_knn
+  Found match: trellis_mfm_knn_84416553f9ebf6027355949ee0f9ec79
+
+Using experiment directory: outputs_mfm_knn/trellis_mfm_knn_84416553f9ebf6027355949ee0f9ec79
+Checkpoint file: trellis_running_eval/checkpoint_3953c1a42e02.json
+Loaded config from outputs_mfm_knn/trellis_mfm_knn_84416553f9ebf6027355949ee0f9ec79/config.yaml
+Loaded checkpoint from outputs_mfm_knn/trellis_mfm_knn_84416553f9ebf6027355949ee0f9ec79/best_model.pt (epoch 13800)
+Instantiating dataset...
+Dataset loaded
+Loaded encoder
+Loaded generator
+Detected MFM model (zeros used for target latent)
+
+================================================================================
+COMPUTING LATENTS
+================================================================================
+Computing test latents for 33 samples...

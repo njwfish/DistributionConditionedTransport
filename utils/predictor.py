@@ -149,6 +149,96 @@ class RidgePredictor:
         return self.model.predict(X)
 
 
+class MLPPredictor(nn.Module):
+    """
+    Small multi-layer perceptron predictor trained with gradient descent.
+
+    Architecture: input -> Linear -> LayerNorm -> ReLU -> [hidden -> LayerNorm -> ReLU] x (depth-1) -> output
+    Supports MSE and cosine loss, with optional L2 weight decay via the optimizer.
+    """
+
+    def __init__(
+        self,
+        input_dim: int,
+        output_dim: int,
+        hidden_dim: int = 256,
+        num_layers: int = 2,
+        dropout: float = 0.1,
+    ):
+        super().__init__()
+        assert num_layers >= 1, "num_layers must be >= 1"
+        layers = []
+        in_dim = input_dim
+        for _ in range(num_layers):
+            layers.append(nn.Linear(in_dim, hidden_dim))
+            layers.append(nn.LayerNorm(hidden_dim))
+            layers.append(nn.ReLU())
+            if dropout > 0:
+                layers.append(nn.Dropout(dropout))
+            in_dim = hidden_dim
+        layers.append(nn.Linear(in_dim, output_dim))
+        self.net = nn.Sequential(*layers)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
+
+    def fit(
+        self,
+        X: np.ndarray,
+        Y: np.ndarray,
+        loss_type: Literal["mse", "cosine"] = "mse",
+        weight_decay: float = 1e-4,
+        num_epochs: int = 1000,
+        lr: float = 1e-3,
+        batch_size: int = 256,
+        device: torch.device = None,
+        verbose: bool = False,
+    ) -> "MLPPredictor":
+        if device is None:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        self.to(device)
+        optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)
+        cos_sim = nn.CosineSimilarity(dim=-1)
+
+        X_t = torch.tensor(X, dtype=torch.float32, device=device)
+        Y_t = torch.tensor(Y, dtype=torch.float32, device=device)
+        n = X_t.shape[0]
+
+        self.train()
+        for epoch in range(num_epochs):
+            # Mini-batch shuffle
+            perm = torch.randperm(n, device=device)
+            epoch_loss = 0.0
+            steps = 0
+            for start in range(0, n, batch_size):
+                idx = perm[start:start + batch_size]
+                xb, yb = X_t[idx], Y_t[idx]
+                optimizer.zero_grad()
+                pred = self(xb)
+                if loss_type == "cosine":
+                    loss = (1 - cos_sim(pred, yb)).mean()
+                else:
+                    loss = (pred - yb).pow(2).mean()
+                loss.backward()
+                optimizer.step()
+                epoch_loss += loss.item()
+                steps += 1
+
+            if verbose and (epoch + 1) % 100 == 0:
+                print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / steps:.6f}")
+
+        self.eval()
+        return self
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        self.eval()
+        device = next(self.parameters()).device
+        with torch.no_grad():
+            X_t = torch.tensor(X, dtype=torch.float32, device=device)
+            return self(X_t).cpu().numpy()
+
+
 class RandomForestPredictor:
     """
     Predictor using sklearn's Random Forest Regressor.
@@ -241,6 +331,8 @@ def _create_predictor(predictor_type: str, input_dim: int, output_dim: int):
         return RidgePredictor(input_dim, output_dim)
     elif predictor_type == "random_forest":
         return RandomForestPredictor(input_dim, output_dim)
+    elif predictor_type == "mlp":
+        return MLPPredictor(input_dim, output_dim)
     else:
         raise ValueError(f"Unknown predictor type: {predictor_type}")
 
@@ -295,8 +387,13 @@ def cross_validate_predictor(
             param_grid = {'ridge_alpha': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0, 10.0]}
         elif predictor_type == "random_forest":
             param_grid = {
-                'n_estimators': [50, 100, 200],
-                'max_depth': [None, 10, 20],
+                'n_estimators': [50, 200],
+                'max_depth': [None, 20],
+            }
+        elif predictor_type == "mlp":
+            param_grid = {
+                'hidden_dim': [128, 256],
+                'weight_decay': [1e-4, 1e-3],
             }
         else:
             param_grid = {'ridge_alpha': [1e-3]}
@@ -334,6 +431,12 @@ def cross_validate_predictor(
                 model.fit(X_train, Y_train, ridge_alpha=ridge_alpha)
             elif predictor_type == "random_forest":
                 model.fit(X_train, Y_train, **params)
+            elif predictor_type == "mlp":
+                hidden_dim = params.get('hidden_dim', 256)
+                weight_decay = params.get('weight_decay', 1e-4)
+                model = MLPPredictor(X.shape[1], Y.shape[1], hidden_dim=hidden_dim)
+                model.fit(X_train, Y_train, loss_type=loss_type, weight_decay=weight_decay,
+                          num_epochs=num_epochs, lr=lr, device=device)
             
             # Compute validation loss
             pred = model.predict(X_val)
@@ -409,6 +512,11 @@ def cross_validate_predictor_by_patient(
             param_grid = {
                 'n_estimators': [50, 100, 200],
                 'max_depth': [None, 10, 20],
+            }
+        elif predictor_type == "mlp":
+            param_grid = {
+                'hidden_dim': [128, 256],
+                'weight_decay': [1e-4, 1e-3],
             }
         else:
             param_grid = {'ridge_alpha': [1e-3]}
@@ -509,6 +617,18 @@ def cross_validate_predictor_by_patient(
                     model.fit(X_train, Y_train, ridge_alpha=ridge_alpha)
                 elif predictor_type == "random_forest":
                     model.fit(X_train, Y_train, **params)
+                elif predictor_type == "mlp":
+                    hidden_dim = params.get('hidden_dim', 256)
+                    weight_decay = params.get('weight_decay', 1e-4)
+                    model = MLPPredictor(X.shape[1], Y.shape[1], hidden_dim=hidden_dim)
+                    model.fit(
+                        X_train, Y_train,
+                        loss_type=loss_type,
+                        weight_decay=weight_decay,
+                        num_epochs=num_epochs,
+                        lr=lr,
+                        device=device,
+                    )
                 
                 # Compute validation loss
                 pred = model.predict(X_val)

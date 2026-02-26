@@ -13,6 +13,7 @@ from utils.predictor import (
     LinearPredictor,
     RidgePredictor,
     RandomForestPredictor,
+    MLPPredictor,
     cross_validate_predictor,
     cross_validate_predictor_by_patient,
 )
@@ -278,7 +279,7 @@ def train_predictor(
     Returns:
         Trained predictor (LinearPredictor, RidgePredictor, or RandomForestPredictor)
     """
-    # Validate loss_type for non-linear predictors
+    # Validate loss_type for predictors that only support MSE
     if predictor_type in ["ridge", "random_forest"] and loss_type != "mse":
         print(f"  WARNING: {predictor_type} predictor only supports MSE loss. Ignoring loss_type='{loss_type}'.")
         loss_type = "mse"
@@ -312,6 +313,11 @@ def train_predictor(
         param_grid = {
             'n_estimators': [50, 100, 200],
             'max_depth': [None, 10, 20],
+        }
+    elif predictor_type == "mlp":
+        param_grid = {
+            'hidden_dim': [128, 256],
+            'weight_decay': [1e-4, 1e-3],
         }
     else:
         raise ValueError(f"Unknown predictor type: {predictor_type}")
@@ -402,6 +408,22 @@ def train_predictor(
             prediction_target,
             n_estimators=n_estimators,
             max_depth=max_depth,
+            verbose=verbose,
+        )
+    elif predictor_type == "mlp":
+        hidden_dim = best_params.get('hidden_dim', 256)
+        weight_decay = best_params.get('weight_decay', 1e-4)
+        print(f"  hidden_dim={hidden_dim}, weight_decay={weight_decay}, lr={lr}, epochs={num_epochs}")
+        
+        predictor = MLPPredictor(input_dim, output_dim, hidden_dim=hidden_dim)
+        predictor.fit(
+            source_latents_conditioned,
+            prediction_target,
+            loss_type=loss_type,
+            weight_decay=weight_decay,
+            num_epochs=num_epochs,
+            lr=lr,
+            device=device,
             verbose=verbose,
         )
     
@@ -566,10 +588,10 @@ def main():
     parser.add_argument(
         "--predictor_type",
         type=str,
-        choices=["linear", "ridge", "random_forest"],
+        choices=["linear", "ridge", "random_forest", "mlp"],
         default="linear",
-        help="Type of predictor to use: 'linear' (gradient descent), 'ridge' (sklearn exact solution), "
-             "or 'random_forest' (sklearn random forest). Default: linear"
+        help="Type of predictor to use: 'linear' (gradient descent linear), 'ridge' (sklearn exact solution), "
+             "'random_forest' (sklearn random forest), or 'mlp' (small neural network). Default: linear"
     )
     parser.add_argument(
         "--cross_validate",
@@ -670,8 +692,8 @@ def main():
     if args.patient_cv and not args.use_predictor:
         print("WARNING: --patient_cv has no effect without --use_predictor")
     
-    if args.predictor_loss == "cosine" and args.predictor_type != "linear":
-        print(f"WARNING: cosine loss is only supported for 'linear' predictor. "
+    if args.predictor_loss == "cosine" and args.predictor_type not in ["linear", "mlp"]:
+        print(f"WARNING: cosine loss is only supported for 'linear' and 'mlp' predictors. "
               f"Using MSE for '{args.predictor_type}' predictor.")
     
     if args.cheat_mode:

@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH -t 01:00:00
+#SBATCH -t 02:00:00
 #SBATCH --gres=gpu:a100:1
 #SBATCH --partition ou_bcs_normal
-#SBATCH --mem 32GB
-#SBATCH -o logs/o_mfm_fm_%a
-#SBATCH -e logs/e_mfm_fm_%a
-#SBATCH --array=1
+#SBATCH --mem 64GB
+#SBATCH -o logs/o_eval_mfm_fm_%a
+#SBATCH -e logs/e_eval_mfm_fm_%a
+#SBATCH --array=0-14:1
 
 export HYDRA_FULL_ERROR=1
 
@@ -27,11 +27,11 @@ echo "Job ${SLURM_ARRAY_TASK_ID}: Evaluating split=${split}, metric=${metric}"
 
 # Build the base command
 cmd="python -u evaluate_trellis_experimental.py \
-    --match experiment.name=trellis_mfm_gnn \
+    --match experiment.name=trellis_mfm_knn \
     --match experiment.split_name=${split} \
     --metric ${metric} \
     --compute_baseline \
-    --outputs_dir outputs_trellis_fm_working_dont_ever_touch_this_01_27_2025
+    --outputs_dir outputs_mfm_knn
     "
     #--outputs_dir outputs_trellis_fm_working_dont_ever_touch_this_01_27_2025 \
 

@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH -t 12:00:00
-#SBATCH --gres=gpu:a100:1
-#SBATCH --partition ou_bcs_normal
-#SBATCH --mem 100GB
+#SBATCH -t 05:00:00
+#SBATCH --gres=gpu:1
+#SBATCH --partition ou_bcs_low
+#SBATCH --mem 50GB
 #SBATCH -o logs/otr_mfm_swd_%a
 #SBATCH -e logs/etr_mfm_swd_%a
 #SBATCH --array=0-4:1

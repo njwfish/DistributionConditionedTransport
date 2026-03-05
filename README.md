@@ -17,7 +17,7 @@ Distribution Conditioned Transport (DCT) is a framework for distribution-to-dist
 ## Repository Structure
 
 ```
-CoupledDistributionEmbeddings/
+DistributionConditionedTransport/
 ├── config/                        # Hydra configuration files
 │   ├── config.yaml                # Top-level defaults
 │   ├── dataset/                   # Dataset configs

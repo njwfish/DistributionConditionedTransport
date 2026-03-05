@@ -1,10 +1,10 @@
-# Coupled Generative Distribution Embeddings
+# Distribution Conditioned Transport
 
-Coupled Distribution Embeddings (CDEs) extend the generative distribution embeddings framework to learn transport maps between distributions. In CDEs, an encoder learns representations of distribution sets, and generators learn to transport samples from source distributions to target distributions based on their embeddings. This repository implements CDE architectures with multiple generator types, data collation strategies, and applications to synthetic and real-world datasets.
+Distribution Conditioned Transport extend the generative distribution embeddings framework to learn transport maps between distributions. In DCTs, an encoder learns representations of distribution sets, and generators learn to transport samples from source distributions to target distributions based on their embeddings. This repository implements DCT architectures with multiple generator types, data collation strategies, and applications to synthetic and real-world datasets.
 
 ## Key Features
 
-- **Coupled Transport Learning**: Learn to transport samples from source to target distributions
+- **Transport Learning**: Learn to transport samples from source to target distributions
 - **Multiple Generator Types**: Direct generators (SW, MMD, Sinkhorn losses) and Flow Matching
 - **Flexible Data Collation**: Random and shift pairing strategies, with optional Dirichlet mixing
 - **Reproducible Experiments**: Hash-based output tracking and Hydra configuration management
@@ -69,9 +69,9 @@ Key dependencies include:
 
 ## Core Concepts
 
-### Coupled Distribution Embeddings
+### Distribution Conditioned Transport
 
-Unlike traditional generative distribution embeddings that learn unconditional generators, CDEs learn **transport maps** between distributions:
+DCTs learn **transport maps** between distributions:
 
 1. **Encoder**: Maps sets of samples to latent embeddings: `{x₁, ..., xₙ} → z`
 2. **Pairing**: Creates source-target pairs from batches for training transport

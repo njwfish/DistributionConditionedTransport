@@ -104,12 +104,11 @@ class trellis_dataset(Dataset):
         self.samples_test = self.select_experiments(self.split_test)
         
         # Compute total number of x populations for indexing
-        # Training only indexes train x0/x1 populations.
-        # Test samples stay available on self.samples_test for evaluation code,
-        # but they are excluded from the training dataset indexing space.
+        # From train: x0 and x1 for each sample = 2 * n_train
+        # From test: only x0 for each sample = n_test (x1's are never touched)
         self.n_train = len(self.samples_train)
         self.n_test = len(self.samples_test)
-        self.total_x_populations = 2 * self.n_train
+        self.total_x_populations = 2 * self.n_train + self.n_test
 
     def select_experiments(self, split):
         samples_tmp = []
@@ -218,20 +217,26 @@ class trellis_dataset(Dataset):
         - [0, 2*n_train): train samples, alternating x0 and x1
           - flat_idx = 2*i => train sample i, x0
           - flat_idx = 2*i+1 => train sample i, x1
+        - [2*n_train, 2*n_train + n_test): test samples, only x0
+          - flat_idx = 2*n_train + j => test sample j, x0
         
         Returns: (x, cell_cond, treat_cond, culture, patient, is_from_train, sample_idx, is_x0)
         """
-        if flat_idx >= 2 * self.n_train:
-            raise IndexError(f"flat_idx {flat_idx} out of bounds for {2 * self.n_train} train populations")
-
-        sample_idx = flat_idx // 2
-        is_x0 = (flat_idx % 2 == 0)
-        culture, x0, x1, cell_cond_x0, cell_cond_x1, treat_cond, patient = self.samples_train[sample_idx]
-        x = x0 if is_x0 else x1
-        cell_cond = cell_cond_x0 if is_x0 else cell_cond_x1
-        # treat_cond is only used when source_is_x0 (i.e., train_predictor_bool cases),
-        # so we always return it with x0's shape
-        return x, cell_cond, treat_cond, culture, patient, True, sample_idx, is_x0
+        if flat_idx < 2 * self.n_train:
+            # From train data
+            sample_idx = flat_idx // 2
+            is_x0 = (flat_idx % 2 == 0)
+            culture, x0, x1, cell_cond_x0, cell_cond_x1, treat_cond, patient = self.samples_train[sample_idx]
+            x = x0 if is_x0 else x1
+            cell_cond = cell_cond_x0 if is_x0 else cell_cond_x1
+            # treat_cond is only used when source_is_x0 (i.e., train_predictor_bool cases),
+            # so we always return it with x0's shape
+            return x, cell_cond, treat_cond, culture, patient, True, sample_idx, is_x0
+        else:
+            # From test data (only x0)
+            test_sample_idx = flat_idx - 2 * self.n_train
+            culture, x0, x1, cell_cond_x0, cell_cond_x1, treat_cond, patient = self.samples_test[test_sample_idx]
+            return x0, cell_cond_x0, treat_cond, culture, patient, False, test_sample_idx, True
 
     def __len__(self):
         # Total pairs = (total x populations)^2

@@ -1,0 +1,7 @@
+# @package _global_.dataset
+_target_: datasets.lineage_tracing.LTSeqDatasetUnstructuredBidirectional
+set_size: 100
+min_cells: 3
+data_shape: [50,]
+root: /orcd/home/002/gokulg/orcd/scratch/CoupledDistributionEmbeddings/data
+seed: ${seed}

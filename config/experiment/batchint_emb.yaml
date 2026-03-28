@@ -9,9 +9,9 @@ defaults:
   - /dataset: batch_integration
   - /encoder: embedding
   - /model: direct_mlp
-  - /generator: wasserstein
+  - /generator: mmd
   - /scheduler: cosine
-  - /training: default5000
+  - /training: default10000
   - /loss: multimarginal
 
 # Experiment-specific parameters

@@ -1,13 +1,11 @@
 # @package _global_.experiment
-# Base GMM experiment with EmbeddingEncoder - generator must be specified separately
 
 name: batchint
 description: "Batch integration"
 
-# Override defaults - uses embedding encoder instead of GNN
 defaults:
   - /dataset: batch_integration
-  - /encoder: gnn
+  - /encoder: resnet_tx
   - /model: direct_mlp
   - /generator: mmd
   - /scheduler: cosine

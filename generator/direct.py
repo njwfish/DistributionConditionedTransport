@@ -4,7 +4,7 @@ from generator.losses import sliced_wasserstein_distance, mmd
 from geomloss import SamplesLoss
 
 class DirectGenerator(nn.Module):
-    def __init__(self, model, loss_type='swd', loss_params=None, noise_dim=100, flatten_for_model=True):
+    def __init__(self, model, loss_type='mmd', loss_params=None, noise_dim=100, flatten_for_model=True):
         """
         Args:
             model: Neural network model

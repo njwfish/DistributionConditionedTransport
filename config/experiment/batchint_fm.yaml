@@ -11,7 +11,7 @@ defaults:
   - /model: diffusion_mlp
   - /generator: flow_matching
   - /scheduler: cosine
-  - /training: default1000
+  - /training: default10000
   - /loss: default
 
 # Experiment-specific parameters

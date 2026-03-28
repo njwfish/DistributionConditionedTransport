@@ -7,7 +7,7 @@ description: "Batch integration"
 # Override defaults - uses embedding encoder instead of GNN
 defaults:
   - /dataset: batch_integration
-  - /encoder: gnn
+  - /encoder: kernel_mean
   - /model: direct_mlp
   - /generator: mmd
   - /scheduler: cosine

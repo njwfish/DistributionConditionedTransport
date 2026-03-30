@@ -124,11 +124,11 @@ Key dependencies:
 |---|---|---|
 | `gnn` | `DistributionEncoderGNN` | GNN over sample set; permutation-invariant via mean pooling |
 | `tx` | `DistributionEncoderTx` | Transformer set encoder |
+| `kernel_mean` | `KMEEncoder` | Kernel mean embedding (random Fourier features) |
 | `embedding` | `EmbeddingEncoder` | Learned lookup table (requires known distribution indices) |
 | `esm` | ESM2-based | Protein language model for sequence sets |
-| `kernel_mean` | `KernelMeanEmbedding` | Kernel mean embedding |
 
-The `DistributionEncoder` variants operate on raw sample sets (`[B, N, D]`) and are compatible with out-of-distribution generalization. The `EmbeddingEncoder` requires distribution indices and uses `loss: multimarginal`.
+The `DistributionEncoder` variants (`gnn`, `tx`, `kernel_mean`) operate on raw sample sets (`[B, N, D]`) and are compatible with out-of-distribution generalization. The `EmbeddingEncoder` requires distribution indices and uses `loss: multimarginal`.
 
 ### Generators
 
@@ -217,12 +217,34 @@ python main.py experiment=batchint_fm
 
 ## SLURM Cluster Execution
 
-Experiments are designed for the Harvard FAS RC cluster using Hydra's Submitit launcher. The SLURM launcher is configured in `config/hydra/launcher/`.
+Experiments are designed for SLURM clusters using Hydra's Submitit launcher. The SLURM launcher is configured in `config/hydra/launcher/`.
+
+### Encoder Comparison Sweep
+
+The main sweep compares three distribution encoders (GNN, KME, Transformer) across generators, datasets, and training modes. Scripts pack 8 experiments per GPU for efficient use of H100 nodes.
 
 ```bash
-# Launch an MVN sweep across generators and n_unique_sets
+# Full sweep: GNN encoder (MVN + GMM, unsupervised + supervised)
 bash scripts/sweep_mvn_gmm.sh
 
+# KME + Transformer encoder sweep (all packed onto H100s)
+bash scripts/sweep_packed_kme.sh  # KME only
+bash scripts/sweep_packed_tx.sh   # Transformer only
+
+# Or submit KME separately (1 job per experiment)
+bash scripts/sweep_mvn_gmm_kme.sh
+```
+
+Each sweep covers:
+- **Datasets**: MVN, GMM
+- **Training modes**: unsupervised (any-to-any), supervised (source-only)
+- **Generators**: flow_matching, mmd, wasserstein
+- **Scales**: n_unique_sets = 10, 100, 1000, 10000
+- **Seeds**: 40, 41, 42
+
+### Other Sweeps
+
+```bash
 # Launch MNIST-Colors sweep
 bash scripts/sweep_mnist_colors.sh
 
@@ -259,25 +281,94 @@ outputs/<experiment_name>/<YYYY-MM-DD_HH-MM-SS>/
 
 ## Evaluation
 
-### MVN and GMM
+### MVN and GMM (Unsupervised)
+
+Evaluates all trained models across encoder types (GNN, KME, ResNet+Tx, Embedding) and generator types. Automatically discovers experiments from the `outputs/` directory.
 
 ```bash
+# Evaluate MVN experiments (all encoders, all generators)
 python evals/evaluate_mvn_gmm.py \
   --output_dir outputs \
   --experiment mvn \
-  --n_out_dist 1000 \
-  --batch_size 100 \
-  --set_size 1000 \
+  --num_epochs 200 \
+  --generators flow_matching mmd wasserstein \
+  --n_out_dist 10000 \
+  --batch_size 500 \
   --save_path evals/mvn_eval_results.pkl
+
+# Evaluate GMM experiments
+python evals/evaluate_mvn_gmm.py \
+  --output_dir outputs \
+  --experiment gmm \
+  --num_epochs 200 \
+  --generators flow_matching mmd wasserstein \
+  --n_out_dist 10000 \
+  --batch_size 500 \
+  --save_path evals/gmm_eval_results.pkl
+
+# Load a specific epoch checkpoint instead of best_model.pt
+python evals/evaluate_mvn_gmm.py \
+  --experiment mvn \
+  --checkpoint_epoch 200 \
+  --save_path evals/mvn_epoch200_results.pkl
 ```
 
-Metrics computed:
+Results are saved as both `.pkl` and `.csv` with columns: `encoder_type` (gnn/kme/resnet_tx/embedding), `generator_type`, `n_unique_sets`, `seed`, and metric values.
+
+### Supervised vs Semi-supervised Comparison
+
+Evaluates supervised (source-only) models against semi-supervised (any-to-any + ridge predictor) on a 2D grid, testing in-distribution and out-of-distribution generalization.
+
+```bash
+# MVN supervised comparison (all encoders)
+python evals/evaluate_supervised_comparison.py \
+  --output_dir outputs \
+  --experiment mvn \
+  --num_epochs 200 \
+  --n_grid_points 21 \
+  --eval_set_size 10000 \
+  --save_dir evals/supervised_comparison_mvn
+
+# GMM supervised comparison
+python evals/evaluate_supervised_comparison.py \
+  --output_dir outputs \
+  --experiment gmm \
+  --num_epochs 200 \
+  --save_dir evals/supervised_comparison_gmm
+
+# Evaluate a specific generator/seed
+python evals/evaluate_supervised_comparison.py \
+  --experiment mvn \
+  --generator flow_matching \
+  --seed 40 \
+  --save_dir evals/supervised_comparison_mvn_fm
+```
+
+### Bulk Evaluation on SLURM
+
+```bash
+# Submit evaluation as a GPU job (recommended for large sweeps)
+bash scripts/submit_evaluation.sh
+```
+
+### Metrics
+
 - **W2²** — Analytic Wasserstein-2 squared distance (Bures metric; MVN only)
 - **SWD** — Sliced Wasserstein distance
 - **MMD** — Maximum mean discrepancy (RBF kernel, median bandwidth heuristic)
 - **Energy** — Energy distance
 
-Results are saved as both `.pkl` and `.csv`.
+### Visualization
+
+Analysis notebooks in `notebooks/`:
+
+| Notebook | Description |
+|---|---|
+| `evaluate_mvn_gmm.ipynb` | Unsupervised results: bar charts and tables by encoder x generator x K |
+| `supervised.ipynb` | Supervised generalization: IID vs OOD performance by encoder type |
+| `analyze_mvn_results.ipynb` | Detailed MVN analysis with heatmaps |
+
+All notebooks automatically detect and compare encoder types (GNN, KME, ResNet+Tx).
 
 ### MNIST-Colors and Handwriting
 

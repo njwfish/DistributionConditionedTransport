@@ -54,12 +54,15 @@ def get_filtered_experiments_fast(output_dir, experiment_type='gmm', checkpoint_
                 if os.path.isdir(os.path.join(output_dir, d))]
 
     # Pre-filter by experiment type in directory name
-    # GMM experiments: gmm_exp_*, gmm_emb_exp_*
-    # MVN experiments: mvn_exp_*, mvn_emb_exp_*
+    # GMM experiments: gmm_exp_*, gmm_emb_exp_*, gmm_kme_exp_*, gmm_resnet_tx_exp_*
+    # MVN experiments: mvn_exp_*, mvn_emb_exp_*, mvn_kme_exp_*, mvn_resnet_tx_exp_*
+    # Also supervised variants: supervised_gmm_*, supervised_mvn_*
     if experiment_type == 'gmm':
-        prefixes = ['gmm_exp', 'gmm_emb_exp']
+        prefixes = ['gmm_exp', 'gmm_emb_exp', 'gmm_kme_exp', 'gmm_tx_exp',
+                     'supervised_gmm_exp', 'supervised_gmm_kme_exp', 'supervised_gmm_tx_exp']
     else:
-        prefixes = ['mvn_exp', 'mvn_emb_exp']
+        prefixes = ['mvn_exp', 'mvn_emb_exp', 'mvn_kme_exp', 'mvn_tx_exp',
+                     'supervised_mvn_exp', 'supervised_mvn_kme_exp', 'supervised_mvn_tx_exp']
 
     filtered_dirs = [d for d in all_dirs if any(d.startswith(p) for p in prefixes)]
     print(f"  Pre-filtered {len(filtered_dirs)}/{len(all_dirs)} directories by name ({experiment_type})")
@@ -688,8 +691,19 @@ def get_experiment_info(cfg):
     else:
         gen_type = cfg['generator']  # fallback to class name
 
+    # Determine encoder type
+    enc_target = cfg['config'].get('encoder', {}).get('_target_', cfg.get('encoder', ''))
+    if 'KMEEncoder' in str(enc_target) or 'kernel_mean' in str(enc_target):
+        encoder_type = 'kme'
+    elif 'DistributionEncoderTx' in str(enc_target) or 'EncoderTx' in str(enc_target):
+        encoder_type = 'tx'
+    elif 'Embedding' in str(enc_target):
+        encoder_type = 'embedding'
+    else:
+        encoder_type = 'distribution'
+
     return {
-        'encoder_type': 'embedding' if 'Embedding' in cfg['encoder'] else 'distribution',
+        'encoder_type': encoder_type,
         'generator_type': gen_type,
         'n_unique_sets': cfg['config']['dataset']['n_unique_sets'],
         'seed': cfg['config'].get('seed', 42),

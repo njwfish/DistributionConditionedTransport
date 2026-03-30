@@ -77,8 +77,23 @@ def load_model(cfg, path, device, num_epochs):
     return enc, gen
 
 
+def get_encoder_type(exp):
+    """Classify encoder type from experiment config."""
+    enc_target = exp['config'].get('encoder', {}).get('_target_', exp.get('encoder', ''))
+    enc_str = str(enc_target)
+    if 'KME' in enc_str or 'kernel_mean' in enc_str:
+        return 'kme'
+    elif 'DistributionEncoderTx' in enc_str or 'EncoderTx' in enc_str:
+        return 'tx'
+    elif 'Embedding' in enc_str:
+        return 'embedding'
+    else:
+        return 'gnn'
+
+
 def filter_experiments(configs, experiment_type='mvn', num_epochs=200,
-                       n_unique_sets=None, supervised=None, require_checkpoint=True):
+                       n_unique_sets=None, supervised=None, require_checkpoint=True,
+                       encoder_type=None):
     """Filter experiments by criteria."""
     import os
     filtered = []
@@ -98,6 +113,8 @@ def filter_experiments(configs, experiment_type='mvn', num_epochs=200,
             if cfg_n_unique != n_unique_sets:
                 continue
         if 'Embedding' in c.get('encoder', ''):
+            continue
+        if encoder_type is not None and get_encoder_type(c) != encoder_type:
             continue
         filtered.append(c)
     return filtered
@@ -540,22 +557,6 @@ def main():
     print("Loading experiment configs...")
     configs = get_all_experiments_info(args.output_dir)
 
-    # Find supervised experiments
-    supervised_exps = filter_experiments(
-        configs, args.experiment, args.num_epochs, supervised=True
-    )
-    print(f"Found {len(supervised_exps)} supervised {args.experiment} experiments")
-
-    # Find unsupervised (any-to-any) experiments with n_unique_sets=10000
-    unsupervised_exps = filter_experiments(
-        configs, args.experiment, args.num_epochs, n_unique_sets=10000, supervised=False
-    )
-    print(f"Found {len(unsupervised_exps)} unsupervised {args.experiment} experiments (n_unique_sets=10000)")
-
-    if not unsupervised_exps:
-        print("No unsupervised experiments found!")
-        return
-
     def get_generator_type(exp):
         gen_cfg = exp['config']['generator']
         gen_target = gen_cfg.get('_target_', '')
@@ -570,40 +571,59 @@ def main():
 
     all_results = []
 
-    for unsup_exp in unsupervised_exps:
-        gen_type = get_generator_type(unsup_exp)
-        seed = unsup_exp['config'].get('seed', 42)
+    # Iterate over encoder types
+    for enc_type in ['gnn', 'kme', 'tx']:
+        # Find supervised experiments for this encoder
+        supervised_exps = filter_experiments(
+            configs, args.experiment, args.num_epochs, supervised=True, encoder_type=enc_type
+        )
+        print(f"\nFound {len(supervised_exps)} supervised {args.experiment} experiments (encoder={enc_type})")
 
-        if args.generator and gen_type != args.generator:
+        # Find unsupervised (any-to-any) experiments with n_unique_sets=10000
+        unsupervised_exps = filter_experiments(
+            configs, args.experiment, args.num_epochs, n_unique_sets=10000, supervised=False, encoder_type=enc_type
+        )
+        print(f"Found {len(unsupervised_exps)} unsupervised {args.experiment} experiments (encoder={enc_type}, n_unique_sets=10000)")
+
+        if not unsupervised_exps:
+            print(f"No unsupervised experiments found for encoder={enc_type}, skipping")
             continue
-        if args.seed is not None and seed != args.seed:
-            continue
 
-        print(f"\n{'='*60}")
-        print(f"Generator: {gen_type}, Seed: {seed}")
-        print(f"{'='*60}")
+        for unsup_exp in unsupervised_exps:
+            gen_type = get_generator_type(unsup_exp)
+            seed = unsup_exp['config'].get('seed', 42)
 
-        # Find matching supervised experiment
-        sup_exp = None
-        for s in supervised_exps:
-            s_gen_type = get_generator_type(s)
-            if s_gen_type == gen_type and s['config'].get('seed', 42) == seed:
-                sup_n_unique = s['config']['dataset'].get('n_unique_sets', 10000)
-                if sup_n_unique == 10000:
-                    sup_exp = s
-                    break
+            if args.generator and gen_type != args.generator:
+                continue
+            if args.seed is not None and seed != args.seed:
+                continue
 
-        if sup_exp:
-            print(f"Found matching supervised experiment")
-        else:
-            print(f"No matching supervised experiment found")
+            print(f"\n{'='*60}")
+            print(f"Encoder: {enc_type}, Generator: {gen_type}, Seed: {seed}")
+            print(f"{'='*60}")
 
-        try:
-            results_df = evaluate_model_pair(sup_exp, unsup_exp, device, args, model_seed=seed)
-            results_df['generator'] = gen_type
-            results_df['seed'] = seed
+            # Find matching supervised experiment (same encoder, generator, seed)
+            sup_exp = None
+            for s in supervised_exps:
+                s_gen_type = get_generator_type(s)
+                if s_gen_type == gen_type and s['config'].get('seed', 42) == seed:
+                    sup_n_unique = s['config']['dataset'].get('n_unique_sets', 10000)
+                    if sup_n_unique == 10000:
+                        sup_exp = s
+                        break
 
-            all_results.append(results_df)
+            if sup_exp:
+                print(f"Found matching supervised experiment")
+            else:
+                print(f"No matching supervised experiment found")
+
+            try:
+                results_df = evaluate_model_pair(sup_exp, unsup_exp, device, args, model_seed=seed)
+                results_df['generator'] = gen_type
+                results_df['seed'] = seed
+                results_df['encoder'] = enc_type
+
+                all_results.append(results_df)
 
             # Print summary
             print("\nSummary (mean metrics):")
@@ -640,20 +660,22 @@ def main():
         print("FINAL SUMMARY")
         print("="*80)
 
-        for gen_type in combined_df['generator'].unique():
-            print(f"\n{gen_type}:")
-            gen_df = combined_df[combined_df['generator'] == gen_type]
-            id_mask = gen_df['in_distribution']
-
-            for method in ['supervised', 'semisupervised', 'oracle']:
-                method_df = gen_df[gen_df['method'] == method]
-                if len(method_df) == 0:
+        for enc_type in combined_df['encoder'].unique():
+            for gen_type in combined_df['generator'].unique():
+                subset = combined_df[(combined_df['encoder'] == enc_type) & (combined_df['generator'] == gen_type)]
+                if len(subset) == 0:
                     continue
-                id_mmd = method_df[method_df['in_distribution']]['mmd'].mean()
-                ood_mmd = method_df[~method_df['in_distribution']]['mmd'].mean()
-                id_swd = method_df[method_df['in_distribution']]['swd'].mean()
-                ood_swd = method_df[~method_df['in_distribution']]['swd'].mean()
-                print(f"  {method:20s}: ID MMD={id_mmd:.4f}, OOD MMD={ood_mmd:.4f}, ID SWD={id_swd:.4f}, OOD SWD={ood_swd:.4f}")
+                print(f"\n{enc_type} / {gen_type}:")
+
+                for method in ['supervised', 'semisupervised', 'oracle']:
+                    method_df = subset[subset['method'] == method]
+                    if len(method_df) == 0:
+                        continue
+                    id_mmd = method_df[method_df['in_distribution']]['mmd'].mean()
+                    ood_mmd = method_df[~method_df['in_distribution']]['mmd'].mean()
+                    id_swd = method_df[method_df['in_distribution']]['swd'].mean()
+                    ood_swd = method_df[~method_df['in_distribution']]['swd'].mean()
+                    print(f"  {method:20s}: ID MMD={id_mmd:.4f}, OOD MMD={ood_mmd:.4f}, ID SWD={id_swd:.4f}, OOD SWD={ood_swd:.4f}")
 
 
 if __name__ == '__main__':

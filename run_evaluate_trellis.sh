@@ -17,13 +17,21 @@ split=${split_names[$SLURM_ARRAY_TASK_ID]}
 echo "Evaluating model for split: ${split}"
 
 ## Standard trellis with ridge predictor
-python -u evaluate_trellis_experimental.py \
-    --match "experiment.name=trellis_a2a_light" \
-    --match "experiment.split_name=${split}" \
+cmd="python -u evaluate_trellis_experimental.py \
+    --match experiment.name=trellis_a2a \
+    --match experiment.split_name=${split} \
     --metric mmd \
     --predictor_loss mse \
     --cross_validate \
     --predict_delta \
     --compute_baseline \
-    --patient_cv \
-    --predictor_type ridge
+    --predictor_type ridge"
+
+if [[ "$split" != "replicas-1" && "$split" != "replicas-2" ]]; then
+    cmd="$cmd --patient_cv"
+    echo "Using patient_cv for split: ${split}"
+else
+    echo "Skipping patient_cv for replicas split: ${split}"
+fi
+
+eval $cmd

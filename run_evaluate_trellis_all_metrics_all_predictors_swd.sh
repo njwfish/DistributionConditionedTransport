@@ -36,7 +36,6 @@ echo "Job ${SLURM_ARRAY_TASK_ID}: Evaluating split=${split}, metric=${metric}, p
 # Build the base command
 cmd="python -u evaluate_trellis_experimental.py \
     --match experiment.name=trellis_a2a_swd \
-    --outputs_dir outputs_original_icml_submission_benchmarks \
     --match experiment.split_name=${split} \
     --metric ${metric} \
     --predictor_loss mse \

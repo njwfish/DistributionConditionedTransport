@@ -42,6 +42,7 @@ def compute_args_hash(args: argparse.Namespace) -> str:
     # Extract relevant arguments that affect the evaluation results
     args_dict = {
         'experiment_dir': args.experiment_dir,
+        'checkpoint_epoch': args.checkpoint_epoch,
         'match': sorted(args.match) if args.match else [],
         'outputs_dir': args.outputs_dir,
         'compute_baseline': args.compute_baseline,
@@ -568,6 +569,13 @@ def main():
         help="Directory containing experiment outputs"
     )
     parser.add_argument(
+        "--checkpoint_epoch",
+        type=int,
+        default=None,
+        help="Load a specific training checkpoint epoch from "
+             "'checkpoint_epoch_{N}.pt' instead of the default best_model.pt"
+    )
+    parser.add_argument(
         "--compute_baseline",
         action="store_true",
         help="Compute baseline metrics (x0 vs x1)"
@@ -678,7 +686,12 @@ def main():
             cfg.generator._target_ = "generator.direct_trellis_mfm.DirectGenerator"
     
     # Load experiment with the (possibly modified) config
-    encoder, generator, dataset, cfg = load_experiment(args.experiment_dir, device, cfg=cfg)
+    encoder, generator, dataset, cfg = load_experiment(
+        args.experiment_dir,
+        device,
+        cfg=cfg,
+        checkpoint_epoch=args.checkpoint_epoch,
+    )
     
     if is_mfm and args.use_predictor:
         raise ValueError("MFM models use zeros for target latent, so predictors are not applicable.")

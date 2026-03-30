@@ -120,7 +120,7 @@ def main():
     parser.add_argument(
         "--metric",
         type=str,
-        choices=["w1", "mmd_energy", "mmd_rbf", "swd"],
+        choices=["mmd_energy", "mmd_rbf", "swd"],
         default="mmd_energy",
     )
     parser.add_argument("--compute_baseline", action="store_true")

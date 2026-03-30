@@ -9,6 +9,9 @@
 
 export HYDRA_FULL_ERROR=1
 
+REPO_DIR="/orcd/data/omarabu/001/paolo/dct_trellis"
+source "${REPO_DIR}/activate_cellflow_env.sh"
+
 # Array of split names
 split_names=("replicas-1" "replicas-2" "pdo21" "pdo27" "pdo75")
 
@@ -16,5 +19,11 @@ split=${split_names[$SLURM_ARRAY_TASK_ID]}
 
 echo "Running CellFlow training for split: ${split}"
 
+python - <<'PY'
+import jax
+print("JAX devices:", jax.devices())
+PY
+
 python -u train_cellflow.py \
-    --split_name ${split}
+    --split_name "${split}" \
+    --num_iterations 20000

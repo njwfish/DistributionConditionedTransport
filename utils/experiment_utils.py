@@ -438,6 +438,7 @@ def load_experiment(
     experiment_dir: str, 
     device: torch.device,
     cfg: Optional[DictConfig] = None,
+    checkpoint_epoch: Optional[int] = None,
 ) -> Tuple[torch.nn.Module, torch.nn.Module, Any, DictConfig]:
     """
     Load the trained model and instantiate the components.
@@ -447,6 +448,8 @@ def load_experiment(
         device: Device to load the model on
         cfg: Optional pre-loaded config. If None, will load from experiment_dir.
              This allows callers to modify the config before instantiation.
+        checkpoint_epoch: Optional epoch number to load from
+            ``checkpoint_epoch_{N}.pt`` instead of ``best_model.pt``.
     
     Returns:
         encoder, generator, dataset, cfg
@@ -455,7 +458,12 @@ def load_experiment(
         cfg = load_config(experiment_dir)
     
     # Load checkpoint
-    checkpoint_path = os.path.join(experiment_dir, "best_model.pt")
+    if checkpoint_epoch is None:
+        checkpoint_path = os.path.join(experiment_dir, "best_model.pt")
+    else:
+        checkpoint_path = os.path.join(experiment_dir, f"checkpoint_epoch_{checkpoint_epoch}.pt")
+        if not os.path.exists(checkpoint_path):
+            raise ValueError(f"Checkpoint for epoch {checkpoint_epoch} not found in {experiment_dir}")
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     print(f"Loaded checkpoint from {checkpoint_path} (epoch {checkpoint.get('epoch', 'unknown')})")
     

@@ -6,19 +6,18 @@ A framework for learning latent representations of distributions and transport m
 
 ## Overview
 
-Distribution Conditioned Transport (DCT) is a meta-learning framework for distribution-to-distribution transport. Given a batch of source–target distribution pairs, the model:
+Distribution Conditioned Transport (DCT) is a framework for distribution-to-distribution transport. Given a batch of source–target distribution pairs, the model:
 
 1. **Encodes** each distribution (a set of samples) into a latent vector `z`.
 2. **Transports** source samples to the target distribution conditioned on `(z_source, z_target)`.
 
-This enables few-shot generalization: at inference time, the encoder can embed a previously unseen distribution from a small sample set, and the generator can transport samples to it without retraining.
 
 ---
 
 ## Repository Structure
 
 ```
-CoupledDistributionEmbeddings/
+DistributionConditionedTransport/
 ├── config/                        # Hydra configuration files
 │   ├── config.yaml                # Top-level defaults
 │   ├── dataset/                   # Dataset configs

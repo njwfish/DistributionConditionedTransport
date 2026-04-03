@@ -30,13 +30,13 @@ class TorchWrapper(nn.Module):
 
 class FlowMatchingGenerator(nn.Module):
     def __init__(
-        self, 
-        model, 
+        self,
+        model,
         sigma=0.3
     ):
         """
         Flow Matching Generator for coupled distribution embeddings.
-        
+
         Args:
             model: Neural network that predicts velocity field v_t(x_t, t, source_latent, target_latent)
             sigma: Noise level for numerical stability
@@ -152,7 +152,7 @@ class FlowMatchingGenerator(nn.Module):
         
         # MSE loss
         loss = torch.mean((v_pred - v_true) ** 2)
-        
+
         return loss
 
     def sample(self, source_samples, source_latent, target_latent, num_steps=100, return_trajectory=False):

@@ -4,8 +4,8 @@ from utils.latents import expand_latent_to_batch
 
 class EnergyGenerator(nn.Module):
     def __init__(
-        self, 
-        model, 
+        self,
+        model,
         sigma_min=0.1,
         noise_dim=16,
         m=16,
@@ -13,14 +13,13 @@ class EnergyGenerator(nn.Module):
     ):
         """
         Energy Generator for coupled distribution embeddings using energy score.
-        
+
         Args:
             model: Neural network that predicts x₀̂ = f_θ(x_t, t, z, ε)
             sigma_min: Minimum noise level for numerical stability
             noise_dim: Dimension of noise vector
             m: Number of samples for m-sample approximation in energy score
             lambda_energy: Weight for interaction term in energy score
-            condition_on_m: Whether to condition on M_t in the model
         """
         super().__init__()
         self.model = model

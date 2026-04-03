@@ -525,11 +525,11 @@ class Trainer:
             for batch in dataloader:
                 # TODO: legacy code was not using loss manager here, is there any specific reason for this?
                 # Use loss manager for consistent loss computation
-                with (torch.autocast(device_type='cuda', dtype=torch.bfloat16) if (bool(self.use_amp) and device.type == 'cuda') else contextlib.nullcontext()):
-                    loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
+                # AMP disabled - causes training instability (matches training loop)
+                loss, losses = loss_manager.loss(encoder, generator, predictor, batch, device)
                 total_loss += loss.item()
                 num_batches += 1
-        
+
         return total_loss / num_batches
     
     def generate_samples(self, encoder, generator, dataloader, num_samples=None, device=None):

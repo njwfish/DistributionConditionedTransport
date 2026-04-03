@@ -68,8 +68,8 @@ def load_model(cfg, path, device, num_epochs):
     gen = hydra.utils.instantiate(cfg['generator'])
 
     state = load_checkpoint(path, num_epochs)
-    enc.load_state_dict(state['encoder_state_dict'])
-    gen.load_state_dict(state['generator_state_dict'])
+    enc.load_state_dict(state['encoder_state_dict'], strict=False)
+    gen.load_state_dict(state['generator_state_dict'], strict=False)
 
     enc.eval().to(device)
     gen.eval().to(device)
@@ -93,9 +93,10 @@ def get_encoder_type(exp):
 
 def filter_experiments(configs, experiment_type='mvn', num_epochs=200,
                        n_unique_sets=None, supervised=None, require_checkpoint=True,
-                       encoder_type=None):
+                       encoder_type=None, checkpoint_epoch=None):
     """Filter experiments by criteria."""
     import os
+    ckpt_epoch = checkpoint_epoch if checkpoint_epoch is not None else num_epochs
     filtered = []
     for c in configs:
         if experiment_type not in c['name']:
@@ -105,7 +106,7 @@ def filter_experiments(configs, experiment_type='mvn', num_epochs=200,
             if is_supervised != supervised:
                 continue
         if require_checkpoint:
-            checkpoint_path = os.path.join(c['dir'], f'checkpoint_epoch_{num_epochs}.pt')
+            checkpoint_path = os.path.join(c['dir'], f'checkpoint_epoch_{ckpt_epoch}.pt')
             if not os.path.exists(checkpoint_path):
                 continue
         if n_unique_sets is not None:
@@ -430,14 +431,17 @@ def evaluate_model_pair(supervised_exp, unsupervised_exp, device, args, model_se
     """
     results = []
 
+    sup_ckpt = args.supervised_checkpoint_epoch or args.checkpoint_epoch
+    unsup_ckpt = args.unsupervised_checkpoint_epoch or args.checkpoint_epoch
+
     # Load unsupervised model (used for semisupervised and oracle)
-    print(f"Loading unsupervised (any-to-any) model at epoch {args.checkpoint_epoch}...")
-    enc_unsup, gen_unsup = load_model(unsupervised_exp['config'], unsupervised_exp['dir'], device, args.checkpoint_epoch)
+    print(f"Loading unsupervised (any-to-any) model at epoch {unsup_ckpt}...")
+    enc_unsup, gen_unsup = load_model(unsupervised_exp['config'], unsupervised_exp['dir'], device, unsup_ckpt)
 
     # Load supervised model if available
     if supervised_exp is not None:
-        print(f"Loading supervised model at epoch {args.checkpoint_epoch}...")
-        enc_sup, gen_sup = load_model(supervised_exp['config'], supervised_exp['dir'], device, args.checkpoint_epoch)
+        print(f"Loading supervised model at epoch {sup_ckpt}...")
+        enc_sup, gen_sup = load_model(supervised_exp['config'], supervised_exp['dir'], device, sup_ckpt)
 
         # Fit predictor using the exact same dataset as supervised training
         predictor, train_mse, dataset_info = fit_predictor_from_dataset(
@@ -531,6 +535,8 @@ def main():
     parser.add_argument('--experiment', type=str, default='mvn', choices=['mvn', 'gmm'])
     parser.add_argument('--num_epochs', type=int, default=200, help='Filter experiments that trained to this many epochs')
     parser.add_argument('--checkpoint_epoch', type=int, default=None, help='Load checkpoint at this epoch (defaults to num_epochs)')
+    parser.add_argument('--supervised_checkpoint_epoch', type=int, default=None, help='Load supervised checkpoint at this epoch (overrides checkpoint_epoch for supervised)')
+    parser.add_argument('--unsupervised_checkpoint_epoch', type=int, default=None, help='Load unsupervised checkpoint at this epoch (overrides checkpoint_epoch for unsupervised)')
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--save_dir', type=str, default='./supervised_comparison_results')
     parser.add_argument('--n_train', type=int, default=10000, help='Number of training samples for predictor (from supervised dataset)')
@@ -547,9 +553,13 @@ def main():
     if args.checkpoint_epoch is None:
         args.checkpoint_epoch = args.num_epochs
 
+    # Resolve per-model checkpoint epochs
+    sup_ckpt = args.supervised_checkpoint_epoch or args.checkpoint_epoch
+    unsup_ckpt = args.unsupervised_checkpoint_epoch or args.checkpoint_epoch
+
     device = args.device if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
-    print(f"Filtering experiments with {args.num_epochs} epochs, loading checkpoint at epoch {args.checkpoint_epoch}")
+    print(f"Loading supervised checkpoint at epoch {sup_ckpt}, unsupervised at epoch {unsup_ckpt}")
 
     Path(args.save_dir).mkdir(parents=True, exist_ok=True)
 
@@ -575,15 +585,17 @@ def main():
     for enc_type in ['gnn', 'kme', 'tx']:
         # Find supervised experiments for this encoder
         supervised_exps = filter_experiments(
-            configs, args.experiment, args.num_epochs, supervised=True, encoder_type=enc_type
+            configs, args.experiment, args.num_epochs, supervised=True, encoder_type=enc_type,
+            checkpoint_epoch=sup_ckpt
         )
-        print(f"\nFound {len(supervised_exps)} supervised {args.experiment} experiments (encoder={enc_type})")
+        print(f"\nFound {len(supervised_exps)} supervised {args.experiment} experiments (encoder={enc_type}, ckpt={sup_ckpt})")
 
         # Find unsupervised (any-to-any) experiments with n_unique_sets=10000
         unsupervised_exps = filter_experiments(
-            configs, args.experiment, args.num_epochs, n_unique_sets=10000, supervised=False, encoder_type=enc_type
+            configs, args.experiment, args.num_epochs, n_unique_sets=10000, supervised=False, encoder_type=enc_type,
+            checkpoint_epoch=unsup_ckpt
         )
-        print(f"Found {len(unsupervised_exps)} unsupervised {args.experiment} experiments (encoder={enc_type}, n_unique_sets=10000)")
+        print(f"Found {len(unsupervised_exps)} unsupervised {args.experiment} experiments (encoder={enc_type}, n_unique_sets=10000, ckpt={unsup_ckpt})")
 
         if not unsupervised_exps:
             print(f"No unsupervised experiments found for encoder={enc_type}, skipping")
@@ -625,25 +637,25 @@ def main():
 
                 all_results.append(results_df)
 
-            # Print summary
-            print("\nSummary (mean metrics):")
-            id_mask = results_df['in_distribution']
-            ood_mask = ~results_df['in_distribution']
+                # Print summary
+                print("\nSummary (mean metrics):")
+                id_mask = results_df['in_distribution']
+                ood_mask = ~results_df['in_distribution']
 
-            for method in results_df['method'].unique():
-                method_df = results_df[results_df['method'] == method]
-                id_mmd = method_df[id_mask[method_df.index]]['mmd'].mean()
-                ood_mmd = method_df[ood_mask[method_df.index]]['mmd'].mean()
-                print(f"  {method:20s}: ID MMD={id_mmd:.4f}, OOD MMD={ood_mmd:.4f}")
+                for method in results_df['method'].unique():
+                    method_df = results_df[results_df['method'] == method]
+                    id_mmd = method_df[id_mask[method_df.index]]['mmd'].mean()
+                    ood_mmd = method_df[ood_mask[method_df.index]]['mmd'].mean()
+                    print(f"  {method:20s}: ID MMD={id_mmd:.4f}, OOD MMD={ood_mmd:.4f}")
 
-        except Exception as e:
-            print(f"Error: {e}")
-            import traceback
-            traceback.print_exc()
-            continue
+            except Exception as e:
+                print(f"Error: {e}")
+                import traceback
+                traceback.print_exc()
+                continue
 
-        torch.cuda.empty_cache()
-        gc.collect()
+            torch.cuda.empty_cache()
+            gc.collect()
 
     # Combine all results
     if all_results:

@@ -14,7 +14,7 @@ defaults:
   - loss: default  # Default loss config
   - sampling: none  # Default sampling config
   - experiment: mvn  # Experiment-specific configurations (MUST come after components it overrides)
-  - override hydra/launcher: local  # Options: local, kempner, kempner_h100, kempner_requeue, kempner_mig
+  - override hydra/launcher: slurm  # Options: local, kempner, kempner_h100, kempner_requeue, kempner_mig
   - _self_
 
 # Basic experiment settings

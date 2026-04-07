@@ -1,0 +1,15 @@
+# @package _global_
+defaults:
+  - override /model: direct_mlp
+
+generator:
+  _target_: generator.direct.DirectGenerator
+  model: ${model}
+  coupling_weight: 10.0
+  coupling_anneal_schedule: "step"
+  coupling_anneal_steps: 1000
+  loss_type: mmd
+  noise_dim: ${experiment.latent_dim}
+  loss_params:
+    kernel: energy  # Use energy kernel (parameter-free, beta=1)
+                    # Alternative: 'rbf' for RBF kernel with median heuristic

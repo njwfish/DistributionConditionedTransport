@@ -3,6 +3,7 @@ import sys
 import argparse
 import hashlib
 import json
+from collections import defaultdict
 import numpy as np
 import torch
 import torch.nn as nn
@@ -24,6 +25,10 @@ from utils.experiment_utils import (
     find_experiment_dir,
 )
 from generator.losses import wasserstein, mmd, sliced_wasserstein_distance
+from datasets.trellis_drug_classes import (
+    TRELLIS_TREATMENT_CODES,
+    decode_treatment_code,
+)
 
 # ============================================================================
 # Checkpointing Utilities
@@ -56,6 +61,7 @@ def compute_args_hash(args: argparse.Namespace) -> str:
         'patient_holdout_fraction': args.patient_holdout_fraction,
         'folds_per_patient': args.folds_per_patient,
         'cheat_mode': args.cheat_mode,
+        'aggregate_by_drug_class': args.aggregate_by_drug_class,
     }
     
     # Create a deterministic JSON string and hash it
@@ -646,6 +652,12 @@ def main():
              "This is useful to understand the upper bound of predictor performance "
              "(how good it could be if we had perfect training data)."
     )
+    parser.add_argument(
+        "--aggregate_by_drug_class",
+        action="store_true",
+        help="Report FINAL RESULTS as mean±std over test samples grouped by Trellis "
+             "treatment code (O, S, VS, …), for parse_ablation_logs / aggregate_km.",
+    )
 
     args = parser.parse_args()
     
@@ -842,6 +854,7 @@ def main():
     for i in remaining_indices:
         sample = test_samples[i]
         culture, x0, x1, cell_cond_source, cell_cond_target, treat_cond, patient = sample
+        treat_code = decode_treatment_code(treat_cond)
         
         source_latent = test_source_latents[i:i+1]
         target_latent = test_target_latents[i:i+1]
@@ -867,7 +880,11 @@ def main():
         # Save to checkpoint
         checkpoint['completed_indices'].append(i)
         checkpoint['model_metrics'][str(i)] = float(model_metric)
-        checkpoint['sample_info'][str(i)] = {'culture': culture, 'patient': patient}
+        checkpoint['sample_info'][str(i)] = {
+            'culture': culture,
+            'patient': patient,
+            'treatment': treat_code,
+        }
         
         if args.compute_baseline:
             baseline_metric = results['baseline_metric']
@@ -904,13 +921,52 @@ def main():
     
     # Print final summary table
     print("\n" + "=" * 80)
-    print("FINAL RESULTS (mean +/- std)")
+    if args.aggregate_by_drug_class:
+        print("FINAL RESULTS BY TREATMENT CONDITION (mean +/- std over samples per code)")
+    else:
+        print("FINAL RESULTS (mean +/- std)")
     print(f"Checkpoint: {checkpoint_path}")
     print(f"Total samples evaluated: {len(final_model_metrics)}/{len(test_samples)}")
     print("=" * 80)
     
     if len(final_model_metrics) == 0:
         print("No samples evaluated yet.")
+    elif args.aggregate_by_drug_class:
+        final_treat_codes = []
+        for i in range(len(test_samples)):
+            if str(i) not in checkpoint['model_metrics']:
+                continue
+            _s = test_samples[i]
+            treat_cond_i = _s[5]
+            final_treat_codes.append(decode_treatment_code(treat_cond_i))
+
+        by_treat = defaultdict(list)
+        for m, code in zip(final_model_metrics, final_treat_codes):
+            by_treat[code].append(m)
+        order = [c for c in TRELLIS_TREATMENT_CODES if c in by_treat]
+        for code in order:
+            vals = by_treat[code]
+            mm = float(np.mean(vals))
+            ms = float(np.std(vals))
+            print(f"CLASS {code} {metric_name} Model: {mm:.4f} +/- {ms:.4f}  (n={len(vals)})")
+        if args.compute_baseline and final_baseline_metrics is not None:
+            by_treat_b = defaultdict(list)
+            for i in range(len(test_samples)):
+                if str(i) not in checkpoint['baseline_metrics']:
+                    continue
+                treat_cond_i = test_samples[i][5]
+                by_treat_b[decode_treatment_code(treat_cond_i)].append(
+                    checkpoint['baseline_metrics'][str(i)]
+                )
+            print("-" * 80)
+            print("Baseline (x0 vs x1) per treatment:")
+            for code in order:
+                vals = by_treat_b[code]
+                bm = float(np.mean(vals))
+                bs = float(np.std(vals))
+                print(
+                    f"CLASS {code} {metric_name} Baseline: {bm:.4f} +/- {bs:.4f}  (n={len(vals)})"
+                )
     else:
         model_mean = np.mean(final_model_metrics)
         model_std = np.std(final_model_metrics)

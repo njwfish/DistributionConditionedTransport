@@ -4,12 +4,12 @@
 split_name: "replicas-2"
 
 # Experiment name and description
-name: trellis_a2a_swd_undirectional
+name: trellis_a2a_swd_km
 description: "Trellis a2a swd experiment"
 
 defaults:
   - /dataset: trellis
-  - /encoder: gnn
+  - /encoder: kernel_mean
   - /generator: swd
   - /training: default20000
   - /loss: default

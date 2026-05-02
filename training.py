@@ -19,6 +19,7 @@ class Trainer:
         num_epochs=100,
         log_interval=10,
         save_interval=20,
+        checkpoint_interval=1000,
         eval_interval=5,
         sub_epoch_interval=1_000,
         early_stopping=True,
@@ -35,7 +36,9 @@ class Trainer:
         Args:
             num_epochs: Number of epochs to train for
             log_interval: How often to log training metrics (in batches)
-            save_interval: How often to save model checkpoints (in epochs)
+            save_interval: How often to run evaluation (in epochs); also controls
+                best_model.pt saves when a new best is found
+            checkpoint_interval: How often to save checkpoint_epoch_*.pt files (in epochs)
             eval_interval: How often to run evaluation (in epochs)
             early_stopping: Whether to use early stopping
             patience: Number of evaluations with no improvement before early stopping
@@ -44,6 +47,7 @@ class Trainer:
         self.num_epochs = num_epochs
         self.log_interval = log_interval
         self.save_interval = save_interval
+        self.checkpoint_interval = checkpoint_interval
         self.eval_interval = eval_interval
         self.sub_epoch_interval = sub_epoch_interval
         if sub_epoch is None:
@@ -362,7 +366,7 @@ class Trainer:
                 wandb.log(wandb_log, step=step)
             
             # Save model checkpoint at regular intervals
-            if (epoch + 1) % self.save_interval == 0:
+            if (epoch + 1) % self.checkpoint_interval == 0:
                 checkpoint_path = os.path.join(output_dir, f"checkpoint_epoch_{epoch+1}.pt")
                 
                 generator_state = generator.state_dict()

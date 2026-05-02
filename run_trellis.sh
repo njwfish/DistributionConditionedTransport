@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH -t 12:00:00
-#SBATCH --gres=gpu:a100:1
-#SBATCH --partition ou_bcs_normal
+#SBATCH --gres=gpu:1
+#SBATCH --partition ou_bcs_low
 #SBATCH --mem 100GB
-#SBATCH -o logs/otr_trellis_km_%a
-#SBATCH -e logs/etr_trellis_km_%a
+#SBATCH -o logs/otr_fm_ctt_%a
+#SBATCH -e logs/etr_fm_ctt_%a
 #SBATCH --array=0-4:1
 
 export HYDRA_FULL_ERROR=1
@@ -28,4 +28,4 @@ seed=${seeds[$seed_idx]}
 
 echo "Running job for split: ${split}, seed: ${seed}"
 
-python main.py experiment=trellis_fm_km experiment.split_name=${split} seed=${seed}
+python main.py experiment=trellis_fm_ctt experiment.split_name=${split} seed=${seed}

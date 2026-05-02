@@ -4,13 +4,13 @@
 split_name: "replicas-2"
 
 # Experiment name and description
-name: trellis_a2a_swd_undirectional
+name: trellis_a2a_energy_tx
 description: "Trellis a2a swd experiment"
 
 defaults:
   - /dataset: trellis
-  - /encoder: gnn
-  - /generator: swd
+  - /encoder: tx
+  - /generator: mmd
   - /training: default20000
   - /loss: default
   - /sampling: default

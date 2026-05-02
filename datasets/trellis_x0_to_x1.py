@@ -86,15 +86,9 @@ class trellis_dataset(Dataset):
         self.construct_data()
         end = time.time()
 
-    def get_train_predictor_bool(self, source_is_train, source_sample_idx, source_is_x0,
-                                  target_is_train, target_sample_idx, target_is_x0):
-        """
-        Returns True if source and target form the 'natural' (x0 -> x1) pairing 
-        from the same train sample.
-        """
-        return (source_is_train and target_is_train and 
-                source_sample_idx == target_sample_idx and 
-                source_is_x0 and not target_is_x0)
+    def get_train_predictor_bool(self, source_sample_idx, target_sample_idx):
+        """Returns True only for same-sample natural x0 -> x1 pairing."""
+        return source_sample_idx == target_sample_idx
 
     def construct_data(self):
         # Process train split
@@ -103,13 +97,9 @@ class trellis_dataset(Dataset):
         # Process test split
         self.samples_test = self.select_experiments(self.split_test)
         
-        # Compute total number of x populations for indexing
-        # Training only indexes train x0/x1 populations.
-        # Test samples stay available on self.samples_test for evaluation code,
-        # but they are excluded from the training dataset indexing space.
+        # Restrict source to x0 and target to x1 from train samples only.
         self.n_train = len(self.samples_train)
         self.n_test = len(self.samples_test)
-        self.total_x_populations = 2 * self.n_train
 
     def select_experiments(self, split):
         samples_tmp = []
@@ -210,71 +200,41 @@ class trellis_dataset(Dataset):
                         return True
         return False  # Return False if no empty dictionary is found after checking all items
 
-    def _flat_idx_to_x_info(self, flat_idx):
-        """
-        Map a flat index to x population info.
-        
-        Flat index layout:
-        - [0, 2*n_train): train samples, alternating x0 and x1
-          - flat_idx = 2*i => train sample i, x0
-          - flat_idx = 2*i+1 => train sample i, x1
-        
-        Returns: (x, cell_cond, treat_cond, culture, patient, is_from_train, sample_idx, is_x0)
-        """
-        if flat_idx >= 2 * self.n_train:
-            raise IndexError(f"flat_idx {flat_idx} out of bounds for {2 * self.n_train} train populations")
-
-        sample_idx = flat_idx // 2
-        is_x0 = (flat_idx % 2 == 0)
-        culture, x0, x1, cell_cond_x0, cell_cond_x1, treat_cond, patient = self.samples_train[sample_idx]
-        x = x0 if is_x0 else x1
-        cell_cond = cell_cond_x0 if is_x0 else cell_cond_x1
-        # treat_cond is only used when source_is_x0 (i.e., train_predictor_bool cases),
-        # so we always return it with x0's shape
-        return x, cell_cond, treat_cond, culture, patient, True, sample_idx, is_x0
-
     def __len__(self):
-        # Total pairs = (total x populations)^2
-        return self.total_x_populations ** 2
+        # Total pairs = (# train x0 sources) * (# train x1 targets)
+        return self.n_train ** 2
 
     def __getitem__(self, idx):
-        N = self.total_x_populations
-        
-        # Decompose idx into source and target flat indices
-        source_flat_idx = idx // N
-        target_flat_idx = idx % N
-        
-        # Get source info
-        source_x, source_cell_cond, source_treat_cond, source_culture, source_patient, \
-            source_is_train, source_sample_idx, source_is_x0 = self._flat_idx_to_x_info(source_flat_idx)
-        
-        # Get target info
-        target_x, target_cell_cond, _, _, _, \
-            target_is_train, target_sample_idx, target_is_x0 = self._flat_idx_to_x_info(target_flat_idx)
-        
-        source_samples = torch.tensor(source_x, dtype=torch.float)
-        target_samples = torch.tensor(target_x, dtype=torch.float)
-        
+        N = self.n_train
+        source_sample_idx = idx // N
+        target_sample_idx = idx % N
+
+        if source_sample_idx >= self.n_train or target_sample_idx >= self.n_train:
+            raise IndexError(f"idx {idx} out of bounds for dataset of length {len(self)}")
+
+        source_culture, source_x0, _, source_cell_cond_x0, _, source_treat_cond, source_patient = self.samples_train[source_sample_idx]
+        _, _, target_x1, _, target_cell_cond_x1, _, _ = self.samples_train[target_sample_idx]
+
+        source_samples = torch.tensor(source_x0, dtype=torch.float)
+        target_samples = torch.tensor(target_x1, dtype=torch.float)
+
         # Convert conditioning to tensors
-        cell_cond_source = torch.tensor(source_cell_cond, dtype=torch.float)
-        cell_cond_target = torch.tensor(target_cell_cond, dtype=torch.float)
-        
+        cell_cond_source = torch.tensor(source_cell_cond_x0, dtype=torch.float)
+        cell_cond_target = torch.tensor(target_cell_cond_x1, dtype=torch.float)
+
         source_subset_indices = np.random.choice(source_samples.shape[0], size=self.set_size, replace=False)
         target_subset_indices = np.random.choice(target_samples.shape[0], size=self.set_size, replace=False)
-            
+
         source_samples = source_samples[source_subset_indices]
         target_samples = target_samples[target_subset_indices]
-        
+
         # Subsample conditioning to match subsampled cells
         cell_cond_source = cell_cond_source[source_subset_indices]
         cell_cond_target = cell_cond_target[target_subset_indices]
-        
-        # Determine if this is a train predictor case (x0 -> x1 from same sample)
-        train_predictor_bool = self.get_train_predictor_bool(
-            source_is_train, source_sample_idx, source_is_x0,
-            target_is_train, target_sample_idx, target_is_x0
-        )
-        
+
+        # Natural train predictor case: same train sample, x0 -> x1
+        train_predictor_bool = self.get_train_predictor_bool(source_sample_idx, target_sample_idx)
+
         # treat_cond is only meaningful when train_predictor_bool is True
         # In all other cases, use zeros to indicate it's not applicable
         if train_predictor_bool:
@@ -282,7 +242,7 @@ class trellis_dataset(Dataset):
             treat_cond = treat_cond[source_subset_indices]
         else:
             treat_cond = torch.zeros(self.set_size, len(self.treatment), dtype=torch.float)
-        
+
         return {
             'source_samples': source_samples,
             'target_samples': target_samples,

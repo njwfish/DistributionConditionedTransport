@@ -1,0 +1,7 @@
+# @package _global_.dataset
+_target_: datasets.trellis_x0_to_x1.trellis_dataset
+
+split_name: ${experiment.split_name}
+set_size: ${experiment.set_size}
+
+data_shape: [43]
